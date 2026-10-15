@@ -41,7 +41,7 @@ AI  ：素材包/分片 ─DeepSeek(每个运营自己的 key)─> AI分析报�
 | `H:\直播运营中控台\` | 指向 `douyin-live-info` 的短路径（快捷方式） | 保留 |
 | `C:\Users\Administrator\Desktop\众艺传媒-直播运营中控台\` | **发给运营的转发夹**：只放最新安装包+便携版+说明+VC运行库 | ✅ 发版时更新 |
 | `_调试脚本\` | 本机测试脚本（e2e、批量合段验证、db-stats 等） | ✅ 复用 |
-| `_版本快照\` | 每版源码快照 zip（没装 git 之前的手工版本管理） | ✅ 每版加一个 |
+| `_版本快照\` | 装 Git 之前的手工源码快照（2.4.7 及以前）；现在改用 Git，见发版流程第 6 步 | 保留 |
 | `_文档\` | 方案、说明、手册、问题清单 | ✅ |
 
 **运营电脑上的位置**：程序 `%LOCALAPPDATA%\Programs\douyin-live-info`；
@@ -86,8 +86,10 @@ cmd /c "cd /d H:\360MoveData\Users\Administrator\Documents\ChatGPT\直播间拆�
 # 5) 本机静默安装验证
 Start-Process "<Setup.exe>" -ArgumentList "/S" -Wait
 
-# 6) 源码快照
-tar -a -c -f "_版本快照\App源码_2.4.x.zip" --exclude=node_modules --exclude=release -C douyin-live-info src electron public package.json electron-builder.yml
+# 6) 提交版本库（Git 已装：D:\APP\Git\cmd\git.exe）
+#    工作区根目录是一个仓库（App+文档）；D:\直播拆解工具 是引擎的另一个仓库
+& "D:\APP\Git\cmd\git.exe" -C "H:\360MoveData\Users\Administrator\Documents\ChatGPT\直播间拆解项目github" add -A
+& "D:\APP\Git\cmd\git.exe" -C "H:\360MoveData\Users\Administrator\Documents\ChatGPT\直播间拆解项目github" commit -m "2.4.x：改了什么"
 ```
 
 ---
@@ -122,7 +124,7 @@ tar -a -c -f "_版本快照\App源码_2.4.x.zip" --exclude=node_modules --exclud
 | 2.3.x | 10-14 | 首次把 douyin-live-info 与拆解引擎合并；授权、弹幕、录制成型 |
 | 2.4.x | 10-14~15 | 弹幕并入素材包；双场对比；AI 分析；素材包分片；界面重做 |
 | **2.4.7** | **10-15** | 修运营机 0B 录制（ffmpeg 定位）、AI 保存报错（IPC 克隆）、默认录制改 mp4、VC 运行库自带、GPU 自动回退 |
-| 2.4.8（待定） | — | 待修：批量拆解漏合并分段、无口播场次转写崩、磁盘清理误删范围（见 `_文档\代码梳理与问题清单_2026-10-15.md`） |
+| **2.4.8** | **10-15** | 修批量拆解漏合并分段、无口播/纯音乐转写崩（自动回退句级时间戳）、磁盘清理只删自家录像并保护在录在拆；本机装好 Git（D:\APP\Git），App 与引擎源码各自入库 |
 
 ---
 
