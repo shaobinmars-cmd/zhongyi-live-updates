@@ -7,7 +7,7 @@ if (process.env.APP_DEBUG_PORT) {
 }
 app.commandLine.appendSwitch('font-render-hinting', 'medium')
 import * as path from 'path'
-import { registerIpcHandlers, setMainWindow, cleanup } from './ipc-handlers'
+import { registerIpcHandlers, setMainWindow, cleanup, resumeAfterRestart } from './ipc-handlers'
 
 // 固定数据目录：以后改应用显示名时，授权 / 配置 / 日志都不会跟着搬家。
 // 不钉死的话，产品名一变 userData 就变，每个运营都得重新激活一次。
@@ -73,6 +73,11 @@ app.whenReady().then(() => {
   checkRevoked(loadTdConfig().revokeSource)
     .then((r) => setLicenseRevoked(r))
     .catch(() => { /* 查询失败不影响使用 */ })
+
+  // 上次是被强杀/电脑重启过：清掉残留的 ffmpeg，并自动恢复上次在录的直播间
+  setTimeout(() => {
+    resumeAfterRestart().catch(() => { /* 不影响启动 */ })
+  }, 4000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

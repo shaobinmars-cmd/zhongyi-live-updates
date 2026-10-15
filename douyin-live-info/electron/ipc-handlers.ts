@@ -20,6 +20,8 @@ import * as config from './services/record-config'
 import * as logger from './services/logger'
 import * as fs from 'fs'
 import * as path from 'path'
+import { execFile, spawn } from 'child_process'
+import * as recordState from './services/record-state'
 
 const LOG_MODULE = 'IPC'
 
@@ -39,6 +41,7 @@ const recordingManager = new RecordingManager()
 let mainWindow: BrowserWindow | null = null
 
 let watchdog: ReturnType<typeof setInterval> | null = null
+let pruneTimer: ReturnType<typeof setInterval> | null = null
 
 export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win
@@ -71,6 +74,12 @@ export function registerIpcHandlers(): void {
         logger.warn(LOG_MODULE, '磁盘看门狗出错', ex)
       }
     }, 5 * 60 * 1000)
+  }
+
+  // 弹幕库清理：启动跑一次，之后每 6 小时一次（默认保留 30 天）
+  db.pruneOld().catch(() => { /* ignore */ })
+  if (!pruneTimer) {
+    pruneTimer = setInterval(() => { db.pruneOld().catch(() => { /* ignore */ }) }, 6 * 60 * 60 * 1000)
   }
 
 
@@ -178,6 +187,8 @@ export function registerIpcHandlers(): void {
       return { ok: false, note: '分析失败：' + String(ex?.message || ex) }
     }
   })
+  // 中途停止 AI 分析（跑完的部分会落盘）
+  ipcMain.handle('ai:cancel', () => ai.cancelAnalyze())
 
   // ===== Record =====
   ipcMain.handle('license:status', () => (licenseRevoked
@@ -542,6 +553,56 @@ export function registerIpcHandlers(): void {
 
     return { success: true, dir: root, count }
   })
+}
+
+/**
+ * 上次进程被强杀（或电脑重启）时，ffmpeg 不会被一起带走。
+ * 启动时按命令行特征把残留的清掉，否则它们还在写文件、白占磁盘。
+ */
+async function killOrphanFfmpeg(): Promise<void> {
+  try {
+    const out = await new Promise<string>((resolve) => {
+      execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command',
+        "Get-CimInstance Win32_Process -Filter \"Name='ffmpeg.exe'\" | Where-Object { $_.CommandLine -like '*-f segment*' } | Select-Object -ExpandProperty ProcessId"],
+        { windowsHide: true, timeout: 15000 },
+        (_err, stdout) => resolve(String(stdout || ''))
+      )
+    })
+    const pids = out.split(/\s+/).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
+    for (const pid of pids) {
+      try { spawn('taskkill', ['/F', '/PID', String(pid)], { windowsHide: true }) } catch { /* ignore */ }
+    }
+    if (pids.length) logger.warn(LOG_MODULE, `开机清理上一次残留的 ffmpeg 进程：${pids.join(',')}`)
+  } catch { /* ignore */ }
+}
+
+/**
+ * 启动时的收尾：清孤儿 ffmpeg + 自动恢复上次在录的直播间。
+ * 7×24 场景最怕半夜崩了/重启了没人知道，第二天发现整晚没录。
+ */
+export async function resumeAfterRestart(): Promise<void> {
+  await killOrphanFfmpeg()
+  const st = recordState.load()
+  if (!st.rooms.length) return
+  if (Date.now() - st.savedAt > 6 * 60 * 60 * 1000) {
+    logger.info(LOG_MODULE, '上次的录制状态超过 6 小时，不自动恢复')
+    recordState.clear()
+    return
+  }
+  const l = licenseOk()
+  if (!l.ok) return
+  const cfg = config.loadConfig()
+  let started = 0
+  for (const r of st.rooms) {
+    if (recordingManager.has(r.roomId)) continue
+    const { success, pullUrl, nickname } = await getPullUrl(r.roomId)
+    if (!success) continue
+    if (recordingManager.startRecording(r.roomId, pullUrl, nickname || r.nickname, cfg.outputFormat)) started++
+  }
+  if (started) {
+    logger.info(LOG_MODULE, `崩溃/重启后自动恢复录制 ${started} 个直播间`)
+    mainWindow?.webContents.send('record:on-update', recordingManager.getState())
+  }
 }
 
 export async function cleanup(): Promise<void> {

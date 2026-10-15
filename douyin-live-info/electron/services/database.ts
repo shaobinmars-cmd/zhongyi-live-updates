@@ -8,6 +8,13 @@ const LOG_MODULE = 'Database'
 
 let dbInstance: SqlJsDatabase | null = null
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let dbPromise: Promise<SqlJsDatabase> | null = null
+
+/** 弹幕库里最多写多长的原始数据（完整 protobuf JSON 很大，不封顶库会飞一样涨） */
+const MAX_RAW_CHARS = 2000
+
+/** 弹幕保留天数：超过就自动清掉 */
+export const RETENTION_DAYS = 30
 
 function getDbPath(): string {
   return path.join(app.getPath('userData'), 'danmu.db')
@@ -15,7 +22,9 @@ function getDbPath(): string {
 
 async function getDb(): Promise<SqlJsDatabase> {
   if (dbInstance) return dbInstance
+  if (dbPromise) return dbPromise
 
+  dbPromise = (async () => {
   const SQL = await initSqlJs()
   const dbPath = getDbPath()
   const dir = path.dirname(dbPath)
@@ -29,6 +38,11 @@ async function getDb(): Promise<SqlJsDatabase> {
   }
 
   return dbInstance
+  })().catch((ex) => {
+    dbPromise = null   // 加载失败可重试，不要卡死
+    throw ex
+  })
+  return dbPromise
 }
 
 function saveDb(db: SqlJsDatabase): void {
@@ -36,7 +50,10 @@ function saveDb(db: SqlJsDatabase): void {
   const dbPath = getDbPath()
   const dir = path.dirname(dbPath)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(dbPath, Buffer.from(data))
+  // 先写临时文件再改名：断电/崩溃时不会把原库写坏
+  const tmp = dbPath + '.tmp'
+  fs.writeFileSync(tmp, Buffer.from(data))
+  fs.renameSync(tmp, dbPath)
 }
 
 function scheduleSave(): void {
@@ -53,6 +70,45 @@ export async function flushDb(): Promise<void> {
     saveTimer = null
   }
   if (dbInstance) saveDb(dbInstance)
+}
+
+/** 库里存的是 UTC；界面和导出统一换算成本机时间（以前直接显示，比实际早 8 小时） */
+function utcToLocalStamp(ts: string): string {
+  if (!ts) return ts
+  const d = new Date(ts.replace(' ', 'T') + 'Z')
+  if (isNaN(d.getTime())) return ts
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+/**
+ * 清理 N 天前的弹幕（默认 30 天），顺手紧缩文件。
+ * 7×24 盯几个直播间，消息会一直涨，不清理早晚吃满盘。
+ */
+export async function pruneOld(days = RETENTION_DAYS): Promise<{ removed: number }> {
+  const db = await getDb()
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().replace('T', ' ').substring(0, 19)
+  let removed = 0
+  try {
+    const rows = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'room_%'")
+    if (rows.length > 0) {
+      for (const row of rows[0].values) {
+        const t = String(row[0])
+        try {
+          db.run(`DELETE FROM [${t}] WHERE Time < ?`, [cutoff])
+          removed += db.getRowsModified()
+        } catch { /* 不是我们的表结构就跳过 */ }
+      }
+    }
+    if (removed > 0) {
+      try { db.run('VACUUM') } catch { /* ignore */ }
+      saveDb(db)
+      logger.info(LOG_MODULE, `清理 ${days} 天前的弹幕：删除 ${removed} 条`)
+    }
+  } catch (ex: any) {
+    logger.warn(LOG_MODULE, `清理旧弹幕失败：${ex.message}`)
+  }
+  return { removed }
 }
 
 function safeTableName(roomId: string): string {
@@ -105,8 +161,12 @@ export interface DanmuInsert {
 export function insertMessage(roomId: string, msg: DanmuInsert): void {
   getDb().then(db => {
     const tableName = safeTableName(roomId)
+    // 原始 protobuf JSON 很大，封个顶：不封的话一晚上就能把库撞到几百 MB
+    const raw = msg.rawData && msg.rawData.length > MAX_RAW_CHARS
+      ? msg.rawData.slice(0, MAX_RAW_CHARS) + '…(截断)'
+      : msg.rawData
     db.run(`INSERT INTO [${tableName}] (Time, Type, UserName, Content, GiftName, GiftCount, GiftPrice, LikeCount, Avatar, ProfileUrl, RawData) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [new Date().toISOString().replace('T', ' ').substring(0, 19), msg.type, msg.userName, msg.content, msg.giftName, msg.giftCount, msg.giftPrice, msg.likeCount, msg.avatar, msg.profileUrl, msg.rawData])
+      [new Date().toISOString().replace('T', ' ').substring(0, 19), msg.type, msg.userName, msg.content, msg.giftName, msg.giftCount, msg.giftPrice, msg.likeCount, msg.avatar, msg.profileUrl, raw])
     scheduleSave()
   }).catch((ex) => logger.error(LOG_MODULE, 'insertMessage失败', ex))
 }
@@ -180,7 +240,7 @@ export async function getRooms(): Promise<RoomInfo[]> {
       rooms.push({
         roomId,
         nickname: row[1] as string,
-        lastActive: row[2] as string,
+        lastActive: utcToLocalStamp(String(row[2] || '')),
         messageCount
       })
     }
@@ -231,7 +291,7 @@ export async function getMessages(roomId: string, typeFilter?: string, keyword?:
 
       messages.push({
         id: row[0] as number,
-        time: row[1] as string,
+        time: utcToLocalStamp(String(row[1] || '')),
         type,
         userName,
         content,

@@ -24,6 +24,17 @@ const LOG_MODULE = 'AiAnalyze'
 /** 单个分片最长等多久（AI 生成整份报告可能要几分钟） */
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000
 
+// ---- 可中途停止：分析多片可能要跑很久（一片最多等 15 分钟），运营不能干等 ----
+let cancelRequested = false
+let currentAbort: AbortController | null = null
+
+/** 停止 AI 分析（正在等回复的那一次也会被中断） */
+export function cancelAnalyze(): boolean {
+  cancelRequested = true
+  try { currentAbort?.abort() } catch { /* ignore */ }
+  return true
+}
+
 export interface AiConfig {
   enabled: boolean
   baseUrl: string
@@ -174,11 +185,14 @@ async function chatOnce(cfg: AiConfig, userContent: string): Promise<string> {
   const delays = [0, 6000, 20000]
   let lastErr: any = null
   for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (cancelRequested) throw new Error('已取消')
     if (delays[attempt] > 0) await new Promise((r) => setTimeout(r, delays[attempt]))
     try {
+      currentAbort = new AbortController()
       const res = await axios.post(url, body, {
         headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
-        timeout: REQUEST_TIMEOUT_MS
+        timeout: REQUEST_TIMEOUT_MS,
+        signal: currentAbort.signal
       })
       const { text, truncated } = pickText(res.data)
       if (!text) {
@@ -193,10 +207,13 @@ async function chatOnce(cfg: AiConfig, userContent: string): Promise<string> {
       return text
     } catch (ex: any) {
       lastErr = ex
+      if (cancelRequested) throw new Error('已取消')
       const status = ex?.response?.status
       logger.warn(LOG_MODULE, `AI 调用失败（第 ${attempt + 1} 次，HTTP ${status || '无'}）：${String(ex?.message || ex).slice(0, 120)}`)
       const retryable = !status || status === 429 || status === 502 || status === 503 || status === 504
       if (!retryable || attempt === delays.length - 1) break
+    } finally {
+      currentAbort = null
     }
   }
   throw lastErr || new Error('调用失败')
@@ -226,19 +243,9 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn): P
   onProgress?.({ stage: '开始分析', part: 0, total })
 
   const outputs: string[] = []
-  for (let i = 0; i < total; i++) {
-    const part = parts[i]
-    onProgress?.({ stage: total > 1 ? `正在分析第 ${i + 1}/${total} 片` : '正在分析', part: i + 1, total })
-    const body = total > 1
-      ? `【这是第 ${i + 1}/${total} 片】\n${part.timeRange ? `本片覆盖：${part.timeRange}\n` : ''}\n${part.content}`
-      : part.content
-    const answer = await chatOnce(cfg, body)
-    outputs.push(total > 1
-      ? `## 第 ${i + 1}/${total} 片${part.timeRange ? `（${part.timeRange}）` : ''}\n\n${answer.trim()}`
-      : answer.trim())
-    onProgress?.({ stage: `第 ${i + 1}/${total} 片完成`, part: i + 1, total })
-  }
+  cancelRequested = false
 
+  const reportPath = path.join(info.workDir, 'AI分析报告.md')
   const header = [
     '# AI 分析报告',
     '',
@@ -250,9 +257,45 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn): P
     '---',
     ''
   ].join('\n')
+  // 每跑完一片就落盘：中途停了/失败了，前面跑完的部分不白费
+  const writeReport = (partial: boolean): void => {
+    try {
+      fs.writeFileSync(reportPath,
+        header + outputs.join('\n\n---\n\n') +
+        (partial ? '\n\n---\n\n> ⚠ 这次分析没有跑完，以上是已经完成的部分。\n' : '\n'), 'utf-8')
+    } catch { /* ignore */ }
+  }
 
-  const reportPath = path.join(info.workDir, 'AI分析报告.md')
-  fs.writeFileSync(reportPath, header + outputs.join('\n\n---\n\n') + '\n', 'utf-8')
+  let cancelled = false
+  for (let i = 0; i < total; i++) {
+    if (cancelRequested) { cancelled = true; break }
+    const part = parts[i]
+    onProgress?.({ stage: total > 1 ? `正在分析第 ${i + 1}/${total} 片` : '正在分析', part: i + 1, total })
+    const body = total > 1
+      ? `【这是第 ${i + 1}/${total} 片】\n${part.timeRange ? `本片覆盖：${part.timeRange}\n` : ''}\n${part.content}`
+      : part.content
+    let answer = ''
+    try {
+      answer = await chatOnce(cfg, body)
+    } catch (ex) {
+      if (cancelRequested) { cancelled = true; break }
+      writeReport(true)
+      throw ex
+    }
+    outputs.push(total > 1
+      ? `## 第 ${i + 1}/${total} 片${part.timeRange ? `（${part.timeRange}）` : ''}\n\n${answer.trim()}`
+      : answer.trim())
+    writeReport(i < total - 1)
+    onProgress?.({ stage: `第 ${i + 1}/${total} 片完成`, part: i + 1, total })
+  }
+
+  if (cancelled) {
+    writeReport(true)
+    logger.info(LOG_MODULE, `AI 分析被停止，已完成 ${outputs.length}/${total} 片`)
+    onProgress?.({ stage: '已停止', total, text: reportPath })
+    return { ok: false, note: `已停止（完成 ${outputs.length}/${total} 片，跑完的部分已存到 AI分析报告.md）` }
+  }
+
   logger.info(LOG_MODULE, `AI 分析完成：${reportPath}`)
   onProgress?.({ stage: '完成', total, text: reportPath })
 

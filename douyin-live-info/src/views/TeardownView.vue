@@ -235,6 +235,7 @@
               <n-button size="tiny" type="primary" @click="onExport">导出素材包</n-button>
               <n-button size="tiny" @click="onCopy">{{ copied ? '已复制' : '复制全文' }}</n-button>
               <n-button size="tiny" type="info" :loading="aiBusy" @click="onAnalyze">AI 分析</n-button>
+              <n-button v-if="aiBusy" size="tiny" type="warning" @click="onCancelAnalyze">停止分析</n-button>
               <n-button v-if="aiReportPath" size="tiny" @click="openTarget(aiReportPath)">打开分析报告</n-button>
               <n-button size="tiny" @click="openTarget(packet.workDir)">打开输出目录</n-button>
               <span class="packet-meta">
@@ -422,6 +423,14 @@ async function onAnalyze() {
   } finally {
     aiBusy.value = false
   }
+}
+
+/** 中途停止：已经跑完的片会保存到「AI分析报告.md」 */
+async function onCancelAnalyze() {
+  try {
+    await api().aiCancel()
+    aiStage.value = '正在停止…'
+  } catch { /* ignore */ }
 }
 const running = computed(() => td.running)
 const stage = computed(() => td.stage)
@@ -667,6 +676,8 @@ watch(() => td.model, () => { recheckEnv() })
 
 onMounted(async () => {
   td.setupListeners()
+  // 每次进页面先清掉旧的（否则来回切页会越叠越多）
+  api().removeAiListeners()
   api().onAiProgress((p: any) => { if (p && p.stage) aiStage.value = p.stage })
   await td.refreshConfig()
   limitInput.value = td.contextLimit

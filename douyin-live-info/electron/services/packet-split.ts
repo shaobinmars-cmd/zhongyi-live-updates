@@ -126,6 +126,40 @@ function singlePart(text: string, total: number, limit: number, note: string): S
   }
 }
 
+/** 兜底切分：拿不到话术段时按行顺序切，绝不再把超大整包直接丢给 AI */
+function splitFallback(text: string, total: number, limit: number, why: string): SplitResult {
+  const lines = text.split('\n')
+  const budget = Math.max(limit - 600, Math.floor(limit * 0.6))
+  const groups: string[][] = []
+  let cur: string[] = []
+  let used = 0
+  for (const line of lines) {
+    const t = estimateTokens(line) + 1
+    if (cur.length > 0 && used + t > budget) { groups.push(cur); cur = []; used = 0 }
+    cur.push(line)
+    used += t
+  }
+  if (cur.length) groups.push(cur)
+  const parts: PacketPart[] = groups.map((g, gi) => {
+    const content = [
+      `# 直播拆解素材包（第 ${gi + 1} / ${groups.length} 部分）`,
+      '',
+      `> ${why}，已按内容顺序切分（共 ${groups.length} 份）。请只就本片给结论。`,
+      '',
+      ...g
+    ].join('\n').replace(/\n{4,}/g, '\n\n\n').trimEnd() + '\n'
+    return {
+      index: gi + 1, total: groups.length,
+      fileName: `拆解素材包_p${String(gi + 1).padStart(2, '0')}of${String(groups.length).padStart(2, '0')}.md`,
+      filePath: '', timeRange: '', chars: content.length, tokens: estimateTokens(content), content
+    }
+  })
+  return {
+    totalTokens: total, limit, split: true, parts,
+    note: `全文约 ${total} token，超过预算 ${limit}；${why}，已按内容顺序切成 ${parts.length} 份。`
+  }
+}
+
 export function splitPacket(text: string, limit: number): SplitResult {
   const total = estimateTokens(text)
   if (!limit || limit <= 0) limit = 24000
@@ -137,12 +171,13 @@ export function splitPacket(text: string, limit: number): SplitResult {
   const parsed = parsePacket(text)
   const talk = findBy(parsed.sections, '逐句话术稿')
   if (!talk) {
-    return singlePart(text, total, limit, '没找到「逐句话术稿」小节，无法按句子切分。')
+    // 没有话术段（纯音乐/静音场）：以前直接返回整包，等于没拆，AI 请求会超上下文
+    return splitFallback(text, total, limit, '没找到「逐句话术稿」小节')
   }
 
   const itemLines = talk.body.split('\n').filter((l) => ITEM_RE.test(l))
   if (itemLines.length < 2) {
-    return singlePart(text, total, limit, '话术稿太短，无法切分。')
+    return splitFallback(text, total, limit, '话术稿太短')
   }
 
   const meta = findBy(parsed.sections, '基本信息')

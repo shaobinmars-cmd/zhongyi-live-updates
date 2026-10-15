@@ -1,6 +1,7 @@
 import { StreamRecorder } from './stream-recorder'
 import { formatFileSize } from './format'
 import * as logger from './logger'
+import * as recordState from './record-state'
 
 const LOG_MODULE = 'RecordingManager'
 
@@ -42,6 +43,7 @@ export class RecordingManager {
         }
         this.recorders.delete(roomId)
         this.onUpdate?.()
+        this.persist()
       }
     })
 
@@ -61,6 +63,7 @@ export class RecordingManager {
     })
 
     logger.info(LOG_MODULE, `开始录制 roomId=${roomId} nickname=${nickname} format=${format}`)
+    this.persist()
     return true
   }
 
@@ -75,6 +78,7 @@ export class RecordingManager {
       item.isActive = false
       item.statusText = '已停止'
     }
+    this.persist()
     this.onUpdate?.()
   }
 
@@ -90,6 +94,7 @@ export class RecordingManager {
     }
     this.recorders.clear()
     if (count) logger.info(LOG_MODULE, `停止全部录制 count=${count}`)
+    this.persist()
     this.onUpdate?.()
   }
 
@@ -117,6 +122,15 @@ export class RecordingManager {
   /** 正在录的房间号，用于退出前记录/恢复 */
   activeRoomIds(): string[] {
     return Array.from(this.recorders.keys())
+  }
+
+
+  /** 把当前在录的场次写到磁盘（崩溃/重启后靠它恢复） */
+  private persist(): void {
+    recordState.save(Array.from(this.recorders.keys()).map((roomId) => ({
+      roomId,
+      nickname: this.items.get(roomId)?.nickname || ''
+    })))
   }
 
   /** 正在录的场次文件名前缀（磁盘清理要避开这些文件） */

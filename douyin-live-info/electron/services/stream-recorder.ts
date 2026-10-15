@@ -79,7 +79,8 @@ export class StreamRecorder {
       return false
     }
 
-    const stamp = new Date().toISOString().replace(/[-:T]/g, '').substring(0, 14)
+    // 文件名用本机时间戳（以前用 UTC，运营按文件名找场次会对不上号）
+    const stamp = localStamp()
     this.prefix = `${this.safeName}_${stamp}`
     // 写一份旁注：这场录的是哪个房间、什么时候开始。
     // 拆解时靠它把「弹幕/礼物」按时间段并进素材包（没有它就对不上号）。
@@ -324,6 +325,13 @@ export class StreamRecorder {
   get filePrefix(): string {
     return this.prefix
   }
+}
+
+/** 本机时间戳 YYYYMMDDHHMMSS */
+function localStamp(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
 }
 
 export function resolveFfmpegPath(): string {
