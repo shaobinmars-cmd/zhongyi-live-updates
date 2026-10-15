@@ -1,0 +1,21 @@
+# ===== 依赖与打包产物（可重新生成/体积大）=====
+douyin-live-info/node_modules/
+douyin-live-info/release/
+douyin-live-info/dist/
+douyin-live-info/dist-electron/
+douyin-live-info/.icon-ico/
+
+# ===== 第三方二进制（本机已有，不进版本库）=====
+*.exe
+*.dll
+*.7z
+*.zip
+
+# ===== 授权与密钥：绝不入库 =====
+douyin-live-info/tools/授权密钥/
+douyin-live-info/授权*.json
+
+# ===== 快照与临时文件 =====
+_版本快照/
+_调试脚本/_*/
+*.log

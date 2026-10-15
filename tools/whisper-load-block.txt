@@ -1,0 +1,41 @@
+    model_name = os.environ.get("WHISPER_MODEL", "base")
+    # 转写用哪个设备：cpu（默认）/ cuda / auto。
+    # 注意：包里的 ctranslate2 是带 CUDA 的构建，但 CUDA 的 cublas/cudnn 没有随包发，
+    # 所以选了 GPU 而本机又没装 CUDA 运行库时，这里会自动回退到 CPU，不会像以前那样直接崩。
+    want = (os.environ.get("WHISPER_DEVICE") or "cpu").strip().lower()
+    if want not in ("cpu", "cuda", "auto"):
+        want = "cpu"
+    print(f"[whisper] 正在加载模型 {model_name}（设备：{want}，首次使用会自动下载）…",
+          file=sys.stderr, flush=True)
+
+    model = None
+    last_err = None
+    # 先试想要的设备，失败就回退 CPU；每个设备都先联网试一次、再只用本地缓存试一次
+    for dev in ([want, "cpu"] if want != "cpu" else ["cpu"]):
+        for offline in (False, True):
+            try:
+                if offline:
+                    os.environ["HF_HUB_OFFLINE"] = "1"
+                model = WhisperModel(model_name, device=dev, compute_type="int8")
+                break
+            except Exception as exc:
+                last_err = exc
+                if not offline:
+                    print(f"[whisper] {dev} 加载失败（{exc}），改用本地缓存重试…",
+                          file=sys.stderr, flush=True)
+        if model is not None:
+            if dev != want:
+                print("[whisper] GPU 用不了，已回退用 CPU 转写（结果一样，只是慢些）。",
+                      file=sys.stderr, flush=True)
+                print("[whisper] 想真正用上 GPU：需要在这台电脑装 CUDA 运行库"
+                      "（cublas + cudnn，且显卡驱动要够新）。",
+                      file=sys.stderr, flush=True)
+            break
+        if dev != "cpu":
+            print(f"[whisper] GPU（{dev}）不可用：{last_err}", file=sys.stderr, flush=True)
+
+    if model is None:
+        raise RuntimeError(
+            f"转写模型加载失败：{last_err}\n"
+            "原因通常是：本机还没下载过这个语音模型，或者网络访问不了 hf-mirror.com。\n"
+            "处理：连上网后点一次「下载/校验模型」；仍不行就双击「检查环境.bat」看自检结果。")

@@ -1,0 +1,29 @@
+
+# 如果给包里的 Python 装过 NVIDIA 的 CUDA 库（nvidia-cublas-cu12 / nvidia-cudnn-cu12），
+# 这里把它们的 bin 目录加进 DLL 搜索路径。
+# 不加这一步，即使装了库，ctranslate2 也找不到 cublas64_12.dll / cudnn，
+# 选 GPU 就会在“开始推理”那一刻报 Library ... is not found。
+def _add_nvidia_dll_dirs() -> None:
+    import os
+    for sp in list(sys.path):
+        if not sp or not sp.endswith("site-packages"):
+            continue
+        root = os.path.join(sp, "nvidia")
+        if not os.path.isdir(root):
+            continue
+        try:
+            names = os.listdir(root)
+        except OSError:
+            continue
+        for name in names:
+            d = os.path.join(root, name, "bin")
+            if not os.path.isdir(d):
+                continue
+            os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+            try:
+                os.add_dll_directory(d)
+            except Exception:
+                pass
+
+
+_add_nvidia_dll_dirs()

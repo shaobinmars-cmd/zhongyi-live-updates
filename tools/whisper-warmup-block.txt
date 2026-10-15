@@ -1,0 +1,16 @@
+
+    # GPU 情况下，ctranslate2 是到「真正开始推理」时才去加载 cublas64_12.dll 的 ——
+    # 所以「模型加载成功」不等于「GPU 能用」。这里先拿 1 秒静音试跑一次：
+    # 有问题就在这一步暴露、就地回退 CPU，不至于跑到一半才失败。
+    if used_dev and used_dev != "cpu":
+        try:
+            import numpy as _np
+            _seg, _ = model.transcribe(_np.zeros(16000, dtype="float32"),
+                                       language=lang, without_timestamps=True)
+            for _ in _seg:      # 生成器是惰性的，必须真正取一次才会执行推理
+                break
+            print("[whisper] GPU 试跑通过，开始用显卡转写…", file=sys.stderr, flush=True)
+        except Exception as _exc:
+            print(f"[whisper] GPU 推理用不了（{_exc}），改用 CPU 重新加载并转写…",
+                  file=sys.stderr, flush=True)
+            model = WhisperModel(model_name, device="cpu", compute_type="int8")

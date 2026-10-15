@@ -1,0 +1,36 @@
+appId: com.douyin.live-info
+productName: 众艺传媒-抖音直播运营工具
+directories:
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - sign.js
+  - ffmpeg.exe
+extraResources:
+  - from: sign.js
+    to: sign.js
+  - from: ffmpeg.exe
+    to: ffmpeg.exe
+  # 拆解引擎：只带运行必需的东西，不带录像/归档/发布包
+  - from: "D:\\直播拆解工具"
+    to: engine
+    filter:
+      - "python-embed/**/*"
+      - "scripts/**/*"
+      - "bin/**/*"
+      - "直播拆解工具.py"
+  # 安装时自动装 VC++ 运行库（老电脑上 MSVCP140.dll 过旧会让转写直接崩）
+  - from: build/vc_redist.x64.exe
+    to: vc_redist.x64.exe
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh
+portable:
+  artifactName: "${productName}-${version}-Portable.${ext}"
