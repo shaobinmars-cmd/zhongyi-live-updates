@@ -1,0 +1,93 @@
+==== 0. ENGINE PATH ==== 
+C:\Users\Administrator\AppData\Local\Programs\douyin-live-info\resources\engine\python-embed\python.exe 
+==== 1. CPU ==== 
+
+
+Name                      : Intel(R) Xeon(R) CPU E5-2666 v3 @ 2.90GHz
+NumberOfCores             : 10
+NumberOfLogicalProcessors : 20
+MaxClockSpeed             : 2901
+
+
+
+==== 2. MEMORY ==== 
+TotalPhysicalMemory(GB): 31.9
+FreePhysicalMemory(GB): 18.1
+TotalVisibleMemorySize(GB): 31.9
+==== 3. ANTIVIRUS ==== 
+SecurityCenter2: no antivirus registered
+Defender status: not available on this PC
+==== 4. PYTHON ==== 
+3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]
+ERRORLEVEL=0 
+ctranslate2 4.8.2
+cuda_devices 0
+cpu_types {'float32', 'int16', 'int8_float32', 'int8'}
+ERRORLEVEL=0 
+==== 5. LOAD small ON CPU ==== 
+LOADED OK cpu
+ERRORLEVEL=0 
+==== 6. LOAD small AUTO ==== 
+LOADED OK auto
+ERRORLEVEL=0 
+==== 7. LOAD small FLOAT32 ==== 
+LOADED OK float32
+ERRORLEVEL=0 
+==== 8. MODEL CACHE ==== 
+ Volume in drive C has no label.
+ Volume Serial Number is 0223-289D
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small
+
+2026/10/10  17:09    <DIR>          .
+2026/10/10  17:09    <DIR>          ..
+2026/10/10  17:09    <DIR>          blobs
+2026/10/10  17:08    <DIR>          refs
+2026/10/10  17:08    <DIR>          snapshots
+2026/10/10  17:08    <DIR>          trees
+               0 File(s)              0 bytes
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small\blobs
+
+2026/10/10  17:09    <DIR>          .
+2026/10/10  17:09    <DIR>          ..
+2026/10/10  17:09       483,546,902 3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671
+2026/10/10  17:08         2,203,239 7818adb6de9fa3064d3ff81226fdd675be1f6344
+2026/10/10  17:08           459,861 c9074644d9d1205686f16d411564729461324b75
+2026/10/10  17:08             2,370 e5047537059bd8f182d9ca64c470201585015187
+               4 File(s)    486,212,372 bytes
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small\refs
+
+2026/10/10  17:08    <DIR>          .
+2026/10/10  17:08    <DIR>          ..
+2026/10/10  17:08                40 main
+               1 File(s)             40 bytes
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small\snapshots
+
+2026/10/10  17:08    <DIR>          .
+2026/10/10  17:08    <DIR>          ..
+2026/10/10  17:09    <DIR>          536b0662742c02347bc0e980a01041f333bce120
+               0 File(s)              0 bytes
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small\snapshots\536b0662742c02347bc0e980a01041f333bce120
+
+2026/10/10  17:09    <DIR>          .
+2026/10/10  17:09    <DIR>          ..
+2026/10/10  17:08    <SYMLINK>      config.json [..\..\blobs\e5047537059bd8f182d9ca64c470201585015187]
+2026/10/10  17:09    <SYMLINK>      model.bin [..\..\blobs\3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671]
+2026/10/10  17:08    <SYMLINK>      tokenizer.json [..\..\blobs\7818adb6de9fa3064d3ff81226fdd675be1f6344]
+2026/10/10  17:08    <SYMLINK>      vocabulary.txt [..\..\blobs\c9074644d9d1205686f16d411564729461324b75]
+               4 File(s)              0 bytes
+
+ Directory of C:\Users\Administrator\.cache\huggingface\hub\models--Systran--faster-whisper-small\trees
+
+2026/10/10  17:08    <DIR>          .
+2026/10/10  17:08    <DIR>          ..
+2026/10/10  17:08               867 536b0662742c02347bc0e980a01041f333bce120.json
+               1 File(s)            867 bytes
+
+     Total Files Listed:
+              10 File(s)    486,213,279 bytes
+              17 Dir(s)  37,114,777,600 bytes free
