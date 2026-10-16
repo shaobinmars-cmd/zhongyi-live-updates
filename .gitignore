@@ -1,9 +1,12 @@
 # ===== 依赖与打包产物（可重新生成/体积大）=====
-douyin-live-info/node_modules/
-douyin-live-info/release/
-douyin-live-info/dist/
-douyin-live-info/dist-electron/
-douyin-live-info/.icon-ico/
+源码/node_modules/
+源码/release/
+源码/dist/
+源码/dist-electron/
+源码/.icon-ico/
+
+# 「安装包」是指向 源码/release 的链接文件夹，里面是打包产物，不入库
+安装包/
 
 # ===== 第三方二进制（本机已有，不进版本库）=====
 *.exe
@@ -12,10 +15,12 @@ douyin-live-info/.icon-ico/
 *.zip
 
 # ===== 授权与密钥：绝不入库 =====
-douyin-live-info/tools/授权密钥/
-douyin-live-info/授权*.json
+源码/tools/授权密钥/
+源码/授权*.json
 
 # ===== 快照与临时文件 =====
-_版本快照/
-_调试脚本/_*/
+开发记录/_版本快照/
+开发记录/_调试脚本/_*/
+开发记录/备份/
+源码/_dev工具/e2e-out/
 *.log
