@@ -230,7 +230,13 @@ export async function appendDanmuSection(
     return null
   }
 
-  const to = addSeconds(meta.startedAtUtc, durationSec > 0 ? durationSec : 3600 * 6)
+  // 时长优先用引擎给的；没有的话上层会用 ffmpeg 探一次。
+  // 都拿不到时只取 3 小时窗口 —— 以前默认 6 小时，会把同一房间后面那场的弹幕也并进来。
+  const windowSec = durationSec > 0 ? durationSec : 3600 * 3
+  if (durationSec <= 0) {
+    logger.info(LOG_MODULE, `没拿到本场时长，弹幕按 ${windowSec / 3600} 小时窗口并入（房间 ${meta.roomId}）`)
+  }
+  const to = addSeconds(meta.startedAtUtc, windowSec)
   const rows = await getDanmuWindow(meta.roomId, meta.startedAtUtc, to)
   if (!rows.length) {
     logger.info(LOG_MODULE, `这段时间没有弹幕记录（房间 ${meta.roomId}），跳过`)

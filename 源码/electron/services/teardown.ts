@@ -481,6 +481,41 @@ function readDuration(workDir: string): number {
   return 0
 }
 
+/**
+ * 引擎产物里没写时长时，直接拿 ffmpeg 探一次录像长度（秒）。
+ * 为什么需要：弹幕并入素材包要按“本场从几点到几点”取数据，
+ * 以前拿不到时长就默认按 6 小时算，会把同一房间后面那场的弹幕也并进来。
+ */
+export function probeDurationSec(video: string): Promise<number> {
+  return new Promise((resolve) => {
+    const ffmpeg = engineStatus().ffmpeg
+    if (!ffmpeg || !fs.existsSync(ffmpeg) || !video || !fs.existsSync(video)) return resolve(0)
+    let settled = false
+    const done = (v: number) => {
+      if (settled) return
+      settled = true
+      try { p.kill() } catch { /* ignore */ }
+      resolve(v)
+    }
+    let p: ChildProcess
+    try {
+      p = spawn(ffmpeg, ['-hide_banner', '-i', video], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] })
+    } catch {
+      return resolve(0)
+    }
+    let err = ''
+    p.stderr?.on('data', (c: Buffer) => {
+      err += c.toString()
+      // ffmpeg 读完文件头就会打 Duration，不用等它把整个文件读完
+      const m = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(err)
+      if (m) done(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]))
+    })
+    p.on('error', () => done(0))
+    p.on('exit', () => done(0))
+    setTimeout(() => done(0), 30000)
+  })
+}
+
 
 function splitLines(buf: string, push: (line: string) => void): string {
   let rest = buf
@@ -525,12 +560,10 @@ export function start(input: string, model = 'small'): TeardownState {
   state.workDir = workDirFor(input)
   emitState()
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    PYTHONUTF8: '1',
-    WHISPER_DEVICE: tdConfig.load().whisperDevice || 'cpu',
-    PYTHONIOENCODING: 'utf-8'
-  }
+  // 和下载脚本用同一套环境（UTF-8 + 模型镜像），不然运营机可能连不上 huggingface
+  const env: NodeJS.ProcessEnv = engineEnv({
+    WHISPER_DEVICE: tdConfig.load().whisperDevice || 'cpu'
+  })
 
   logger.info(LOG_MODULE, `开始拆解 input=${input} model=${model}`)
 
@@ -607,7 +640,12 @@ export function start(input: string, model = 'small'): TeardownState {
       try {
         const video = pickMerged(input) || resolveVideo(input)
         if (video) {
-          const merged = await appendDanmuSection(state.workDir, video, readDuration(state.workDir))
+          let dur = readDuration(state.workDir)
+          if (!dur) {           // 引擎没写时长：自己探一次，别默认按 6 小时算
+            dur = await probeDurationSec(video)
+            if (dur > 0) pushLine(`—— 本场时长 ${Math.round(dur / 60)} 分钟（现场探得）——`)
+          }
+          const merged = await appendDanmuSection(state.workDir, video, dur)
           if (merged) pushLine('—— 已把本场弹幕/礼物并入素材包（第七节）——')
         }
       } catch (ex: any) {
@@ -688,4 +726,120 @@ export function resplit(input: string, limit?: number): SplitResult | null {
   if (!info || !info.split) return null
   if (info.split.split) writeParts(info.workDir, info.split.parts)
   return info.split
+}
+
+// ------------------------------------------------- 转写模型 / GPU 运行库（一键下载）
+
+export interface PrefetchEvent {
+  kind: 'model' | 'gpu'
+  running: boolean
+  line?: string
+}
+
+let prefetchHandler: ((e: PrefetchEvent) => void) | null = null
+let prefetchProc: ChildProcess | null = null
+let prefetchingKind: '' | 'model' | 'gpu' = ''
+
+export function setPrefetchHandler(cb: (e: PrefetchEvent) => void): void { prefetchHandler = cb }
+
+/** 给引擎的 Python 传一份和拆解时一致的环境（UTF-8 + 模型镜像） */
+function engineEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8',
+    // 关键：不设这个，运营机下载模型会去 huggingface.co（国内连不上）
+    HF_ENDPOINT: process.env.HF_ENDPOINT || 'https://hf-mirror.com',
+    HF_HUB_DISABLE_XET: '1',
+    ...extra
+  }
+}
+
+/**
+ * 跑一个引擎自带的下载脚本（prefetch_model.py / prefetch_gpu.py），
+ * 输出一行一行推给界面，同时也写进日志。
+ */
+export function prefetch(kind: 'model' | 'gpu', args: string[] = []): Promise<{ ok: boolean; message: string }> {
+  const status = engineStatus()
+  if (!status.ok) {
+    return Promise.resolve({ ok: false, message: '拆解引擎不完整，先确认引擎目录对不对。' })
+  }
+  if (prefetchingKind) {
+    return Promise.resolve({ ok: false, message: '正在下载中，等它跑完再点一次。' })
+  }
+  if (state.running) {
+    return Promise.resolve({ ok: false, message: '正在拆解，等拆完再下载。' })
+  }
+
+  const script = kind === 'model' ? 'prefetch_model.py' : 'prefetch_gpu.py'
+  const scriptPath = path.join(status.root, 'scripts', script)
+  if (!fs.existsSync(scriptPath)) {
+    return Promise.resolve({ ok: false, message: `引擎里没有 ${script}（装的引擎太旧），装新版 App 后再试。` })
+  }
+
+  prefetchingKind = kind
+  const send = (line?: string) => prefetchHandler?.({ kind, running: true, line })
+  logger.info(LOG_MODULE, `开始下载 ${kind === 'model' ? '转写模型' : 'GPU 运行库'}：${args.join(' ')}`)
+  send(`—— 开始下载${kind === 'model' ? '转写模型' : 'GPU 运行库'}${args[0] ? '：' + args[0] : ''} ——`)
+
+  return new Promise((resolve) => {
+    let proc: ChildProcess
+    try {
+      proc = spawn(status.python, [scriptPath, ...args], {
+        cwd: status.root,
+        env: engineEnv({ ...(status.ffmpegExists ? { PATH: path.dirname(status.ffmpeg) + path.delimiter + (process.env.PATH || '') } : {}) }),
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+    } catch (ex: any) {
+      prefetchingKind = ''
+      const msg = `启动下载脚本失败：${ex.message}`
+      send(msg)
+      prefetchHandler?.({ kind, running: false, line: msg })
+      return resolve({ ok: false, message: msg })
+    }
+
+    prefetchProc = proc
+    let buf = ''
+    const onChunk = (c: Buffer) => {
+      buf += c.toString('utf-8')
+      let i = buf.indexOf('\n')
+      while (i >= 0) {
+        const line = buf.slice(0, i).replace(/\r$/, '')
+        buf = buf.slice(i + 1)
+        if (line.trim()) {
+          logger.info(LOG_MODULE, `[prefetch] ${line.trim()}`)
+          send(line.trim())
+        }
+        i = buf.indexOf('\n')
+      }
+    }
+    proc.stdout?.on('data', onChunk)
+    proc.stderr?.on('data', onChunk)
+    proc.on('error', (err) => {
+      logger.error(LOG_MODULE, '下载脚本进程错误', err)
+      send(`下载脚本出错：${err.message}`)
+    })
+    proc.on('exit', (code) => {
+      if (buf.trim()) send(buf.trim())
+      prefetchProc = null
+      prefetchingKind = ''
+      const ok = code === 0
+      const msg = ok
+        ? (kind === 'model' ? '模型已就绪，可以开始拆解了。' : 'GPU 运行库已装好：把「转写设备」改成 GPU 再跑一场。')
+        : `下载失败（退出码 ${code}），看上面的输出定位；多半是网络问题。`
+      logger.info(LOG_MODULE, `下载结束 code=${code}`)
+      prefetchHandler?.({ kind, running: false, line: `—— ${msg} ——` })
+      resolve({ ok, message: msg })
+    })
+  })
+}
+
+export function cancelPrefetch(): boolean {
+  if (!prefetchProc) return false
+  try {
+    const pid = prefetchProc.pid
+    if (pid) spawn('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true })
+  } catch { /* ignore */ }
+  return true
 }

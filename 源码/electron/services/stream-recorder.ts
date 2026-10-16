@@ -51,6 +51,8 @@ export class StreamRecorder {
   private lastWarnAt = 0
   private runStart = 0
   private lastProgressAt = 0
+  /** 本次启动 ffmpeg 之前已经录到的字节数：用它判断“这一轮到底写出东西没” */
+  private sizeAtSpawn = 0
   private tickTimer: ReturnType<typeof setInterval> | null = null
 
   private hooks: RecorderHooks
@@ -160,6 +162,9 @@ export class StreamRecorder {
     this.runStart = Date.now()
     this.lastProgressAt = Date.now()
 
+    // 这一轮开始前已经录了多少：退出时拿它比一下，就知道本轮是否真的写出了数据。
+    this.sizeAtSpawn = this.measureSize()
+
     this.proc.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       // ffmpeg 每开一个新分段都会打这条，用它跟踪「当前正在写哪个文件」
@@ -200,12 +205,30 @@ export class StreamRecorder {
   private onExit(code: number | null): void {
     if (this.stopping || this.finished) return
 
+    // 本轮到底录出东西了没有？这是区分【真断流】和【主播已下播】的唯一依据：
+    // 下播之后抖音接口**仍然会给一个拉流地址**，只是这个地址播不了（404）。
+    // 以前只看“地址拿到没”，于是会无限重连（实测一天 694 次），界面一直显示在录。
+    const grew = this.measureSize() > this.sizeAtSpawn
     const cfg = loadConfig()
     if (!cfg.autoReconnect) {
       this.finish(code === 0 ? '录制已结束' : `录制异常退出 (code=${code})`)
       return
     }
+    if (grew) this.retryCount = 0                              // 真录到东西了，才清零
+    else this.hooks.onStatus('这一轮没取到流，正在重新取流…')   // 没录到：累计失败次数
     this.scheduleReconnect()
+  }
+
+  /** 本场录像在磁盘上的总大小（跨分段 / 跨重连累加） */
+  private measureSize(): number {
+    let size = 0
+    try {
+      for (const f of fs.readdirSync(this.outputDir)) {
+        if (!f.startsWith(this.prefix + '_')) continue
+        try { size += fs.statSync(path.join(this.outputDir, f)).size } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+    return size
   }
 
   private scheduleReconnect(): void {
@@ -228,7 +251,10 @@ export class StreamRecorder {
         return
       }
       this.retryCount = 0
-      logger.info(LOG_MODULE, `重连成功 roomId=${this.roomId}`)
+      // 注意：这里**不能**把 retryCount 清零 ——
+      // “能拿到地址”不等于“能录”（下播时地址照样返回，只是打开就 404），
+      // 清零改到 onExit 里按“本轮有没有真的写出数据”判断。
+      logger.info(LOG_MODULE, `取流成功，重启抓流 roomId=${this.roomId}`)
       // 关键：换个分段号，绝不能从 _000 重写（不然会把前面录好的文件截断成 0 字节）
       this.segStart += 1000
       if (!this.spawnFfmpeg(pullUrl)) this.scheduleReconnect()
@@ -240,11 +266,7 @@ export class StreamRecorder {
       // 直接看磁盘上这场录像的总大小。
       // 以前是抓 ffmpeg 的 "Opening ... for writing" 日志来判断，但那条是 info 级，
       // 我们用 -loglevel warning 跑，永远抓不到 —— 界面就一直显示 0 B。
-      let size = 0
-      for (const f of fs.readdirSync(this.outputDir)) {
-        if (!f.startsWith(this.prefix + '_')) continue
-        try { size += fs.statSync(path.join(this.outputDir, f)).size } catch { /* ignore */ }
-      }
+      const size = this.measureSize()
       if (size > this.currentFileSize) this.lastProgressAt = Date.now()
       this.currentFileSize = size
 

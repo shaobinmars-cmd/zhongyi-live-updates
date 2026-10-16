@@ -229,6 +229,9 @@ export interface RoomInfo {
   nickname: string
   lastActive: string
   messageCount: number
+  /** 按类型分开的数量：Chat / Gift / Like / Member / Social / Stats
+   */
+  typeCounts: Record<string, number>
 }
 
 export async function getRooms(): Promise<RoomInfo[]> {
@@ -242,11 +245,18 @@ export async function getRooms(): Promise<RoomInfo[]> {
     for (const row of rows[0].values) {
       const roomId = row[0] as string
       let messageCount = 0
+      const typeCounts: Record<string, number> = {}
       try {
         const tableName = safeTableName(roomId)
-        const cntRows = db.exec(`SELECT COUNT(*) as cnt FROM [${tableName}]`)
-        if (cntRows.length > 0 && cntRows[0].values.length > 0) {
-          messageCount = cntRows[0].values[0][0] as number
+        // 一次分组统计：总数 + 各类型数量（历史页要按房间分开列出来）
+        const cntRows = db.exec(`SELECT Type, COUNT(*) FROM [${tableName}] GROUP BY Type`)
+        if (cntRows.length > 0) {
+          for (const r of cntRows[0].values) {
+            const t = String(r[0] || 'Other')
+            const n = Number(r[1]) || 0
+            typeCounts[t] = n
+            messageCount += n
+          }
         }
       } catch { /* table may not exist */ }
 
@@ -254,7 +264,8 @@ export async function getRooms(): Promise<RoomInfo[]> {
         roomId,
         nickname: row[1] as string,
         lastActive: utcToLocalStamp(String(row[2] || '')),
-        messageCount
+        messageCount,
+        typeCounts
       })
     }
   }

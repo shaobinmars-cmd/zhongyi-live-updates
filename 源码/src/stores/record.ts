@@ -89,6 +89,7 @@ export const useRecordStore = defineStore('record', () => {
   }
 
   function startRefresh() {
+
     if (refreshTimer) clearInterval(refreshTimer)
     refreshTimer = setInterval(async () => {
       try {
@@ -100,6 +101,47 @@ export const useRecordStore = defineStore('record', () => {
         }
       } catch { /* ignore */ }
     }, 1000)
+  }
+
+  /** 只录一个直播间（录制页每个房间一个按钮） */
+  async function recordOne(room: any) {
+    const name = room?.nickname || room?.enterRoomId || '这个直播间'
+    danmuStatus.value = `正在获取 ${name} 的直播流...`
+    let state: any = null
+    try {
+      state = await api().recordStartOne({
+        url: room?.url || '',
+        enterRoomId: room?.enterRoomId || '',
+        nickname: room?.nickname || ''
+      })
+    } catch (ex: any) {
+      danmuStatus.value = `开始录制失败：${ex?.message || ex}`
+      return
+    }
+    if (state?.error) danmuStatus.value = state.error
+    if (state) {
+      recordingItems.value = state.items || []
+      recordingCount.value = state.count || 0
+      isDurationVisible.value = (state.items?.length || 0) > 0
+      syncToDashboard()
+    }
+    if (recordingCount.value > 0) {
+      danmuStatus.value = `正在录制 ${recordingCount.value} 个直播间`
+      startRefresh()
+    }
+  }
+
+  /** 只停一个直播间 */
+  async function stopOne(roomId: string) {
+    const state = await api().recordStopOne(roomId)
+    if (state) {
+      recordingItems.value = state.items || []
+      recordingCount.value = state.count || 0
+      isDurationVisible.value = (state.items?.length || 0) > 0
+      syncToDashboard()
+    }
+    if (recordingCount.value === 0 && refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
+    danmuStatus.value = recordingCount.value > 0 ? `正在录制 ${recordingCount.value} 个直播间` : '已停止'
   }
 
   function syncToDashboard() {
@@ -116,6 +158,6 @@ export const useRecordStore = defineStore('record', () => {
 
   return {
     recordingItems, recordingCount, danmuStatus, isDurationVisible,
-    setupListeners, removeListeners, recordAll, stopAll
+    setupListeners, removeListeners, recordAll, stopAll, recordOne, stopOne
   }
 })

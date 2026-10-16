@@ -17,6 +17,8 @@ interface RecordItem {
 export class RecordingManager {
   private recorders = new Map<string, StreamRecorder>()
   private items = new Map<string, RecordItem>()
+  /** 录制状态心跳定时器（见 persist） */
+  private heartbeat: ReturnType<typeof setInterval> | null = null
 
   public onUpdate: (() => void) | null = null
 
@@ -131,6 +133,24 @@ export class RecordingManager {
       roomId,
       nickname: this.items.get(roomId)?.nickname || ''
     })))
+    // 只要还有在录的，就每 3 分钟刷新一次时间戳。
+    // 以前只在开录/停录时写一次，通宵场（>6 小时）崩了会被判成“状态太旧”而不恢复 ——
+    // 那恰恰是这个功能要救的场景。
+    if (this.recorders.size > 0) this.startHeartbeat()
+    else this.stopHeartbeat()
+  }
+
+  /** 录制状态心跳：让 record-state.json 的保存时间始终是“刚才”。 */
+  private startHeartbeat(): void {
+    if (this.heartbeat) return
+    this.heartbeat = setInterval(() => {
+      if (this.recorders.size === 0) { this.stopHeartbeat(); return }
+      this.persist()
+    }, 3 * 60 * 1000)
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeat) { clearInterval(this.heartbeat); this.heartbeat = null }
   }
 
   /** 正在录的场次文件名前缀（磁盘清理要避开这些文件） */

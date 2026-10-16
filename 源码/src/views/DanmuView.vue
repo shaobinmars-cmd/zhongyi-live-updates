@@ -29,52 +29,44 @@
       </n-button>
     </div>
 
-      <div v-if="danmuStore.connectedRoomCount > 1" class="room-filter-bar">
-        <span class="filter-label">房间筛选:</span>
-        <div class="filter-chips">
-          <button
-            :class="['filter-chip', { active: danmuStore.filterRoomId === '' }]"
-            @click="danmuStore.filterRoomId = ''"
-          >全部</button>
-          <button
-            v-for="opt in danmuStore.filterRoomOptions"
-            :key="opt.roomId"
-            :class="['filter-chip', { active: danmuStore.filterRoomId === opt.roomId }]"
-            @click="danmuStore.filterRoomId = opt.roomId"
-          >{{ opt.nickname }}</button>
-        </div>
+      <div v-if="danmuStore.connectedRoomCount > 1" class="room-split-hint">
+        正在同时监听 {{ danmuStore.connectedRoomCount }} 个直播间：下面每个直播间各一块，不混在一起
       </div>
 
       <n-tabs v-model:value="danmuStore.selectedTab" type="line" animated>
         <n-tab-pane name="all" tab="全部">
-          <DanmuList :messages="danmuStore.filteredAllMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无消息，连接直播间后将实时显示" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.allMessages)" empty="暂无消息，连接直播间后将实时显示" />
         </n-tab-pane>
         <n-tab-pane name="chat" tab="弹幕">
-          <DanmuList :messages="danmuStore.filteredChatMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无弹幕消息" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.chatMessages)" empty="暂无弹幕消息" />
         </n-tab-pane>
         <n-tab-pane name="gift" tab="礼物">
-          <DanmuList :messages="danmuStore.filteredGiftMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无礼物消息" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.giftMessages)" empty="暂无礼物消息" />
         </n-tab-pane>
         <n-tab-pane name="like" tab="点赞">
-          <DanmuList :messages="danmuStore.filteredLikeMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无点赞消息" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.likeMessages)" empty="暂无点赞消息" />
         </n-tab-pane>
         <n-tab-pane name="member" tab="进入">
-          <DanmuList :messages="danmuStore.filteredMemberMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无进入消息" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.memberMessages)" empty="暂无进入消息" />
         </n-tab-pane>
         <n-tab-pane name="social" tab="关注">
-          <DanmuList :messages="danmuStore.filteredSocialMessages" :show-room="danmuStore.connectedRoomCount > 1" empty="暂无关注消息" />
+          <DanmuRoomSections :groups="groupsOf(danmuStore.socialMessages)" empty="暂无关注消息" />
         </n-tab-pane>
         <n-tab-pane name="history" tab="历史">
           <div class="history-header">
-            <span class="history-hint">双击卡片查看历史弹幕记录</span>
+            <span class="history-hint">每个直播间一块，双击进去看明细 / 导出</span>
             <n-button size="tiny" tertiary @click="danmuStore.clearDatabase()">清空记录</n-button>
           </div>
           <div v-if="danmuStore.historyRooms.length > 0" class="history-cards">
             <div v-for="room in danmuStore.historyRooms" :key="room.roomId" class="history-card" @dblclick="openHistory(room)">
               <div class="history-name">{{ room.nickname || `房间 ${room.roomId}` }}</div>
+              <div class="history-rid">房间 {{ room.roomId }}</div>
+              <div class="history-counts">
+                <span class="count-total">{{ room.messageCount }} 条</span>
+                <span v-for="c in typeCountList(room)" :key="c.label" class="count-item">{{ c.label }} {{ c.n }}</span>
+              </div>
               <div class="history-meta">
-                <span class="accent">{{ room.messageCount }} 条消息</span>
-                <span class="history-time">{{ room.lastActive }}</span>
+                <span class="history-time">最后活跃 {{ room.lastActive }}</span>
               </div>
             </div>
           </div>
@@ -119,7 +111,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { NTabs, NTabPane, NModal, NRadioGroup, NRadioButton, NInput, NButton, useMessage } from 'naive-ui'
 import { useDanmuStore } from '../stores/danmu'
 import { useRoomListStore } from '../stores/room-list'
-import DanmuList from '../components/DanmuList.vue'
+import DanmuRoomSections from '../components/DanmuRoomSections.vue'
 import type { RoomInfo } from '../types'
 
 const message = useMessage()
@@ -216,6 +208,23 @@ async function loadHistoryMessages() {
 function typeLabel(type: string): string {
   const map: Record<string, string> = { Chat: '弹幕', Gift: '礼物', Like: '点赞', Member: '进入', Social: '关注', Stats: '统计' }
   return map[type] || type
+}
+
+/** 把消息按直播间分组（多个直播间时页面按房间分块） */
+function groupsOf(list: any[]) {
+  return danmuStore.groupByRoom(list)
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  Chat: '弹幕', Gift: '礼物', Like: '点赞', Member: '进入', Social: '关注', Stats: '统计'
+}
+
+/** 历史页每个直播间的小分类数量（弹幕/礼物/点赞/进入/关注各多少条） */
+function typeCountList(room: any): { label: string; n: number }[] {
+  const tc = room?.typeCounts || {}
+  return Object.keys(TYPE_LABELS)
+    .filter((k) => tc[k])
+    .map((k) => ({ label: TYPE_LABELS[k], n: Number(tc[k]) }))
 }
 
 async function exportData(format: 'csv' | 'json') {
@@ -392,6 +401,11 @@ async function exportData(format: 'csv' | 'json') {
 }
 
 .history-name { font-size: 13px; font-weight: 600; color: #1f2328; margin-bottom: 4px; }
+.history-rid { font-size: 10px; color: #9aa1ab; margin-bottom: 4px; }
+.history-counts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.count-total { font-size: 11px; font-weight: 700; color: #f97316; }
+.count-item { font-size: 10px; color: #6b7280; background: #f4f5f7; border-radius: 8px; padding: 1px 7px; }
+.room-split-hint { font-size: 11px; color: #6b7280; padding: 8px 4px; border-bottom: 1px solid #e6e8ec; }
 .history-meta { display: flex; gap: 12px; font-size: 10px; }
 .history-time { color: #9aa1ab; }
 

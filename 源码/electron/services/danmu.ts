@@ -119,7 +119,7 @@ export class DanmuService {
   }
 
   private parseByMethod(method: string, data: ProtobufMap): void {
-    const rawJson = JSON.stringify({ method, data })
+    const rawJson = safeStringify({ method, data })
 
     if (method.includes('WebcastChatMessage')) this.parseChatMessage(data, rawJson)
     else if (method.includes('WebcastMemberMessage')) this.parseMemberMessage(data, rawJson)
@@ -296,6 +296,20 @@ export class DanmuService {
 
 function getNickname(user: ProtobufMap): string {
   return getFieldString(user, 'f3') || getFieldString(user, 'f1') || getFieldString(user, 'f2') || '未知'
+}
+
+/**
+ * 安全序列化：protobuf 里的 64 位整数字段会被解析成 BigInt，
+ * 而 JSON.stringify 碰到 BigInt 会直接抛错（日志里出现过 59 次
+ * "Do not know how to serialize a BigInt"）—— 整条弹幕就这么丢了。
+ * 这里把 BigInt 转成字符串再序列化。
+ */
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+  } catch {
+    return ''   // 实在序列化不了也不拖垮这条消息的其它字段
+  }
 }
 
 function extractAvatar(user: ProtobufMap): string {

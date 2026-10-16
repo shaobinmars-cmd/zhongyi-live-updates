@@ -41,10 +41,20 @@
         </div>
 
         <div v-if="needAttention.length" class="watch">
-          <span class="hint">今天该盯：</span>
-          <n-button v-for="w in needAttention" :key="w.name" size="tiny" quaternary @click="pick(w.name)">
-            {{ w.name }} <span :class="'dot ' + w.level">· {{ w.text }}</span>
-          </n-button>
+          <div class="watch-title">今天该盯</div>
+          <div class="watch-list">
+            <n-button
+              v-for="w in needAttention"
+              :key="w.name"
+              :class="['watch-item', w.level]"
+              size="small"
+              quaternary
+              @click="pick(w.name)"
+            >
+              <span class="watch-name">{{ w.name }}</span>
+              <span class="watch-text">{{ w.text }}</span>
+            </n-button>
+          </div>
         </div>
 
         <div v-if="recent.length" class="recent">
@@ -622,6 +632,26 @@ onUnmounted(() => {
 .extras { margin: 6px 0; }
 .actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .hint { font-size: 12px; color: var(--ink-4); }
+
+/* 「今天该盯」：一个人一个小卡片，字大一号，一眼看得出来是几个人 */
+.watch { margin-bottom: 10px; }
+.watch-title { font-size: 14px; font-weight: 700; color: #1f2328; margin-bottom: 6px; }
+.watch-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.watch-item {
+  padding: 6px 12px; border-radius: 10px; height: auto;
+  border: 1px solid #e6e8ec; background: #fff;
+  border-left: 4px solid #d8dbe0;
+}
+.watch-item:hover { border-color: #f97316; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }
+/* n-button 默认是横排居中，这里改成上下两行，名字大、状态小 */
+.watch-item :deep(.n-button__content) {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+}
+.watch-item.warn { border-left-color: #f97316; }
+.watch-item.bad { border-left-color: #ef4444; }
+.watch-item.idle { border-left-color: #d8dbe0; }
+.watch-name { font-size: 15px; font-weight: 700; color: #1f2328; line-height: 1.3; }
+.watch-text { font-size: 12px; color: #6b7280; line-height: 1.3; }
 .bar { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; flex-wrap: wrap; }
 .empty { margin: 30px 0; font-size: 13px; color: var(--ink-4); }
 .rule { margin-top: 12px; font-size: 12px; color: var(--ink-3); line-height: 1.9; }

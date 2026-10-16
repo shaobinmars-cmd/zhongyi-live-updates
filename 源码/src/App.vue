@@ -50,6 +50,19 @@ onMounted(async () => {
   } finally {
     checked.value = true
   }
+
+  const api = (window as any).electronAPI
+  // 联网复查授权（吐销名单）：查得到就按名单执行，断网就放行 —— 不能让运营当场干不了活。
+  // 启动后主进程每 30 分钟还会自己再查一次。
+  try {
+    await api.licenseRecheck()
+    const st = await api.licenseStatus()
+    if (!st?.licensed) licensed.value = false
+  } catch { /* 联网失败不影响已有授权 */ }
+
+  // 运行中被管理员停用：立刻退回激活页
+  api.removeLicenseListeners()
+  api.onLicenseRevoked(() => { licensed.value = false })
 })
 
 function navigate(path: string) {

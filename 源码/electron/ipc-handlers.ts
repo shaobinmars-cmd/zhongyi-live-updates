@@ -1,10 +1,12 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron'
+import { ipcMain, BrowserWindow, dialog, app } from 'electron'
 import { shell } from 'electron'
 import { DouyinLiveService } from './services/douyin-live'
 import { DanmuService, DanmuMsg } from './services/danmu'
 import { douyinLoginState, openDouyinLogin, refreshAllRoomTaps, tapCount, closeAllRoomTaps, closeLoginWindow } from './services/danmu-capture'
 import * as ai from './services/ai-analyze'
 import * as aiShare from './services/ai-server'
+import * as collectServer from './services/collect-server'
+import * as collectClient from './services/collect-client'
 import * as upnp from './services/upnp'
 import { RecordingManager } from './services/recording-manager'
 import * as teardown from './services/teardown'
@@ -34,6 +36,37 @@ function licenseOk(): { ok: boolean; reason: string } {
   if (licenseRevoked) return { ok: false, reason: '本机已被管理员停用' }
   const st = license.loadLicense()
   return st.licensed ? { ok: true, reason: '' } : { ok: false, reason: st.reason || '未授权' }
+}
+
+/** 联网复查授权（吐销名单）的状态：什么时候查的、查通没、有没有被停用 */
+let revokeState = { at: 0, ok: false, revoked: false, source: '' }
+let revokeTimer: ReturnType<typeof setInterval> | null = null
+let collectTimer: ReturnType<typeof setInterval> | null = null
+
+/**
+ * 联网复查吐销名单。
+ * 设计：查得到就按名单执行；查不到（断网/共享盘进不去）就放行 —— 不能让运营当场干不了活。
+ * 被停用会立刻把正在录的、正在拆的都停掉。
+ */
+async function runRevokeCheck(notify = true): Promise<boolean> {
+  const source = tdConfig.load().revokeSource
+  revokeState = { at: Date.now(), ok: false, revoked: false, source }
+  if (!source) return false
+  let revoked = false
+  try {
+    revoked = await license.checkRevoked(source)
+  } catch {
+    return false          // 网络不通：放行
+  }
+  revokeState = { at: Date.now(), ok: true, revoked, source }
+  licenseRevoked = revoked
+  if (revoked) {
+    logger.warn(LOG_MODULE, '联网复查发现本机已被停用，停止录制与拆解')
+    try { recordingManager.stopAll() } catch { /* ignore */ }
+    try { teardown.stop() } catch { /* ignore */ }
+    if (notify) mainWindow?.webContents.send('license:on-revoked', { reason: '本机已被管理员停用' })
+  }
+  return revoked
 }
 
 const douyinLive = new DouyinLiveService()
@@ -82,6 +115,31 @@ export function registerIpcHandlers(): void {
   db.pruneOld().catch(() => { /* ignore */ })
   if (!pruneTimer) {
     pruneTimer = setInterval(() => { db.pruneOld().catch(() => { /* ignore */ }) }, 6 * 60 * 60 * 1000)
+  }
+
+  // 授权联网复查：每 30 分钟一次。
+  // 以前的逻辑是“只在启动查一次”，运行中被停用的机器得重启才会生效。
+  if (!revokeTimer) {
+    revokeTimer = setInterval(() => { runRevokeCheck(true).catch(() => { /* ignore */ }) }, 30 * 60 * 1000)
+  }
+
+  // 数据汇总服务：老板机开了的话，启动就把服务拉起来
+  const cc = collectServer.loadCollect()
+  if (cc.enabled) {
+    collectServer.startShare(cc).catch(() => { /* 起不来不影响本机使用 */ })
+  }
+
+  // 运营机：每天自动上报一次（默认开，可在设置里关）
+  if (!collectTimer) {
+    collectTimer = setInterval(() => {
+      const c = collectClient.loadClientConfig()
+      if (!c.autoDaily) return
+      // 距上次上报超过 20 小时就报一次；不是死磕 0 点，免得大家同时传
+      if (Date.now() - (c.lastSentAt || 0) < 20 * 60 * 60 * 1000) return
+      const r = collectClient.resolveServer()
+      if (!r.url || !r.token) return
+      collectClient.collectNow().catch(() => { /* 失败下次再传 */ })
+    }, 60 * 60 * 1000)
   }
 
 
@@ -178,6 +236,60 @@ export function registerIpcHandlers(): void {
     return { created, config: aiShare.loadShare(), status: aiShare.shareStatus() }
   })
 
+  // ===== 数据汇总 / 升级（局域网） =====
+  // 老板机这一端：开服务收数据、发新版
+  ipcMain.handle('collect:server-get', () => collectServer.loadCollect())
+  ipcMain.handle('collect:server-status', () => collectServer.shareStatus())
+  ipcMain.handle('collect:server-set', async (_e, patch: any) => {
+    const cfg = collectServer.saveCollect(patch || {})
+    if (cfg.enabled) await collectServer.startShare(cfg)
+    else collectServer.stopShare()
+    return { config: collectServer.loadCollect(), status: collectServer.shareStatus() }
+  })
+  ipcMain.handle('collect:open-inbox', async () => {
+    const dir = collectServer.inboxRoot()
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+      await shell.openPath(dir)
+      return { ok: true, dir }
+    } catch (ex: any) {
+      return { ok: false, message: String(ex?.message || ex) }
+    }
+  })
+  ipcMain.handle('collect:browse-update-dir', async () => {
+    if (!mainWindow) return null
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: '选装升级包的目录（把安装包 exe 放进去）', properties: ['openDirectory', 'createDirectory']
+    })
+    return r.canceled ? null : r.filePaths[0]
+  })
+
+  // 运营这一端：上报数据 / 检查更新 / 一键升级
+  ipcMain.handle('collect:config-get', () => collectClient.loadClientConfig())
+  ipcMain.handle('collect:config-set', (_e, patch: any) => collectClient.saveClientConfig(patch || {}))
+  ipcMain.handle('collect:adopt-from-ai', () => collectClient.adoptFromAi())
+  ipcMain.handle('collect:resolve', () => collectClient.resolveServer())
+  ipcMain.handle('collect:send-now', async () => {
+    try { return await collectClient.collectNow() }
+    catch (ex: any) { return { ok: false, message: String(ex?.message || ex) } }
+  })
+  ipcMain.handle('update:check', async () => {
+    try { return await collectClient.checkUpdate() }
+    catch (ex: any) { return { ok: false, message: String(ex?.message || ex) } }
+  })
+  ipcMain.handle('update:apply', async () => {
+    try {
+      const r = await collectClient.applyUpdate()
+      if (r.ok) {
+        // 给界面留一点时间把“正在升级”提示出来，然后退干净让安装程序接盘
+        setTimeout(() => { try { cleanup().catch(() => { /* ignore */ }) } finally { app.exit(0) } }, 2500)
+      }
+      return r
+    } catch (ex: any) {
+      return { ok: false, message: String(ex?.message || ex) }
+    }
+  })
+
   // 外网访问（外地运营）：自动开路由器端口
   ipcMain.handle('ai:wan-ip', async () => {
     try { return { ok: true, ip: await upnp.wanIp() } }
@@ -207,9 +319,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('license:activate', (_e, text: string) => license.saveLicense(text))
   ipcMain.handle('license:set-revoke', (_e, src: string) => tdConfig.save({ revokeSource: String(src || '') }))
   ipcMain.handle('license:check-revoke', async () => {
-    const r = await license.checkRevoked(tdConfig.load().revokeSource)
-    licenseRevoked = r
-    return r
+    return runRevokeCheck(false)
+  })
+  // 授权联网复查：返回本次结果（查没查通、什么时候查的）
+  ipcMain.handle('license:recheck', async () => {
+    await runRevokeCheck(false)
+    const st = license.loadLicense()
+    return { ...revokeState, licensed: st.licensed, licenseReason: st.reason }
   })
   ipcMain.handle('license:browse', async () => {
     const blank = { licensed: false, reason: '', machineCode: license.machineCode(), payload: null, daysLeft: null, source: '' }
@@ -274,6 +390,36 @@ export function registerIpcHandlers(): void {
     return recordingManager.getState()
   })
 
+  /** 只录一个直播间（录制页每个房间一个按钮） */
+  ipcMain.handle('record:start-one', async (_e, room: any) => {
+    const l = licenseOk()
+    if (!l.ok) return { ...recordingManager.getState(), error: l.reason }
+    const roomId = String(room?.enterRoomId || '')
+    if (!roomId) return { ...recordingManager.getState(), error: '这个房间还没解析出房间号，先去「直播间」页刷新一下' }
+    if (recordingManager.has(roomId)) return recordingManager.getState()   // 已在录
+
+    const cfg = config.loadConfig()
+    const outDir = config.getEffectiveOutputPath(cfg)
+    const free = freeSpaceGB(outDir)
+    if (free < cfg.minFreeGB) {
+      const msg = `磁盘剩余 ${free.toFixed(1)}GB，低于设定的 ${cfg.minFreeGB}GB，先清理录像再录`
+      logger.warn(LOG_MODULE, msg)
+      return { ...recordingManager.getState(), error: msg }
+    }
+    enforceQuota(outDir, cfg.maxGB, {
+      protectPrefixes: [...recordingManager.activePrefixes(), ...teardown.protectedPrefixes()]
+    })
+
+    const { success, pullUrl, nickname } = await getPullUrl(roomId)
+    if (!success || !pullUrl) {
+      const msg = `${nickname || room?.nickname || roomId} 取不到直播流（可能还没开播）`
+      logger.warn(LOG_MODULE, msg)
+      return { ...recordingManager.getState(), error: msg }
+    }
+    recordingManager.startRecording(roomId, pullUrl, nickname || room?.nickname || '', cfg.outputFormat)
+    return recordingManager.getState()
+  })
+
   // ===== Database =====
   ipcMain.handle('record:stop-one', (_e, roomId: string) => {
     recordingManager.stopOne(roomId)
@@ -300,7 +446,13 @@ export function registerIpcHandlers(): void {
 
     let content: string
     if (format === 'json') {
-      const data = messages.map(m => ({ time: m.time, type: m.type, userName: m.userName, content: m.content, giftName: m.giftName, giftCount: m.giftCount, giftPrice: m.giftPrice, likeCount: m.likeCount, avatar: m.avatar, profileUrl: m.profileUrl, rawData: m.rawData ? JSON.parse(m.rawData) : null }))
+      // 原始数据超过 2000 字会被截断并贴上“⋯(截断)”，不再是合法 JSON；
+      // 以前直接 JSON.parse 会让整个导出报错。解析不了就原样保留字符串。
+      const parseRaw = (raw: string): unknown => {
+        if (!raw) return null
+        try { return JSON.parse(raw) } catch { return raw }
+      }
+      const data = messages.map(m => ({ time: m.time, type: m.type, userName: m.userName, content: m.content, giftName: m.giftName, giftCount: m.giftCount, giftPrice: m.giftPrice, likeCount: m.likeCount, avatar: m.avatar, profileUrl: m.profileUrl, rawData: parseRaw(m.rawData) }))
       content = JSON.stringify(data, null, 2)
     } else {
       const BOM = '﻿'
@@ -377,6 +529,18 @@ export function registerIpcHandlers(): void {
   teardown.setStateHandler((s: teardown.TeardownState) => {
     mainWindow?.webContents.send('teardown:on-state', s)
   })
+
+  // 下载模型 / GPU 运行库的输出（进度、结果）单独走一条通道
+  teardown.setPrefetchHandler((e) => {
+    mainWindow?.webContents.send('teardown:on-prefetch', e)
+  })
+
+  // 一键下载：转写模型（small / medium / …）
+  ipcMain.handle('teardown:prefetch-model', async (_e, model: string) =>
+    teardown.prefetch('model', [String(model || 'small')]))
+  // 一键下载：GPU 运行库（cublas + cudnn，约 1GB）
+  ipcMain.handle('teardown:prefetch-gpu', async () => teardown.prefetch('gpu'))
+  ipcMain.handle('teardown:prefetch-cancel', () => teardown.cancelPrefetch())
 
   ipcMain.handle('teardown:engine-status', () => teardown.engineStatus())
   ipcMain.handle('teardown:list', () => teardown.listRecordings())
@@ -628,9 +792,20 @@ ipcMain.handle('incubate:import', async (_e, dir: string) => incubate.importFrom
 ipcMain.handle('incubate:open-data-dir', () => incubate.openDataFolder())
 ipcMain.handle('incubate:instruction', () => V5_INSTRUCTION)
 ipcMain.handle('incubate:browse-dir', async () => {
+  // 说明里写的是「选 work 目录，或直接选报告那个 md 文件」——
+  // 但以前这里只允许选目录，md 文件根本点不到，所以运营说“识别不到”。
+  // 现在两种都能选。
+  const opts: any = {
+    title: '选拆解产物：整个 work 目录，或者直接选报告那个 md 文件',
+    properties: ['openFile', 'openDirectory'],
+    filters: [
+      { name: '报告文件 (md/txt)', extensions: ['md', 'markdown', 'txt'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  }
   const r = mainWindow
-    ? await dialog.showOpenDialog(mainWindow, { title: '选择拆解产物目录', properties: ['openDirectory'] })
-    : await dialog.showOpenDialog({ title: '选择拆解产物目录', properties: ['openDirectory'] })
+    ? await dialog.showOpenDialog(mainWindow, opts)
+    : await dialog.showOpenDialog(opts)
   if (r.canceled || !r.filePaths.length) return null
   return r.filePaths[0]
 })
@@ -657,6 +832,7 @@ export async function cleanup(): Promise<void> {
   closeAllRoomTaps()
   closeLoginWindow()
   aiShare.stopShare()
+  collectServer.stopShare()
   danmuConnections.clear()
   recordingManager.stopAll()
   await db.flushDb()

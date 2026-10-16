@@ -231,6 +231,34 @@ export const useDanmuStore = defineStore('danmu', () => {
     return api().dbGetMessages(roomId, typeFilter, keyword, username)
   }
 
+  /** 房间号 → 显示名（直播间列表里没有就用「房间 123」） */
+  function nicknameOf(roomId: string): string {
+    if (!roomId) return '未知房间'
+    const roomList = useRoomListStore()
+    const r = roomList.results.find((x: any) => x.enterRoomId === roomId)
+    if (r?.nickname) return r.nickname
+    const h = historyRooms.value.find((x: any) => x.roomId === roomId)
+    if (h?.nickname) return h.nickname
+    return `房间 ${roomId}`
+  }
+
+  /**
+   * 把一串消息按直播间分组。
+   * 多个直播间同时在的时候，界面按房间分成一块一块显示，绝不混在一起。
+   */
+  function groupByRoom(list: DanmuMessage[]) {
+    const map = new Map<string, DanmuMessage[]>()
+    for (const m of list) {
+      const key = m.roomId || 'unknown'
+      const arr = map.get(key)
+      if (arr) arr.push(m)
+      else map.set(key, [m])
+    }
+    return Array.from(map.entries())
+      .map(([roomId, messages]) => ({ roomId, nickname: nicknameOf(roomId), messages }))
+      .sort((a, b) => b.messages.length - a.messages.length)
+  }
+
   return {
     allMessages, chatMessages, giftMessages, likeMessages, memberMessages, socialMessages,
     historyRooms, danmuStatus, danmuTitle, danmuRoom, danmuCountText, selectedTab,
@@ -239,6 +267,7 @@ export const useDanmuStore = defineStore('danmu', () => {
     filteredAllMessages, filteredChatMessages, filteredGiftMessages,
     filteredLikeMessages, filteredMemberMessages, filteredSocialMessages,
     setupListeners, removeListeners, selectRoom,
+    nicknameOf, groupByRoom,
     connectRoom, disconnectRoom, connectAll, disconnectAll,
     loadHistory, clearDatabase, getMessages
   }

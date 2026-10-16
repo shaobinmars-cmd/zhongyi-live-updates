@@ -67,6 +67,19 @@ const api = {
   aiShareReset: () => invoke('ai:share-reset'),
   aiShareAddMany: (names: string[]) => invoke('ai:share-add-many', names),
   aiWanIp: () => invoke('ai:wan-ip'),
+  // 数据汇总 / 升级（局域网）
+  collectServerGet: () => invoke('collect:server-get'),
+  collectServerStatus: () => invoke('collect:server-status'),
+  collectServerSet: (patch: any) => invoke('collect:server-set', patch),
+  collectOpenInbox: () => invoke('collect:open-inbox'),
+  collectBrowseUpdateDir: () => invoke('collect:browse-update-dir'),
+  collectConfigGet: () => invoke('collect:config-get'),
+  collectConfigSet: (patch: any) => invoke('collect:config-set', patch),
+  collectAdoptFromAi: () => invoke('collect:adopt-from-ai'),
+  collectResolve: () => invoke('collect:resolve'),
+  collectSendNow: () => invoke('collect:send-now'),
+  updateCheck: () => invoke('update:check'),
+  updateApply: () => invoke('update:apply'),
   aiOpenPort: (port: number) => invoke('ai:open-port', port),
   aiClosePort: (port: number) => invoke('ai:close-port', port),
   onAiProgress: (cb: (data: any) => void) => ipcRenderer.on('ai:on-progress', (_e, data) => cb(data)),
@@ -83,6 +96,9 @@ const api = {
   // Record
   recordStartAll: (rooms: any[]) => invoke('record:start-all', rooms),
   recordStopAll: () => invoke('record:stop-all'),
+  // 只录一个直播间（录制页每个房间一个按钮）
+  recordStartOne: (room: any) => invoke('record:start-one', room),
+  recordStopOne: (roomId: string) => invoke('record:stop-one', roomId),
   recordGetState: () => invoke('record:get-state'),
   onRecordUpdate: (cb: (data: any) => void) => ipcRenderer.on('record:on-update', (_e, data) => cb(data)),
   removeRecordListeners: () => ipcRenderer.removeAllListeners('record:on-update'),
@@ -115,6 +131,10 @@ const api = {
   licenseActivate: (text: string) => invoke('license:activate', text),
   licenseBrowse: () => invoke('license:browse'),
   licenseCheckRevoke: () => invoke('license:check-revoke'),
+  // 授权联网复查（返回本次结果：查没查通、何时查的）
+  licenseRecheck: () => invoke('license:recheck'),
+  onLicenseRevoked: (cb: (data: any) => void) => ipcRenderer.on('license:on-revoked', (_e, data) => cb(data)),
+  removeLicenseListeners: () => ipcRenderer.removeAllListeners('license:on-revoked'),
   licenseSetRevoke: (src: string) => invoke('license:set-revoke', src),
 
   // Teardown（拆解）
@@ -142,6 +162,12 @@ const api = {
   teardownBrowse: (kind: 'file' | 'dir') => invoke('teardown:browse', kind),
   onTeardownLog: (cb: (line: string) => void) => ipcRenderer.on('teardown:on-log', (_e, line) => cb(line)),
   onTeardownState: (cb: (state: any) => void) => ipcRenderer.on('teardown:on-state', (_e, state) => cb(state)),
+  // 一键下载：转写模型 / GPU 运行库
+  teardownPrefetchModel: (model: string) => invoke('teardown:prefetch-model', model),
+  teardownPrefetchGpu: () => invoke('teardown:prefetch-gpu'),
+  teardownPrefetchCancel: () => invoke('teardown:prefetch-cancel'),
+  onPrefetchProgress: (cb: (data: any) => void) => ipcRenderer.on('teardown:on-prefetch', (_e, data) => cb(data)),
+  removePrefetchListeners: () => ipcRenderer.removeAllListeners('teardown:on-prefetch'),
   removeTeardownListeners: () => {
     ipcRenderer.removeAllListeners('teardown:on-log')
     ipcRenderer.removeAllListeners('teardown:on-state')

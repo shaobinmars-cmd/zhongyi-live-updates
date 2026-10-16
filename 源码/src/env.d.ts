@@ -19,6 +19,8 @@ interface Window {
     onDanmuDisconnect: (cb: (data: any) => void) => void
     removeDanmuListeners: () => void
     recordStartAll: (rooms: any[]) => Promise<any>
+    recordStartOne: (room: any) => Promise<any>
+    recordStopOne: (roomId: string) => Promise<any>
     recordStopAll: () => Promise<any>
     recordGetState: () => Promise<any>
     onRecordUpdate: (cb: (data: any) => void) => void
@@ -54,12 +56,20 @@ interface Window {
     teardownBrowse: (kind: 'file' | 'dir') => Promise<string | null>
     onTeardownLog: (cb: (line: string) => void) => void
     onTeardownState: (cb: (state: any) => void) => void
+    teardownPrefetchModel: (model: string) => Promise<{ ok: boolean; message: string }>
+    teardownPrefetchGpu: () => Promise<{ ok: boolean; message: string }>
+    teardownPrefetchCancel: () => Promise<boolean>
+    onPrefetchProgress: (cb: (data: any) => void) => void
+    removePrefetchListeners: () => void
     removeTeardownListeners: () => void
     licenseStatus: () => Promise<any>
     licenseMachineCode: () => Promise<string>
     licenseActivate: (text: string) => Promise<any>
     licenseBrowse: () => Promise<any>
     licenseCheckRevoke: () => Promise<boolean>
+    licenseRecheck: () => Promise<{ at: number; ok: boolean; revoked: boolean; source: string; licensed: boolean; licenseReason: string }>
+    onLicenseRevoked: (cb: (data: any) => void) => void
+    removeLicenseListeners: () => void
     licenseSetRevoke: (src: string) => Promise<any>
     windowMaximize: () => Promise<void>
     windowClose: () => Promise<void>

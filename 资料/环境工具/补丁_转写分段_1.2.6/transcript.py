@@ -513,20 +513,34 @@ def via_whisper(audio: Path, lang: str | None) -> dict:
 
         # 分段路径：一段一段喂，内存只占一段；时间戳加 _offset 变成整场时间
         _offset = 0.0
+        _failed = 0          # 有多少段没转成（跳过了）
+        _seq = 0             # 第几段
         for _chunk in _iter_audio_chunks(audio, CHUNK_SEC):
-            _segments, _info = model.transcribe(_chunk, language=lang, word_timestamps=word_ts)
-            for _s in _segments:
-                _text = (_s.text or "").strip()
-                if _text:
-                    _segs.append({"t_ms": int((_offset + _s.start) * 1000),
-                                 "end_ms": int((_offset + _s.end) * 1000),
-                                 "t_label": fmt_ts(int((_offset + _s.start) * 1000)),
-                                 "text": _text})
-                for _w in (getattr(_s, "words", None) or []):
-                    _words.append({"text": _w.word,
-                                   "t_ms": int((_offset + _w.start) * 1000),
-                                   "end_ms": int((_offset + _w.end) * 1000)})
-            _offset += len(_chunk) / 16000.0
+            _seq += 1
+            _len_s = len(_chunk) / 16000.0
+            try:
+                _segments, _info = model.transcribe(_chunk, language=lang, word_timestamps=word_ts)
+                # 生成器是惰性的：真正的解码发生在下面这个 for 里，所以必须一起包住
+                for _s in _segments:
+                    _text = (_s.text or "").strip()
+                    if _text:
+                        _segs.append({"t_ms": int((_offset + _s.start) * 1000),
+                                     "end_ms": int((_offset + _s.end) * 1000),
+                                     "t_label": fmt_ts(int((_offset + _s.start) * 1000)),
+                                     "text": _text})
+                    for _w in (getattr(_s, "words", None) or []):
+                        _words.append({"text": _w.word,
+                                       "t_ms": int((_offset + _w.start) * 1000),
+                                       "end_ms": int((_offset + _w.end) * 1000)})
+            except Exception as _cexc:
+                # 单段出问题（内存紧张 / 单段解码异常）不能拖垮整场：
+                # 记一笔、跳过这一段继续，最后在日志里告诉你少了几段。
+                _failed += 1
+                print(f"[whisper] 第 {_seq} 段转写失败，跳过这一段继续（{_cexc}）",
+                      file=sys.stderr, flush=True)
+                if _failed >= 5 and _failed * 3 > _seq:
+                    raise          # 一半都失败了，说明不是偶发，交给上层报错
+            _offset += _len_s
             _el = time.time() - _t0
             if dur > 0:
                 _eta = (dur - _offset) * (_el / max(_offset, 0.001))
@@ -537,6 +551,9 @@ def via_whisper(audio: Path, lang: str | None) -> dict:
             else:
                 print(f"[whisper] 已转写 {_offset / 60:.1f} 分钟（用时 {_el / 60:.1f} 分钟）",
                       file=sys.stderr, flush=True)
+        if _failed:
+            print(f"[whisper] 共 {_seq} 段里有 {_failed} 段没能转写（已跳过），其余都已写入；"
+                  f"时间戳仍是整场的，不影响其它段。", file=sys.stderr, flush=True)
         return _segs, _words, _info, _t0
 
     # 词级时间戳遇到「这一段没有词」（纯音乐 / 长时间静音）时，faster-whisper 的

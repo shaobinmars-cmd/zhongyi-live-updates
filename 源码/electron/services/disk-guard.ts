@@ -16,8 +16,20 @@ const REC_EXTS = new Set(['.mp3', '.mp4', '.wav', '.flv', '.ts', '.mkv', '.m4a',
 /** 我们的录像命名：<主播>_20261015080405_000.mp4（断流重连分段号会 +1000，所以 3~4 位） */
 const OUR_RECORDING_RE = /_\d{14}_\d{3,4}\.[A-Za-z0-9]+$/
 
+/** 拆解前把多个分段合并出来的那个“整场”文件：<主播>_20261015080405.mp4（没有分段号） */
+const OUR_MERGED_RE = /_\d{14}\.[A-Za-z0-9]+$/
+
 export function isOurRecording(fileName: string): boolean {
   return OUR_RECORDING_RE.test(fileName)
+}
+
+/** 合并出来的整场文件也算自家产物：拆解失败/中途关软件时会留成好几 GB，得管起来 */
+export function isOurMergedFile(fileName: string): boolean {
+  return OUR_MERGED_RE.test(fileName)
+}
+
+function isOurs(fileName: string): boolean {
+  return isOurRecording(fileName) || isOurMergedFile(fileName)
 }
 
 export interface QuotaOptions {
@@ -27,7 +39,9 @@ export interface QuotaOptions {
 
 function protectedFile(name: string, protect: string[]): boolean {
   for (const p of protect) {
-    if (p && name.startsWith(p + '_')) return true
+    if (!p) continue
+    if (name.startsWith(p + '_')) return true   // 分段：<前缀>_000.mp4
+    if (name.startsWith(p + '.')) return true   // 合并整场：<前缀>.mp4（正在拆的时候不能删）
   }
   return false
 }
@@ -77,7 +91,7 @@ function collect(dir: string, out: Rec[], protect: string[], depth = 0): void {
     }
     if (!e.isFile()) continue
     if (!REC_EXTS.has(path.extname(e.name).toLowerCase())) continue
-    if (!isOurRecording(e.name)) continue                     // 不是我们录的，永远不碰
+    if (!isOurs(e.name)) continue                             // 不是我们自己的文件，永远不碰
     if (protectedFile(e.name, protect)) continue              // 正在录/正在拆的，不碰
     try {
       const st = fs.statSync(full)

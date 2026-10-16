@@ -155,6 +155,33 @@
           </div>
           <div class="model-hint">{{ deviceHint }}</div>
 
+          <!-- 一键下载：模型 / GPU 运行库（运营不用自己找命令行） -->
+          <div class="dl-row">
+            <n-button
+              size="tiny"
+              tertiary
+              :loading="prefetching === 'model'"
+              :disabled="!!prefetching || running"
+              @click="downloadModel"
+            >下载/校验这个模型</n-button>
+            <n-button
+              size="tiny"
+              tertiary
+              :loading="prefetching === 'gpu'"
+              :disabled="!!prefetching || running"
+              @click="downloadGpu"
+            >下载 GPU 运行库</n-button>
+            <n-button
+              v-if="prefetching"
+              size="tiny"
+              tertiary
+              type="error"
+              @click="cancelDownload"
+            >停止下载</n-button>
+          </div>
+          <div v-if="prefetchMsg" class="model-hint prefetch-msg">{{ prefetchMsg }}</div>
+          <div class="model-hint">没下过的模型首次拆解要联网下载（medium 约 1.5GB）；点上面的按钮可以先下好，走的是国内镜像。</div>
+
           <div class="run-actions">
             <n-button
               v-if="!running"
@@ -533,6 +560,40 @@ function humanSize(bytes: number): string {
   return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
+// ---- 一键下载：转写模型 / GPU 运行库 ----
+const prefetching = ref<'' | 'model' | 'gpu'>('')
+const prefetchMsg = ref('')
+
+/** 下载脚本每输出一行都会走到这里，界面实时能看到进度 */
+function onPrefetch(e: any): void {
+  if (!e) return
+  prefetching.value = e.running ? e.kind : ''
+  if (e.line) {
+    prefetchMsg.value = e.line
+    td.appendLine(e.line)   // 同时进日志页，方便回看
+  }
+}
+
+async function downloadModel(): Promise<void> {
+  prefetchMsg.value = ''
+  const res = await api().teardownPrefetchModel(td.model)
+  if (res && !res.ok && res.message) prefetchMsg.value = res.message
+  await recheckEnv()
+}
+
+async function downloadGpu(): Promise<void> {
+  prefetchMsg.value = ''
+  const res = await api().teardownPrefetchGpu()
+  if (res && !res.ok && res.message) prefetchMsg.value = res.message
+  await recheckEnv()
+}
+
+async function cancelDownload(): Promise<void> {
+  await api().teardownPrefetchCancel()
+  prefetching.value = ''
+  prefetchMsg.value = '已停止下载'
+}
+
 function humanTime(ms: number): string {
   if (!ms) return ''
   const d = new Date(ms)
@@ -679,6 +740,9 @@ onMounted(async () => {
   // 每次进页面先清掉旧的（否则来回切页会越叠越多）
   api().removeAiListeners()
   api().onAiProgress((p: any) => { if (p && p.stage) aiStage.value = p.stage })
+  // 下载进度监听器同样先去重再注册
+  api().removePrefetchListeners()
+  api().onPrefetchProgress(onPrefetch)
   await td.refreshConfig()
   limitInput.value = td.contextLimit
   await td.refreshEngine()
@@ -807,6 +871,8 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .model-hint { font-size: 10px; color: #9aa1ab; margin: 4px 0 12px 72px; }
 
 .run-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.dl-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px 72px; flex-wrap: wrap; }
+.prefetch-msg { color: #f97316; word-break: break-all; }
 .stage-text { font-size: 11px; color: #f97316; display: inline-flex; align-items: center; gap: 6px; }
 .stage-text.done { color: #10b981; }
 

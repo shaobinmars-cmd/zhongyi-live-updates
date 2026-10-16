@@ -253,6 +253,7 @@ export const useTeardownStore = defineStore('teardown', () => {
     input, model, running, stage, logs, error, startedAt, finishedAt,
     packet, showPacket,
     setupListeners, removeListeners, refreshEngine, refreshRecordings,
+    appendLine,   // 外部（如一键下载）也能往日志页里写一行
     hydrate, loadPacket, start, stop, pickFile, pickDir, selectRecording,
     contextLimit, splitting,
     device, setDevice,

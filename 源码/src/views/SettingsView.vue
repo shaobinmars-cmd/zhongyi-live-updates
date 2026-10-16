@@ -228,6 +228,50 @@
       <div v-if="!share.clients.length" class="form-hint">还没有密钥，点「加一个运营」会生成一串专属密钥。</div>
       <div v-if="shareMsg" class="form-hint" style="white-space: pre-wrap">{{ shareMsg }}</div>
     </div>
+
+    <!-- 数据汇总 + 一键升级（局域网） -->
+    <div class="form-group" style="margin-top: 18px">
+      <h3 class="section-title">数据汇总与升级（局域网）</h3>
+      <div class="form-hint" style="margin: 6px 0 10px">
+        运营电脑上的弹幕、孵化、场次清单、AI 报告，每天自动汇总到你这台；新版本也放在你这台，运营点一下就能升。<b>录像不上传。</b>
+      </div>
+
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <label class="form-label">你这台当汇总服务器</label>
+        <n-switch v-model:value="col.enabled" size="small" />
+        <n-input-number v-model:value="col.port" size="small" :min="1024" :max="65535" style="width: 120px" />
+        <n-button size="small" type="primary" @click="saveCollectSrv">保存并开启</n-button>
+        <n-button size="small" @click="openInbox">打开汇总文件夹</n-button>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <label class="form-label">升级包目录</label>
+        <n-input v-model:value="col.updateDir" size="small" placeholder="把新安装包 exe 放进这个目录，运营点一下就能升" />
+        <n-button size="small" @click="pickUpdateDir">选目录</n-button>
+      </div>
+      <div v-if="colStatus" class="form-hint">
+        服务：{{ colStatus.running ? '运行中' : '未开启' }}　地址：{{ colStatus.baseUrl }}　已收 {{ colStatus.received }} 份
+      </div>
+      <div v-if="colMsg" class="form-hint" style="white-space: pre-wrap">{{ colMsg }}</div>
+
+      <div class="client-head">运营那台怎么用</div>
+      <div class="form-hint" style="margin-bottom: 8px">
+        运营只要在用你的 AI 共享，下面两项会自动带上，不用手填。
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <label class="form-label">汇总地址</label>
+        <n-input v-model:value="cli.serverUrl" size="small" placeholder="留空 = 自动取 AI 共享那台机器" />
+        <n-input v-model:value="cli.token" size="small" placeholder="密钥（留空 = 用 AI 共享的）" />
+        <n-button size="small" @click="adoptAi">自动填</n-button>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <label class="form-label">每天自动上报</label>
+        <n-switch v-model:value="cli.autoDaily" size="small" />
+        <n-button size="small" type="primary" :loading="sending" @click="sendNow">立即上报一次</n-button>
+        <n-button size="small" :loading="checking" @click="doCheckUpdate">检查更新</n-button>
+        <n-button size="small" type="warning" :loading="upgrading" @click="doUpgrade">一键升级</n-button>
+      </div>
+      <div v-if="cliMsg" class="form-hint" style="white-space: pre-wrap">{{ cliMsg }}</div>
+    </div>
   </div>
 </template>
 
@@ -249,6 +293,7 @@ onMounted(() => {
   settings.loadConfig()
   loadAi()
   loadShare()
+  loadCollectAll()
 })
 
 // ---- AI 分析配置 ----
@@ -269,6 +314,16 @@ const gatewayUrl = ref('http://192.168.1.1')
 const newClientName = ref('')
 const showBatch = ref(false)
 const batchNames = ref('')
+
+// ---- 数据汇总 / 一键升级（局域网）----
+const col = ref<any>({ enabled: false, port: 57889, updateDir: '' })
+const colStatus = ref<any>(null)
+const colMsg = ref('')
+const cli = ref<any>({ serverUrl: '', token: '', autoDaily: true })
+const cliMsg = ref('')
+const sending = ref(false)
+const checking = ref(false)
+const upgrading = ref(false)
 const configText = ref('')
 const pendingDelete = ref('')
 
@@ -465,6 +520,89 @@ function copyInvite(c: any) {
     navigator.clipboard.writeText(text)
     shareMsg.value = '已复制，直接微信发给他：\n' + text
   } catch { /* ignore */ }
+}
+
+async function loadCollectAll() {
+  try {
+    col.value = await api().collectServerGet()
+    colStatus.value = await api().collectServerStatus()
+  } catch { /* 读不到就用默认值 */ }
+  try { cli.value = await api().collectConfigGet() } catch { /* ignore */ }
+}
+
+async function saveCollectSrv() {
+  colMsg.value = ''
+  try {
+    const r = await api().collectServerSet({
+      enabled: !!col.value.enabled,
+      port: Number(col.value.port) || 57889,
+      updateDir: String(col.value.updateDir || '')
+    })
+    col.value = r.config
+    colStatus.value = r.status
+    colMsg.value = col.value.enabled ? '已开启，运营那台现在就能上报和升级了' : '已关闭'
+  } catch (ex: any) {
+    colMsg.value = '保存失败：' + (ex?.message || ex)
+  }
+}
+
+async function pickUpdateDir() {
+  const d = await api().collectBrowseUpdateDir()
+  if (d) { col.value.updateDir = d; await saveCollectSrv() }
+}
+
+async function openInbox() {
+  const r = await api().collectOpenInbox()
+  colMsg.value = r?.ok ? '已打开汇总文件夹：' + r.dir : ('打不开：' + (r?.message || ''))
+}
+
+async function adoptAi() {
+  cli.value = await api().collectAdoptFromAi()
+  cliMsg.value = '已按 AI 共享的地址填好'
+}
+
+async function saveCli() {
+  await api().collectConfigSet({
+    serverUrl: String(cli.value.serverUrl || ''),
+    token: String(cli.value.token || ''),
+    autoDaily: !!cli.value.autoDaily
+  })
+}
+
+async function sendNow() {
+  sending.value = true
+  cliMsg.value = '正在打包上报…（弹幕库大的话要几十秒）'
+  try {
+    await saveCli()
+    const r = await api().collectSendNow()
+    cliMsg.value = (r?.ok ? '✅ ' : '❌ ') + (r?.message || '')
+  } catch (ex: any) {
+    cliMsg.value = '上报失败：' + (ex?.message || ex)
+  } finally { sending.value = false }
+}
+
+async function doCheckUpdate() {
+  checking.value = true
+  cliMsg.value = '正在问老板那台最新版是多少…'
+  try {
+    await saveCli()
+    const r = await api().updateCheck()
+    cliMsg.value = (r?.ok ? '' : '❌ ') + (r?.message || '')
+  } catch (ex: any) {
+    cliMsg.value = '检查失败：' + (ex?.message || ex)
+  } finally { checking.value = false }
+}
+
+async function doUpgrade() {
+  upgrading.value = true
+  cliMsg.value = '正在检查并下载新版本…（局域网很快，别关窗口）'
+  try {
+    await saveCli()
+    const r = await api().updateApply()
+    cliMsg.value = (r?.ok ? '✅ ' : '❌ ') + (r?.message || '')
+  } catch (ex: any) {
+    cliMsg.value = '升级失败：' + (ex?.message || ex)
+  } finally { upgrading.value = false }
 }
 
 async function loadAi() {

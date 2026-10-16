@@ -67,6 +67,40 @@
       <span class="status-text">{{ recordStore.danmuStatus }}</span>
     </div>
 
+    <!-- 单个直播间：每个房间一行，可以只录这一个 -->
+    <div class="card room-pick-card">
+      <div class="pick-head">
+        <span class="pick-title">直播间（可以只录其中一个）</span>
+        <span class="pick-hint">{{ roomListStore.results.length ? '点右边按钮单独录这一个，不影响其它房间' : '先去「直播间」页添加直播间' }}</span>
+      </div>
+      <div v-if="roomListStore.results.length" class="pick-list">
+        <div v-for="room in roomListStore.results" :key="room.url || room.enterRoomId" class="pick-item">
+          <div class="rec-avatar" :style="{ background: avatarGradient(room.enterRoomId || room.url) }">
+            {{ (room.nickname || '?').charAt(0) }}
+          </div>
+          <div class="pick-info">
+            <div class="pick-name">{{ room.nickname || ('房间 ' + (room.enterRoomId || '未解析')) }}</div>
+            <div class="pick-meta">
+              <span class="pick-rid">{{ room.enterRoomId || '还没解析出房间号' }}</span>
+              <span :class="['pick-state', stateClass(room)]">{{ stateText(room) }}</span>
+              <span v-if="isRecording(room.enterRoomId)" class="pick-live-status">{{ statusTextOf(room.enterRoomId) }}</span>
+            </div>
+          </div>
+          <n-button
+            size="small"
+            :type="isRecording(room.enterRoomId) ? 'error' : 'primary'"
+            :ghost="!isRecording(room.enterRoomId)"
+            :disabled="!room.enterRoomId"
+            :loading="busyRoom === room.enterRoomId"
+            @click="toggleRoom(room)"
+          >
+            {{ isRecording(room.enterRoomId) ? '停止录制' : '开始录制' }}
+          </n-button>
+        </div>
+      </div>
+      <div v-else class="pick-empty">还没有直播间：先去「直播间」页粘贴房间地址</div>
+    </div>
+
     <div v-if="recordStore.isDurationVisible" class="recording-list">
       <div
         v-for="item in recordStore.recordingItems"
@@ -114,14 +148,49 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { NButton } from 'naive-ui'
 import { useRecordStore } from '../stores/record'
+import { useRoomListStore } from '../stores/room-list'
 import { formatFileSize } from '../utils/format'
 
 const recordStore = useRecordStore()
+const roomListStore = useRoomListStore()
 
-const activeCount = computed(() => recordStore.recordingItems.filter(i => i.isActive).length)
+/** 哪个房间的按钮正在请求中（防连点） */
+const busyRoom = ref('')
+
+function isRecording(roomId: string): boolean {
+  if (!roomId) return false
+  return recordStore.recordingItems.some((i: any) => i.roomId === roomId && i.isActive)
+}
+
+function statusTextOf(roomId: string): string {
+  return recordStore.recordingItems.find((i: any) => i.roomId === roomId)?.statusText || ''
+}
+
+function stateText(room: any): string {
+  if (room.error) return '解析失败'
+  if (room.roomStatus === 2) return '未开播'
+  return '已开播'
+}
+
+function stateClass(room: any): string {
+  if (room.error) return 'bad'
+  return room.roomStatus === 2 ? 'idle' : 'live'
+}
+
+async function toggleRoom(room: any): Promise<void> {
+  busyRoom.value = room.enterRoomId
+  try {
+    if (isRecording(room.enterRoomId)) await recordStore.stopOne(room.enterRoomId)
+    else await recordStore.recordOne(room)
+  } finally {
+    busyRoom.value = ''
+  }
+}
+
+const activeCount = computed(() => recordStore.recordingItems.filter((i: any) => i.isActive).length)
 
 const totalSize = computed(() => {
   let bytes = 0
@@ -386,6 +455,26 @@ function avatarGradient(roomId: string): string {
 .rec-status-text.error { color: #ef4444; }
 
 .empty-state { padding: 60px 0; }
+
+.room-pick-card { padding: 14px 18px; margin-bottom: 12px; }
+.pick-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.pick-title { font-size: 13px; font-weight: 700; color: #1f2328; }
+.pick-hint { font-size: 11px; color: #9aa1ab; }
+.pick-list { display: flex; flex-direction: column; gap: 6px; }
+.pick-item {
+  display: flex; align-items: center; gap: 12px;
+  background: #f9fafb; border: 1px solid #e6e8ec; border-radius: 8px; padding: 10px 12px;
+}
+.pick-info { flex: 1; min-width: 0; }
+.pick-name { font-size: 13px; font-weight: 600; color: #1f2328; }
+.pick-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.pick-rid { font-size: 10px; color: #9aa1ab; }
+.pick-state { font-size: 10px; padding: 1px 7px; border-radius: 8px; }
+.pick-state.live { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.pick-state.idle { background: rgba(154, 161, 171, 0.15); color: #6b7280; }
+.pick-state.bad { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+.pick-live-status { font-size: 10px; color: #f97316; }
+.pick-empty { font-size: 12px; color: #9aa1ab; padding: 10px 0 4px; }
 
 .empty-icon { margin-bottom: 8px; }
 
