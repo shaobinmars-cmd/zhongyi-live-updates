@@ -251,7 +251,9 @@ async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = [
  * 分析一份素材包（input 可以是视频文件、素材包 md、或它的 work 目录）
  * 报告写到素材包同目录的「AI分析报告.md」
  */
-export async function analyzePacket(input: string, onProgress?: AiProgressFn): Promise<AiAnalyzeResult> {
+export interface AnalyzeOptions { images?: string[]; imageCount?: number }
+
+export async function analyzePacket(input: string, onProgress?: AiProgressFn, opts: AnalyzeOptions = {}): Promise<AiAnalyzeResult> {
   const cfg = loadAiConfig()
   if (!cfg.apiKey || !cfg.model || !endpoint(cfg)) {
     return { ok: false, note: '还没配置 AI 接口。去「设置」页填接口地址、密钥、模型名，再点「测试连接」。' }
@@ -276,8 +278,9 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn): P
   const canVision = !!(cfg.visionApiKey && cfg.visionModel && cfg.visionBaseUrl)
   const maxImg = Math.max(0, Math.min(8, Number(cfg.visionMaxImages) || 4))
   const grids = (info.grids || []).filter((p) => { try { return fs.existsSync(p) } catch { return false } })
-  const step = Math.max(1, Math.ceil(grids.length / Math.max(1, maxImg)))
-  const picked = maxImg ? grids.filter((_, i) => i % step === 0).slice(0, maxImg) : []
+  const wantCount = opts.imageCount !== undefined ? Math.max(0, Math.min(8, Number(opts.imageCount) || 0)) : maxImg
+  const step = Math.max(1, Math.ceil(grids.length / Math.max(1, wantCount)))
+  const picked = (opts.images && opts.images.length ? opts.images.filter((p) => { try { return fs.existsSync(p) } catch { return false } }) : (wantCount ? grids.filter((_, i) => i % step === 0).slice(0, wantCount) : []))
   const images = canVision ? picked.map((p) => 'data:image/jpeg;base64,' + fs.readFileSync(p).toString('base64')) : []
   if (canVision) logger.info(LOG_MODULE, `图片分析：${images.length} 张（${cfg.visionModel}）`)
   cancelRequested = false

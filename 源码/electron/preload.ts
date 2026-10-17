@@ -64,7 +64,7 @@ const api = {
   aiConfigGet: () => invoke('ai:config-get'),
   aiConfigSet: (patch: any) => invoke('ai:config-set', patch),
   aiTest: (patch: any) => invoke('ai:test', patch),
-  aiAnalyze: (input: string) => invoke('ai:analyze', input),
+  aiAnalyze: (input: string, opts?: any) => invoke('ai:analyze', input, opts || {}),
   aiCancel: () => invoke('ai:cancel'),
   aiReadReport: (input: string) => invoke('ai:read-report', input),
   // AI 共享（老板机当服务器，一人一密钥）

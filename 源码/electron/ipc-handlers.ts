@@ -303,9 +303,9 @@ export function registerIpcHandlers(): void {
     return upnp.openPort({ port, internalIp: ips[0], description: 'ZhongYi-AI-Share' })
   })
   ipcMain.handle('ai:close-port', async (_e, port: number) => upnp.closePort(port))
-  ipcMain.handle('ai:analyze', async (_e, input: string) => {
+  ipcMain.handle('ai:analyze', async (_e, input: string, opts: any) => {
     try {
-      return await ai.analyzePacket(input, (p) => mainWindow?.webContents.send('ai:on-progress', p))
+      return await ai.analyzePacket(input, (p) => mainWindow?.webContents.send('ai:on-progress', p), opts || {})
     } catch (ex: any) {
       return { ok: false, note: '分析失败：' + String(ex?.message || ex) }
     }
