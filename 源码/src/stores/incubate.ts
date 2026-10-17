@@ -263,6 +263,15 @@ export const useIncubateStore = defineStore('incubate', () => {
     await loadStreamers()
   }
 
+  /** 保存主播档案（入司/首播/开播状态/配合意愿） */
+  async function saveStreamerProfile(name: string, patch: Record<string, string>) {
+    const hit = streamers.value.find((x: any) => String(x['主播'] || '').trim() === name)
+    const today = new Date().toISOString().slice(0, 10)
+    if (hit) await api().incubateUpdate('主播学籍', Number(hit.id), { ...hit, ...patch, 更新时间: today })
+    else await api().incubateAdd('主播学籍', { 主播: name, 带教运营: '', 赛道: defaultTrack.value, ...patch, 更新时间: today })
+    await loadStreamers()
+  }
+
   async function removeSession(name: string, date: string) {
     const old = sessions.value.filter((r: any) => String(r['日期'] || '') === date && String(r['主播'] || '').trim() === name)
     for (const r of old) await api().incubateDelete('场次记录', Number(r.id))
@@ -278,7 +287,7 @@ export const useIncubateStore = defineStore('incubate', () => {
     generatePlan, loadPlan, saveFeedback,
     exportCsv, exportXlsx, openDataDir,
     loadTracks, trackNames, extraDefsOf, allDefsOf,
-    loadStreamers, importStreamers, loadSessions, loadSchedule,
+    loadStreamers, importStreamers, saveStreamerProfile, loadSessions, loadSchedule,
     trackOf, sessionsOf, evaluate, saveSession, removeSession, ensureStreamer, updateStreamerTrack
   }
 })

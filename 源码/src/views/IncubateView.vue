@@ -25,6 +25,15 @@
               <n-button quaternary @click="justGenerate">只重新生成计划</n-button>
             </div>
             <div class="plan-hint">支持 .md / .txt / Word(.docx/.doc) / WPS(.wps/.rtf)；也可以把文件拖进来，或点「粘贴报告」贴全文。</div>
+            <div class="plan-import-row" style="margin-top: 10px">
+              <span class="hint">只看我带的主播</span>
+              <n-switch v-model:value="onlyMine" size="small" @update:value="saveOnlyMine" />
+              <n-input v-model:value="profile['入司日期']" placeholder="入司日期 2026-10-17" style="width: 170px" />
+              <n-input v-model:value="profile['首播日期']" placeholder="首播日期 2026-10-17" style="width: 170px" />
+              <n-select v-model:value="profile['是否正常开播']" :options="airOptions" placeholder="是否正常开播" style="width: 150px" />
+              <n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="配合意愿" style="width: 130px" />
+              <n-button :disabled="!planStreamer" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
+            </div>
             <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
           </div>
 
@@ -301,6 +310,7 @@ const viewTable = ref('资产库')
 const viewOptions = [
   { label: '资产库', value: '资产库' },
   { label: '本周课表', value: '课表' }
+  ,{ label: '案例库', value: '案例库' }
 ]
 const yesNo: SelectOption[] = [
   { label: '是', value: '是' },
@@ -424,6 +434,30 @@ const fb = ref<Record<string, string>>({
   完成情况: '完成', 数据结果: '', 问题: '', 明日计划: '', 运营: localStorage.getItem('inc_operator') || '', 今日任务: ''
 })
 
+const airOptions: SelectOption[] = [
+  { label: '正常开播', value: '是' }, { label: '未正常开播', value: '否' }, { label: '待定', value: '待定' }
+]
+const willOptions: SelectOption[] = [
+  { label: '积极配合', value: '高' }, { label: '一般', value: '中' }, { label: '不配合', value: '低' }
+]
+const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 是否正常开播: '', 配合意愿: '' })
+const profileBusy = ref(false)
+function loadProfile(name: string) {
+  const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+  profile.value = {
+    入司日期: String(s?.['入司日期'] || ''), 首播日期: String(s?.['首播日期'] || ''),
+    是否正常开播: String(s?.['是否正常开播'] || ''), 配合意愿: String(s?.['配合意愿'] || '')
+  }
+}
+async function saveProfile() {
+  if (!planStreamer.value) return msg.warning('先选主播')
+  profileBusy.value = true
+  try {
+    await store.saveStreamerProfile(planStreamer.value, { ...profile.value })
+    msg.success('主播档案已保存')
+  } catch (e: any) { msg.error('保存失败：' + (e?.message || e)) } finally { profileBusy.value = false }
+}
+
 const planStreamerOptions = computed<SelectOption[]>(() => streamerNames.value.map((n) => ({ label: n, value: n })))
 const fbOptions: SelectOption[] = [
   { label: '完成', value: '完成' },
@@ -486,6 +520,7 @@ async function onPlanStreamer(name: string) {
   planStreamer.value = name || ''
   if (!name) { planInfo.value = null; return }
   planTrack.value = store.trackOf(name) || store.defaultTrack
+  loadProfile(name)
   // 下方“今日打分”区也用同一个主播，避免选两次
   current.value = name
   curTrack.value = planTrack.value
@@ -866,6 +901,7 @@ onMounted(async () => {
   if (planStreamer.value) {
     planStart.value = localDate()
     planTrack.value = store.trackOf(planStreamer.value)
+    loadProfile(planStreamer.value)
     await loadPlanFor(planStreamer.value)
   }
   window.addEventListener('keydown', onKey)
