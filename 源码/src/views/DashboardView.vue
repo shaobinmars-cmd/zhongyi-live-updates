@@ -14,6 +14,7 @@
       </div>
     </div>
 
+    <div class="dash-section-title"><b>全公司汇总</b><span>所有已连接直播间合计</span></div>
     <div class="stats-row">
       <div v-for="s in aggregateStats" :key="s.label" class="stat-card">
         <div class="stat-glow" :style="{ background: s.glowColor }"></div>
@@ -23,6 +24,7 @@
       </div>
     </div>
 
+    <div class="dash-section-title room-title"><b>每个直播间汇总</b><span>单间直播的实时数据与录制状态</span></div>
     <div v-if="store.roomStats.length > 0" class="room-cards">
       <div v-for="stats in store.roomStats" :key="stats.roomId" class="room-card">
         <div :class="['room-stripe', { connected: stats.isConnected }]"></div>
@@ -32,12 +34,14 @@
               {{ stats.nickname.charAt(0) || '?' }}
             </div>
             <span class="room-name">{{ stats.nickname }}</span>
+            <span class="platform-chip">{{ stats.platformLabel || '抖音' }}</span>
             <span v-if="stats.isRecording" class="rec-badge">
               <span class="rec-dot"></span>
               {{ stats.recordDurationText }} {{ stats.recordSizeText }}
             </span>
           </div>
           <div class="room-badges">
+            <span :class="['conn-badge', { on: stats.isConnected }]">{{ stats.isConnected ? '弹幕在线' : '弹幕未连接' }}</span>
             <span :class="['live-badge', { offline: stats.roomStatus === 2 }]">
               {{ stats.roomStatus === 2 ? '未开播' : '直播中' }}
             </span>
@@ -45,17 +49,11 @@
               观看 {{ stats.roomViewCount.toLocaleString() }}  ·  点赞 {{ stats.roomLikeCount.toLocaleString() }}
             </span>
           </div>
-          <div class="bars">
-            <div v-for="bar in getBars(stats)" :key="bar.label" class="bar-row">
-              <span class="bar-label">
-                <span class="bar-dot" :style="{ background: bar.color }"></span>
-                {{ bar.label }}
-              </span>
-              <div class="bar-track">
-                <div class="bar-fill" :style="{ width: bar.ratio + '%', background: bar.gradient }"></div>
-              </div>
-              <span class="bar-value">{{ bar.count.toLocaleString() }}</span>
-            </div>
+          <div class="room-kpis">
+            <div><span>弹幕</span><b>{{ stats.danmuCount }}</b></div>
+            <div><span>礼物</span><b>{{ stats.giftCount }}</b></div>
+            <div><span>点赞</span><b>{{ stats.likeCount }}</b></div>
+            <div><span>进入</span><b>{{ stats.memberCount }}</b></div>
           </div>
         </div>
       </div>
@@ -195,6 +193,10 @@ onUnmounted(() => {
 }
 
 .stats-row {
+.dash-section-title { display:flex; align-items:baseline; gap:10px; margin:4px 0 10px; color:var(--ink); }
+.dash-section-title b { font-size:15px; }
+.dash-section-title span { font-size:11px; color:var(--ink-4); }
+.dash-section-title.room-title { margin-top:2px; padding-top:16px; border-top:1px solid var(--line); }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
@@ -253,7 +255,7 @@ onUnmounted(() => {
 
 .room-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
   gap: 10px;
 }
 
@@ -282,7 +284,7 @@ onUnmounted(() => {
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
 }
 
-.room-card-body { flex: 1; padding: 16px 18px; }
+.room-card-body { flex: 1; padding: 12px 14px; }
 
 .room-header { display: flex; align-items: center; gap: 10px; }
 .room-avatar {
@@ -303,6 +305,10 @@ onUnmounted(() => {
   font-weight: 600;
   color: #1f2328;
 }
+.platform-chip { border:1px solid #d9e7f2; background:#f2f8fc; color:#38627b; border-radius:999px; padding:2px 7px; font-size:10px; }
+.conn-badge { border-radius:999px; padding:2px 7px; font-size:10px; background:#f3f5f7; color:#6b7280; } .conn-badge.on { background:#ecfdf5; color:#0f9d82; }
+.room-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:10px; }
+.room-kpis div { border-radius:8px; background:#f8fbfd; padding:7px 6px; display:flex; flex-direction:column; align-items:center; gap:1px; } .room-kpis span { font-size:9px; color:#708797; } .room-kpis b { font-size:15px; color:#1f516d; font-weight:800; }
 
 .rec-badge {
   margin-left: auto;

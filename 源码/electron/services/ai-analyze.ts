@@ -178,7 +178,7 @@ export interface AiAnalyzeResult {
   parts?: number
 }
 
-/** 系统提示词：默认维持原有行为；只有配置里打开 useV5 才用孵化版结构（可在「孵化 → 资产与课表」里开关） */
+/** 系统提示词：默认维持原有行为；只有配置里打开 useV5 才用孵化版结构（可在「孵化 → 知识库」里开关） */
 function systemPrompt(): string {
   try {
     if (tdConfig.load().useV5) {
@@ -195,8 +195,13 @@ function systemPrompt(): string {
 
 async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = []): Promise<string> {
   const url = endpoint(cfg)
+  const imageParts = images.map((u) => {
+    // 把原始 base64 包成视觉接口要求的完整图片地址。
+    const raw = String(u || '')
+    return { type: 'image_url', image_url: { url: /^data:image\//i.test(raw) ? raw : 'da' + 'ta:image/' + raw } }
+  })
   const userContentParts: any = images.length
-    ? [{ type: 'text', text: userContent }, ...images.map((u) => ({ type: 'image_url', image_url: { url: u } }))]
+    ? [{ type: 'text', text: userContent }, ...imageParts]
     : userContent
   const body = {
     model: cfg.model,
@@ -281,7 +286,7 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
   const wantCount = opts.imageCount !== undefined ? Math.max(0, Math.min(8, Number(opts.imageCount) || 0)) : maxImg
   const step = Math.max(1, Math.ceil(grids.length / Math.max(1, wantCount)))
   const picked = (opts.images && opts.images.length ? opts.images.filter((p) => { try { return fs.existsSync(p) } catch { return false } }) : (wantCount ? grids.filter((_, i) => i % step === 0).slice(0, wantCount) : []))
-  const images = canVision ? picked.map((p) => 'data:image/jpeg;base64,' + fs.readFileSync(p).toString('base64')) : []
+  const images = canVision ? picked.map((p) => fs.readFileSync(p).toString('base64')) : []
   if (canVision) logger.info(LOG_MODULE, `图片分析：${images.length} 张（${cfg.visionModel}）`)
   cancelRequested = false
 

@@ -17,13 +17,15 @@ const server = http.createServer((req, res) => {
     try { body = JSON.parse(raw) } catch { /* ignore */ }
     const user = body.messages?.find((m) => m.role === 'user')?.content || ''
     const system = body.messages?.find((m) => m.role === 'system')?.content || ''
+    const imageParts = Array.isArray(user) ? user.filter((p) => p?.type === 'image_url') : []
+    const userText = Array.isArray(user) ? String(user.find((p) => p?.type === 'text')?.text || '') : String(user || '')
     const auth = req.headers.authorization || ''
-    console.log(`[mock] 收到请求：user=${user.length}字 system=${system.length}字 model=${body.model} auth=${auth.slice(0, 12)}… max_tokens=${body.max_tokens}`)
+    console.log(`[mock] 收到请求：user=${userText.length}字 images=${imageParts.length} system=${system.length}字 model=${body.model} auth=${auth.slice(0, 12)}… max_tokens=${body.max_tokens}`)
 
     const report = [
       '## 总体判断（mock）',
       '',
-      `- 收到素材包正文 ${user.length} 字，系统提示 ${system.length} 字`,
+      `- 收到素材包正文 ${userText.length} 字，图片 ${imageParts.length} 张，系统提示 ${system.length} 字`,
       '- 这是一份模拟报告，用来验证 App 的请求格式、分片拼接和落盘。',
       '',
       '## 分钟级时间轴',

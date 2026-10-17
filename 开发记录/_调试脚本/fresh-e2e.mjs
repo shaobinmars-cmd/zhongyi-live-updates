@@ -20,7 +20,7 @@ const ROOMS = [
 const REC_SECONDS = 60
 const REC_DIR = path.join(os.homedir(), 'Desktop', '直播录制')
 const LICENSE_FILE = 'H:/360MoveData/Users/Administrator/Documents/ChatGPT/直播间拆解项目github/douyin-live-info/授权_管理员_0DD8-FD0F-CC3E-8587-795F.json'
-const TEST_KEY = 'sk-282d6643acb04ce9ba06ed0fc5083b17'
+const TEST_KEY = process.env.DEEPSEEK_TEST_KEY || ''
 
 const LOGFILE = path.join(os.tmpdir(), 'fresh-e2e.log')
 try { fs.writeFileSync(LOGFILE, '') } catch { /* ignore */ }
@@ -90,10 +90,14 @@ log('\n=== 1) 默认录制格式（全新配置应为 mp4） ===')
 log('   ' + await ev(`(async () => { const c = await window.electronAPI.configLoad(); return JSON.stringify({ outputFormat: c.outputFormat, outputPath: c.outputPath, segmentMinutes: c.segmentMinutes }) })()`))
 
 log('\n=== 2) AI 设置：保存 + 测试连接 ===')
-const saveRes = await ev(`(async () => { try { const r = await window.electronAPI.aiConfigSet({ baseUrl: 'https://api.deepseek.com/v1', apiKey: ${JSON.stringify(TEST_KEY)}, model: 'deepseek-chat' }); return '保存 OK：' + JSON.stringify(r).slice(0, 160) } catch (e) { return '保存失败(克隆类错误就是它)：' + e.message } })()`)
-log('   ' + saveRes)
-const testRes = await ev(`(async () => { try { const r = await window.electronAPI.aiTest({ baseUrl: 'https://api.deepseek.com/v1', apiKey: ${JSON.stringify(TEST_KEY)}, model: 'deepseek-chat' }); return JSON.stringify(r) } catch (e) { return '测试失败(克隆类错误就是它)：' + e.message } })()`)
-log('   测试连接：' + testRes)
+if (!TEST_KEY) {
+  log('   未设置 DEEPSEEK_TEST_KEY，跳过 AI 连接测试')
+} else {
+  const saveRes = await ev(`(async () => { try { const r = await window.electronAPI.aiConfigSet({ baseUrl: 'https://api.deepseek.com/v1', apiKey: ${JSON.stringify(TEST_KEY)}, model: 'deepseek-chat' }); return '保存 OK：' + JSON.stringify(r).slice(0, 160) } catch (e) { return '保存失败(克隆类错误就是它)：' + e.message } })()`)
+  log('   ' + saveRes)
+  const testRes = await ev(`(async () => { try { const r = await window.electronAPI.aiTest({ baseUrl: 'https://api.deepseek.com/v1', apiKey: ${JSON.stringify(TEST_KEY)}, model: 'deepseek-chat' }); return JSON.stringify(r) } catch (e) { return '测试失败(克隆类错误就是它)：' + e.message } })()`)
+  log('   测试连接：' + testRes)
+}
 
 log('\n=== 3) 连直播 + 录制 ===')
 const roomsRaw = await ev(`(async () => { const r = await window.electronAPI.roomFetch(${JSON.stringify(ROOMS)}); return JSON.stringify(r) })()`)

@@ -11,6 +11,11 @@ export const useRoomListStore = defineStore('room-list', () => {
   const statusMessage = ref('')
   const isLoading = ref(false)
   const urlText = ref('')
+  const platform = ref('auto')
+  const platformFilter = ref('all')
+  const filteredResults = computed(() => platformFilter.value === 'all'
+    ? results.value
+    : results.value.filter((r: any) => (r.platform || 'douyin') === platformFilter.value))
 
   function selectRoom(room: (LiveRoomInfo & { connectionState: DanmuConnectionState }) | null) {
     selectedRoom.value = room
@@ -20,10 +25,10 @@ export const useRoomListStore = defineStore('room-list', () => {
     const lines = urlText.value
       .split(/[\r\n]/)
       .map(l => l.trim())
-      .filter(l => l.includes('live.douyin.com'))
+      .filter(l => /^https?:\/\//i.test(l))
 
     if (lines.length === 0) {
-      statusMessage.value = '请输入至少一个有效的直播间链接'
+      statusMessage.value = '请输入至少一个 http(s) 直播间链接'
       return
     }
 
@@ -31,7 +36,7 @@ export const useRoomListStore = defineStore('room-list', () => {
     statusMessage.value = '正在获取...'
 
     try {
-      const fetched = await api().roomFetch(lines)
+      const fetched = await api().roomFetch(lines, platform.value)
       let addedSuccess = 0
 
       for (const info of fetched) {
@@ -40,6 +45,8 @@ export const useRoomListStore = defineStore('room-list', () => {
 
         const room: LiveRoomInfo & { connectionState: DanmuConnectionState } = {
           ...info,
+          platform: info.platform || (platform.value === 'auto' ? 'other' : platform.value),
+          platformLabel: info.platformLabel || info.platform || platform.value,
           index: results.value.length + 1,
           connectionState: DanmuConnectionState.None
         }
@@ -68,6 +75,7 @@ export const useRoomListStore = defineStore('room-list', () => {
     selectedRoom.value = null
     statusMessage.value = ''
     urlText.value = ''
+    platformFilter.value = 'all'
   }
 
   function reindex() {
@@ -75,7 +83,7 @@ export const useRoomListStore = defineStore('room-list', () => {
   }
 
   return {
-    results, selectedRoom, statusMessage, isLoading, urlText,
+    results, filteredResults, selectedRoom, statusMessage, isLoading, urlText, platform, platformFilter,
     selectRoom, fetchRooms, deleteSelected, clear
   }
 })

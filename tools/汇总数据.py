@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""老板端：拉取私有仓库里的运营数据，合并成本地汇总 + 日报。
+r"""老板端：拉取私有仓库里的运营数据，合并成本地汇总 + 日报。
 用法：python 汇总数据.py
 配置：%APPDATA%\douyin-live-info\sync.json（同上，operator 可写“老板”）
 输出：H:\直播运营汇总\汇总_YYYY-MM-DD.json 和 日报_YYYY-MM-DD.md

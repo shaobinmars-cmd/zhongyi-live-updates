@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 
 app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
-process.env.TEARDOWN_ENGINE = 'D:\\直播拆解工具'
+process.env.TEARDOWN_ENGINE = 'H:\\众艺传媒运营工具\\直播拆解引擎'
 app.on('window-all-closed', () => { /* 别退 */ })
 
 const LOGFILE = path.join(os.tmpdir(), 'test-full-teardown.log')

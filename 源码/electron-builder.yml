@@ -13,7 +13,7 @@ extraResources:
   - from: ffmpeg.exe
     to: ffmpeg.exe
   # 拆解引擎：只带运行必需的东西，不带录像/归档/发布包
-  - from: "D:\\直播拆解工具"
+  - from: "../直播拆解引擎"
     to: engine
     filter:
       - "python-embed/**/*"
@@ -23,6 +23,14 @@ extraResources:
   # 安装时自动装 VC++ 运行库（老电脑上 MSVCP140.dll 过旧会让转写直接崩）
   - from: build/vc_redist.x64.exe
     to: vc_redist.x64.exe
+  # 数据汇总 / 自动报表脚本（老板端和运营端共用）
+  - from: "../tools"
+    to: tools
+    filter:
+      - "自动上传数据.py"
+      - "汇总数据.py"
+      - "生成报表.py"
+      - "自动上传_部署说明.md"
 win:
   target:
     - nsis

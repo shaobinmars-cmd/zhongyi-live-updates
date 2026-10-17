@@ -2,7 +2,7 @@ const { app } = require('electron')
 const path = require('path')
 const fs = require('fs')
 app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
-process.env.TEARDOWN_ENGINE = 'D:\\直播拆解工具'
+process.env.TEARDOWN_ENGINE = 'H:\\众艺传媒运营工具\\直播拆解引擎'
 app.on('window-all-closed', () => {})
 app.whenReady().then(async () => {
   const td = require('../dist-electron/services/teardown.js')

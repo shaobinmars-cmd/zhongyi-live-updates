@@ -8,6 +8,8 @@ const LOG_MODULE = 'RecordState'
 export interface SavedRecording {
   roomId: string
   nickname: string
+  platform?: string
+  sourceUrl?: string
 }
 
 interface StateFile {
@@ -33,7 +35,7 @@ export function load(): StateFile {
   try {
     const raw = JSON.parse(fs.readFileSync(statePath(), 'utf-8'))
     const rooms = Array.isArray(raw?.rooms)
-      ? raw.rooms.filter((r: any) => r && typeof r.roomId === 'string' && r.roomId)
+      ? raw.rooms.filter((r: any) => r && typeof r.roomId === 'string' && r.roomId).map((r: any) => ({ ...r, platform: typeof r.platform === 'string' ? r.platform : 'douyin', sourceUrl: typeof r.sourceUrl === 'string' ? r.sourceUrl : '' }))
       : []
     return { savedAt: Number(raw?.savedAt) || 0, rooms }
   } catch {

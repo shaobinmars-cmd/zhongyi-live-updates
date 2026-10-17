@@ -139,13 +139,13 @@ export const useDanmuStore = defineStore('danmu', () => {
     }
   }
 
-  async function connectRoom(roomId: string, nickname: string) {
+  async function connectRoom(roomId: string, nickname: string, platform = 'douyin') {
     const dashboard = useDashboardStore()
     const roomList = useRoomListStore()
     dashboard.updateRooms(roomList.results)
 
     try {
-      await api().danmuConnect(roomId, nickname)
+      await api().danmuConnect(roomId, nickname, platform)
       connectedRoomIds.add(roomId)
       danmuStatus.value = `${nickname} 已连接`
       updateCountText()
@@ -170,7 +170,7 @@ export const useDanmuStore = defineStore('danmu', () => {
   }
 
   async function connectAll(rooms: any[]) {
-    const toConnect = rooms.filter(r => !r.error && r.roomStatus !== 2 && !connectedRoomIds.has(r.enterRoomId))
+    const toConnect = rooms.filter(r => (r.platform || 'douyin') === 'douyin' && !r.error && r.roomStatus !== 2 && !connectedRoomIds.has(r.enterRoomId))
     if (toConnect.length === 0) { danmuStatus.value = '没有可连接的直播间'; return }
 
     // Ensure dashboard has room entries before connecting
@@ -183,7 +183,7 @@ export const useDanmuStore = defineStore('danmu', () => {
     for (const room of toConnect) {
       room.connectionState = DanmuConnectionState.Connecting
       try {
-        await api().danmuConnect(room.enterRoomId, room.nickname)
+        await api().danmuConnect(room.enterRoomId, room.nickname, room.platform || 'douyin')
         connectedRoomIds.add(room.enterRoomId)
         room.connectionState = DanmuConnectionState.Connected
         successCount++

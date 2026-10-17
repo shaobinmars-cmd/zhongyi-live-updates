@@ -6,6 +6,8 @@ const LOG_MODULE = 'DouyinLive'
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 interface LiveRoomInfo {
+  platform: string
+  platformLabel: string
   enterRoomId: string
   nickname: string
   title: string
@@ -95,6 +97,8 @@ export class DouyinLiveService {
     }
 
     return {
+      platform: 'douyin',
+      platformLabel: '抖音',
       enterRoomId,
       nickname: info?.nickname || '',
       title: info?.title || '',
@@ -140,6 +144,8 @@ export class DouyinLiveService {
     if (!data) return null
 
     const info: LiveRoomInfo = {
+      platform: 'douyin',
+      platformLabel: '抖音',
       enterRoomId: data.enter_room_id || '',
       nickname: '',
       title: '',

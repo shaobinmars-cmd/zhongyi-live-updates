@@ -32,6 +32,8 @@ export enum DanmuConnectionState {
 }
 
 export interface LiveRoomInfo {
+  platform: string
+  platformLabel: string
   url: string
   enterRoomId: string
   nickname: string
@@ -45,6 +47,8 @@ export interface LiveRoomInfo {
 }
 
 export interface RoomStats {
+  platform: string
+  platformLabel: string
   roomId: string
   nickname: string
   danmuCount: number
@@ -62,6 +66,8 @@ export interface RoomStats {
 }
 
 export interface RecordingItem {
+  platform?: string
+  sourceUrl?: string
   roomId: string
   nickname: string
   durationText: string

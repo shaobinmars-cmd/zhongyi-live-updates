@@ -308,7 +308,7 @@ export async function collectNow(): Promise<CollectResult> {
     ? `上报成功（${(body.length / 1024 / 1024).toFixed(1)} MB）`
     : `上报失败（HTTP ${res.code || '无'}）：${res.text.slice(0, 160)}`
 
-  saveClientConfig({ lastSentAt: Date.now(), lastResult: message })
+  saveClientConfig(ok ? { lastSentAt: Date.now(), lastResult: message } : { lastResult: message })
   logger.info(LOG_MODULE, `${message}${saved ? ' → ' + saved : ''}`)
   return { ok, message, bytes: body.length, saved }
 }

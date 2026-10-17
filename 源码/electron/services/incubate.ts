@@ -22,10 +22,10 @@ export type Row = Record<string, string>
 export const TABLES: Record<string, string[]> = {
   // 注意：「时间戳」是视频里的时间点（如 50:41.9），不是日期；考核要用的录入时间单独一列
   资产库: ['编号', '类型', '内容', '来源场次', '时间戳', '证据等级', '复用次数', '适用主播', '状态', '提交人', '维护人', '录入时间'],
-  主播学籍: ['主播', '带教运营', '赛道', '入司日期', '首播日期', '离司日期', '是否正常开播', '配合意愿', '路径', '起点_连说3分钟', '起点_有开场收尾', '起点_独立开播', '当前等级', '更新时间'],
+  主播学籍: ['主播', '带教运营', '赛道', '入司日期', '首播日期', '离司日期', '固定休息日', '请假开始日期', '请假结束日期', '请假原因', '是否正常开播', '配合意愿', '路径', '起点_连说3分钟', '起点_有开场收尾', '起点_独立开播', '当前等级', '更新时间'],
   每周数字: ['周次', '主播', '最长空档秒', '每10分钟事件数', '点名次数', '口令道具次数', '收尾完成', '录入人', '录入时间'],
   课表: ['日期', '主播', '资产编号', '今天练什么', '怎么练', '验收', '打卡', '录入人'],
-  案例库: ['案例名', '日期', '赛道', '证明了什么', '不能证明什么', '证据等级', '提交人'],
+  案例库: ['案例名', '日期', '赛道', '证明了什么', '不能证明什么', '证据等级', '提交人', '来源目录'],
   变更日志: ['日期', '谁', '改了什么', '为什么', '影响谁'],
   场次记录: ['日期', '运营', '主播', '赛道', '指标', '数值', '提交时间'],
   运营日报: ['日期', '运营', '主播', '开播前检查', '最长空档秒', '每10分钟事件数', '点名次数', '口令道具次数', '收尾完成', '提交时间'],
@@ -35,7 +35,7 @@ export const TABLES: Record<string, string[]> = {
   运营考核: ['月份', '运营', '主播数', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
   ,
   // 60 天培训计划：一个主播一行（什么赛道、从哪天开始）
-  培训计划: ['主播', '赛道', '开始日期', '进度', '阶段', '报告来源', '更新时间'],
+  培训计划: ['主播', '赛道', '开始日期', '固定休息日', '进度', '阶段', '报告来源', '更新时间'],
   // 每天孵化结果的运营反馈
   孵化反馈: ['日期', '主播', '运营', '今日任务', '完成情况', '数据结果', '问题', '明日计划', '提交时间']
 }
@@ -430,7 +430,8 @@ const RATING_KEYS = COMMON_METRICS.filter((d) => d.kind === 'rate').map((d) => d
 const MIN_SESSIONS_PER_STREAMER = 4
 
 /** 考核权重（合计 100）：重在主播成长，其次是每日按时提交，最后是学习 */
-export const SCORE_WEIGHTS: Record<string, number> = { 成长: 45, 按时提交: 35, 学习: 20 }
+// 老板拍板：主播成长 40% / 学习 40% / 按时提交 20%（历史月份不重算）
+export const SCORE_WEIGHTS: Record<string, number> = { 成长: 40, 按时提交: 20, 学习: 40 }
 
 /** 学习分的目标值：一个月做到这些就算满分（运营自己也能看懂） */
 export const LEARN_TARGETS: Record<string, number> = { 课表: 10, 资产: 2, 复盘: 4 }
@@ -1052,7 +1053,11 @@ export async function importFromTeardown(input: string, displayName?: string): P
     result.message = '这个文件里没读到文字（可能是扫描版/图片）。请用 WPS 另存为 .docx，或直接粘贴报告全文。'
     return result
   }
-  result.caseName = displayName || srcName.replace(/\.(md|markdown|txt|docx|doc|wps|rtf)$/i, '')
+  let sourceDir = path.dirname(filePath)
+  while (/^work(?:_|$)/i.test(path.basename(sourceDir))) sourceDir = path.dirname(sourceDir)
+  const stem = srcName.replace(/\.(md|markdown|txt|docx|doc|wps|rtf)$/i, '')
+  const genericReport = /^(ai\s*分析报告|ai报告|拆解报告|分析报告|报告|素材包|index)$/i.test(stem.trim())
+  result.caseName = displayName || (genericReport ? path.basename(sourceDir) : stem)
 
   // ② v5 指令那种带编号的资产表：| XD-XX-001 | 类型 | 内容 |
   const assetRe = /^\|\s*([A-Z]{2,4}-[A-Z]{2,4}-\d{2,4})\s*\|([^|]*)\|([^|]*)\|/gm
@@ -1124,12 +1129,16 @@ export async function importFromTeardown(input: string, displayName?: string): P
   let caseAdded = false
   if (result.assetsAdded > 0 || result.scheduleAdded > 0) {
     const cases = await listRows('案例库')
-    if (!cases.some((c) => String(c['案例名'] || '').trim() === result.caseName)) {
+    const existingCase = cases.find((c) => String(c['案例名'] || '').trim() === result.caseName)
+    if (!existingCase) {
       await addRow('案例库', {
         案例名: result.caseName, 日期: new Date().toISOString().slice(0, 10), 赛道: '',
-        证明了什么: '（由拆解产物导入，待补）', 不能证明什么: '（待补）', 证据等级: '候选', 提交人: '导入'
+        证明了什么: '（由拆解产物导入，待补）', 不能证明什么: '（待补）', 证据等级: '候选', 提交人: '导入',
+        来源目录: sourceDir
       })
       caseAdded = true
+    } else if (!String(existingCase['来源目录'] || '').trim() && sourceDir) {
+      await updateRow('案例库', Number(existingCase.id), { ...existingCase, 来源目录: sourceDir })
     }
   }
 

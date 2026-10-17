@@ -4,6 +4,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import App from './App.vue'
 import DashboardView from './views/DashboardView.vue'
 import LiveRoomsView from './views/LiveRoomsView.vue'
+import LiveMonitorView from './views/LiveMonitorView.vue'
 import DanmuView from './views/DanmuView.vue'
 import RecordingView from './views/RecordingView.vue'
 import TeardownView from './views/TeardownView.vue'
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: DashboardView },
     { path: '/rooms', component: LiveRoomsView },
+    { path: '/live', component: LiveMonitorView },
     { path: '/danmu', component: DanmuView },
     { path: '/recording', component: RecordingView },
     { path: '/teardown', component: TeardownView },

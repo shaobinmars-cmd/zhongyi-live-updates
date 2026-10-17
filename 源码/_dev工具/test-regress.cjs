@@ -9,7 +9,7 @@ const os = require('os')
 const { execFileSync } = require('child_process')
 
 app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
-process.env.TEARDOWN_ENGINE = 'D:\\直播拆解工具'
+process.env.TEARDOWN_ENGINE = 'H:\\众艺传媒运营工具\\直播拆解引擎'
 app.on('window-all-closed', () => { /* 别退 */ })
 
 const LOGFILE = path.join(os.tmpdir(), 'test-regress.log')
@@ -22,8 +22,8 @@ process.on('uncaughtException', (e) => log('UNCAUGHT: ' + ((e && e.stack) || e))
 process.on('unhandledRejection', (e) => log('UNHANDLED: ' + ((e && e.stack) || e)))
 
 const DIR = 'H:\\迅雷下载'
-const FFMPEG = 'D:\\直播拆解工具\\bin\\ffmpeg\\bin\\ffmpeg.exe'
-const SRC = 'D:\\直播拆解工具\\录像\\直播_九九🍷（经典老歌）_344779995264_20261010_1926\\chunk_05.ts'
+const FFMPEG = 'H:\\众艺传媒运营工具\\直播拆解引擎\\bin\\ffmpeg\\bin\\ffmpeg.exe'
+const SRC = 'H:\\众艺传媒运营工具\\直播拆解引擎\\录像\\直播_九九🍷（经典老歌）_344779995264_20261010_1926\\chunk_05.ts'
 
 // 注意：chunk_05 只有 140 秒，起点别超过它（上次就是截空了才导致转写失败）
 const A = { name: '回归甲_20261015130000', off: 20 }

@@ -6,6 +6,8 @@ import * as recordState from './record-state'
 const LOG_MODULE = 'RecordingManager'
 
 interface RecordItem {
+  platform: string
+  sourceUrl: string
   roomId: string
   nickname: string
   durationText: string
@@ -26,7 +28,7 @@ export class RecordingManager {
     return this.recorders.has(roomId)
   }
 
-  startRecording(roomId: string, pullUrl: string, nickname: string, format: string): boolean {
+  startRecording(roomId: string, pullUrl: string, nickname: string, format: string, platform = 'douyin', sourceUrl = ''): boolean {
     // 同一个房间已经在录，就不重复开
     if (this.recorders.has(roomId)) return true
 
@@ -47,7 +49,7 @@ export class RecordingManager {
         this.onUpdate?.()
         this.persist()
       }
-    })
+    }, platform, sourceUrl)
 
     if (!recorder.start(pullUrl)) {
       logger.warn(LOG_MODULE, `录制启动失败 roomId=${roomId}`)
@@ -58,6 +60,8 @@ export class RecordingManager {
     this.items.set(roomId, {
       roomId,
       nickname,
+      platform,
+      sourceUrl,
       durationText: '00:00:00',
       sizeText: '0 B',
       isActive: true,
@@ -131,7 +135,9 @@ export class RecordingManager {
   private persist(): void {
     recordState.save(Array.from(this.recorders.keys()).map((roomId) => ({
       roomId,
-      nickname: this.items.get(roomId)?.nickname || ''
+      nickname: this.items.get(roomId)?.nickname || '',
+      platform: this.items.get(roomId)?.platform || 'douyin',
+      sourceUrl: this.items.get(roomId)?.sourceUrl || ''
     })))
     // 只要还有在录的，就每 3 分钟刷新一次时间戳。
     // 以前只在开录/停录时写一次，通宵场（>6 小时）崩了会被判成“状态太旧”而不恢复 ——

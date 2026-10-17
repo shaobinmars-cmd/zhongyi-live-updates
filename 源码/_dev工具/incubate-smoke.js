@@ -22,7 +22,7 @@ app.whenReady().then(async () => {
     const inc = require(path.join(__dirname, '..', 'dist-electron', 'services', 'incubate.js'))
 
     const tables = await inc.listTables()
-    ok('表结构（应 11 张，含 场次记录）', tables.length === 11 && tables.includes('场次记录'), tables.join('、'))
+    ok('表结构（应 13 张，含场次记录/培训计划/孵化反馈）', tables.length === 13 && tables.includes('场次记录') && tables.includes('培训计划') && tables.includes('孵化反馈'), tables.join('、'))
 
     ok('通用能力五项', inc.COMMON_METRICS.length === 7, inc.COMMON_METRICS.map((m) => m.label).join('、'))
     ok('赛道数（应 16）', Object.keys(inc.TRACKS).length === 16, Object.keys(inc.TRACKS).join('、'))
@@ -42,6 +42,15 @@ app.whenReady().then(async () => {
     // 写一次场次（长表：一条指标一行）
     const today = new Date().toISOString().slice(0, 10)
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+    const planSvc = require(path.join(__dirname, '..', 'dist-electron', 'services', 'incubate-plan.js'))
+    const planA = await planSvc.generateTrainingPlan({ streamer: '测试主播A', track: '唱歌点歌', startDate: today, restDay: '周日', leaveStart: tomorrow, leaveEnd: tomorrow, leaveReason: '测试请假', source: 'smoke' })
+    const planAView = await planSvc.getPlan('测试主播A')
+    ok('60 天计划生成', planA.days === 60 && planAView.days.length === 60, `${planA.days} 天 / 今天 D${planAView.dayIndex}`)
+    ok('计划包含固定休息日', planAView.days.some((r) => /休息与轻复盘/.test(r['今天练什么'])), planAView.days.filter((r) => /休息与轻复盘/.test(r['今天练什么'])).length + ' 个休息日')
+    ok('请假日期不排训练', planAView.days.some((r) => /请假/.test(r['今天练什么'])), planAView.days.filter((r) => /请假/.test(r['今天练什么'])).length + ' 个请假/停播日')
+    const fbSave = await planSvc.saveFeedback({ 日期: today, 主播: '测试主播A', 运营: '小A', 完成情况: '完成', 数据结果: '空档1秒', 问题: '', 明日计划: '继续练开场' })
+    const planAView2 = await planSvc.getPlan('测试主播A')
+    ok('每日孵化反馈可保存', !!fbSave.id && planAView2.feedback.some((r) => r['日期'] === today), JSON.stringify(fbSave))
     const vals = { 话术熟练度: '4', BGM使用熟练度: '3', 动作熟练度: '3', 表情管理: '4', 直播连贯性: '4', 最长空档秒: '1.5', 收尾完成: '是', 报歌名次数: '9' }
     for (const [k, v] of Object.entries(vals)) {
       await inc.addRow('场次记录', { 日期: today, 运营: '小A', 主播: '测试主播A', 赛道: '唱歌点歌', 指标: k, 数值: v, 提交时间: today + ' 22:00' })
@@ -61,7 +70,7 @@ app.whenReady().then(async () => {
     ok('按时率 = 1/8（应 13）', me && me['按时率'] === '13', me && me['按时率'])
     ok('成长分 = 达标 100×0.4 + 中性进步 50×0.6（应 70）', me && me['成长分'] === '70', me && me['成长分'])
     ok('学习分没做就是 0（不送默认分）', me && me['学习分'] === '0', me && me['学习分'])
-    ok('总分 = 45×70 + 35×12.5 + 20×0（应 36）', me && me['得分'] === '36', me && me['得分'])
+    ok('总分 = 40×70 + 20×12.5 + 40×0（应 31）', me && me['得分'] === '31', me && me['得分'])
     ok('等级列有值', me && !!me['等级'], me && me['等级'])
 
     // 只挂名、一场不交的运营也要出现在表里，并且是 0 分不合格
@@ -80,7 +89,7 @@ app.whenReady().then(async () => {
     ok('次日补交算补交（应 1 场）', b2 && b2['补交'] === '1' && b2['按时提交'] === '0', b2 && `${b2['按时提交']}/${b2['补交']}`)
     ok('补交只算半额（0.5/4 应 13）', b2 && b2['按时率'] === '13', b2 && b2['按时率'])
     ok('补交也有成长分（应 70）', b2 && b2['成长分'] === '70', b2 && b2['成长分'])
-    ok('补交总分 = 45×70 + 35×12.5（应 36）', b2 && b2['得分'] === '36', b2 && b2['得分'])
+    ok('补交总分 = 40×70 + 20×12.5（应 31）', b2 && b2['得分'] === '31', b2 && b2['得分'])
 
     // 学习分：课表 10 条 + 资产 2 条 + 复盘 4 次 = 满分
     for (let i = 0; i < 10; i++) await inc.addRow('课表', { 日期: today, 主播: '测试主播A', 今天练什么: '开场白', 录入人: '小A' })
@@ -90,7 +99,7 @@ app.whenReady().then(async () => {
     ok('资产录入时间自动盖章（考核学习分靠它）', !!assetRow && /^\d{4}-\d{2}/.test(String(assetRow['录入时间'])), assetRow && assetRow['录入时间'])
     const me2 = (await inc.scoreOperators(today.slice(0, 7))).find((s) => s['运营'] === '小A')
     ok('学习分：课表/资产/复盘 都达标 = 100', me2 && me2['学习分'] === '100', me2 && me2['学习分'])
-    ok('学习拉满后总分 = 45×70 + 35×12.5 + 20×100（应 56）', me2 && me2['得分'] === '56', me2 && me2['得分'])
+    ok('学习拉满后总分 = 40×70 + 20×12.5 + 40×100（应 71）', me2 && me2['得分'] === '71', me2 && me2['得分'])
 
     // 只填一个分 = 没填完，不算一次提交
     const half = inc.hasAllRatings({ 话术熟练度: '5' })
@@ -100,7 +109,7 @@ app.whenReady().then(async () => {
     const sc = inc.sessionScore('唱歌点歌', { 话术熟练度: '1', BGM使用熟练度: '5' })
     ok('单场得分能区分 1 分和 5 分（应 50）', sc === 50, String(sc))
     ok('sameDay 判定（当天=按时、次日=补交）', inc.sameDay(today, today + ' 22:00') === true && inc.sameDay(today, tomorrow + ' 09:00') === false, '')
-    ok('考核权重合计 100（成长 45 / 按时 35 / 学习 20）', inc.SCORE_WEIGHTS.成长 + inc.SCORE_WEIGHTS.按时提交 + inc.SCORE_WEIGHTS.学习 === 100, JSON.stringify(inc.SCORE_WEIGHTS))
+    ok('考核权重合计 100（成长 40 / 学习 40 / 按时 20）', inc.SCORE_WEIGHTS.成长 + inc.SCORE_WEIGHTS.按时提交 + inc.SCORE_WEIGHTS.学习 === 100 && inc.SCORE_WEIGHTS.成长 === 40 && inc.SCORE_WEIGHTS.学习 === 40 && inc.SCORE_WEIGHTS.按时提交 === 20, JSON.stringify(inc.SCORE_WEIGHTS))
 
     const xlsx = path.join(tmp, 'out.xlsx')
     await inc.exportXlsx(xlsx)
@@ -108,9 +117,18 @@ app.whenReady().then(async () => {
 
     const csvDir = path.join(tmp, 'csv')
     const r2 = await inc.exportCsv(csvDir)
-    ok('导出 CSV（11 个文件）', r2.files.length === 11, r2.files.length + ' 个')
+    ok('导出 CSV（13 个文件）', r2.files.length === 13, r2.files.length + ' 个')
 
-    const teardownDir = 'D:\\直播拆解工具\\录像\\BIGda\\work'
+    const teardownDir = 'H:\\众艺传媒运营工具\\直播拆解引擎\\录像\\BIGda\\work'
+    const sourceRoot = path.join(tmp, '直播_测试案例_123_20261017')
+    const sourceWork = path.join(sourceRoot, 'work_测试案例')
+    fs.mkdirSync(sourceWork, { recursive: true })
+    const reportFile = path.join(sourceWork, 'AI分析报告.md')
+    fs.writeFileSync(reportFile, '# 测试报告\n\n## 话术库\n\n| 场景 | 原句 | 变体 | 时机 |\n|---|---|---|---|\n| 开场 | 「欢迎新来的家人」 | A/B | 开场 |', 'utf-8')
+    const caseImp = await inc.importFromTeardown(reportFile)
+    const casesNow = await inc.listRows('案例库')
+    const caseRow = casesNow.find((r) => r['案例名'] === '直播_测试案例_123_20261017')
+    ok('案例库记录来源目录（可直接打开视频与报告）', !!caseRow && path.resolve(caseRow['来源目录']) === path.resolve(sourceRoot) && caseImp.assetsAdded > 0, caseRow && caseRow['来源目录'])
     if (fs.existsSync(teardownDir)) {
       const imp = await inc.importFromTeardown(teardownDir)
       ok('从拆解产物导入', true, imp.message)

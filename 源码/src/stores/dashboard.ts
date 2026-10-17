@@ -4,6 +4,8 @@ import { ref, computed } from 'vue'
 const api = () => (window as any).electronAPI
 
 export interface RoomStatsData {
+  platform: string
+  platformLabel: string
   roomId: string
   nickname: string
   danmuCount: number
@@ -39,6 +41,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (!existing) {
         roomStats.value.push({
           roomId: room.enterRoomId,
+          platform: room.platform || 'douyin',
+          platformLabel: room.platformLabel || (room.platform || 'douyin'),
           nickname: room.nickname,
           danmuCount: 0, giftCount: 0, likeCount: 0, memberCount: 0, followCount: 0,
           isConnected: false, isRecording: false,
@@ -49,6 +53,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
         })
       } else {
         if (room.likeCount) existing.roomLikeCount = room.likeCount
+        if (room.platform) existing.platform = room.platform
+        if (room.platformLabel) existing.platformLabel = room.platformLabel
         if (room.viewCount) existing.roomViewCount = room.viewCount
         if (room.roomStatus) existing.roomStatus = room.roomStatus
       }
@@ -82,6 +88,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     if (!stats) {
       stats = {
         roomId,
+        platform: 'douyin',
+        platformLabel: '抖音',
         nickname: msg.roomName || roomId,
         danmuCount: 0, giftCount: 0, likeCount: 0, memberCount: 0, followCount: 0,
         isConnected: true, isRecording: false,

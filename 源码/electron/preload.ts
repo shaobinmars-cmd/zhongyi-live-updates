@@ -45,13 +45,18 @@ const api = {
   updateInstallFile: (file: string) => invoke('update:install-file', file),
   onUpdateProgress: (cb: (p: number) => void) => ipcRenderer.on('update:on-progress', (_e, p) => cb(p)),
   incubateOpenDataDir: () => invoke('incubate:open-data-dir'),
+  syncGet: () => invoke('sync:get'),
+  syncSet: (patch: any) => invoke('sync:set', patch),
+  syncNow: () => invoke('sync:now'),
+  syncReports: () => invoke('sync:reports'),
 
   // Room
-  roomFetch: (urls: string[]) => invoke('room:fetch', urls),
+  roomFetch: (urls: string[], platform = 'auto') => invoke('room:fetch', urls, platform),
+  openExternal: (url: string) => invoke('shell:open-external', url),
   roomRefreshStats: (rooms: any[]) => invoke('room:refresh-stats', rooms),
 
   // Danmu
-  danmuConnect: (roomId: string, nickname: string) => invoke('danmu:connect', roomId, nickname),
+  danmuConnect: (roomId: string, nickname: string, platform = 'douyin') => invoke('danmu:connect', roomId, nickname, platform),
   danmuDisconnect: (roomId: string) => invoke('danmu:disconnect', roomId),
   danmuDisconnectAll: () => invoke('danmu:disconnect-all'),
   // 抖音登录（弹幕前提）
@@ -67,6 +72,7 @@ const api = {
   aiAnalyze: (input: string, opts?: any) => invoke('ai:analyze', input, opts || {}),
   aiCancel: () => invoke('ai:cancel'),
   aiReadReport: (input: string) => invoke('ai:read-report', input),
+  aiPickImages: () => invoke('ai:pick-images'),
   // AI 共享（老板机当服务器，一人一密钥）
   aiShareGet: () => invoke('ai:share-get'),
   aiShareStatus: () => invoke('ai:share-status'),
@@ -151,6 +157,7 @@ const api = {
   teardownList: () => invoke('teardown:list'),
   teardownGetState: () => invoke('teardown:get-state'),
   teardownStart: (input: string, model: string) => invoke('teardown:start', input, model),
+  teardownResolveUrl: (url: string, seconds: number) => invoke('teardown:resolve-url', url, seconds),
   teardownStop: () => invoke('teardown:stop'),
   teardownPacket: (input: string) => invoke('teardown:packet', input),
   teardownConfigGet: () => invoke('teardown:config-get'),

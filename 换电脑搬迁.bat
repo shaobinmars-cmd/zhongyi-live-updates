@@ -1,136 +1,90 @@
 @echo off
-setlocal enabledelayedexpansion
-title ÖÚÒÕ - »»µçÄÔ°áÇ¨£¨±¸·İ / »¹Ô­£©
+chcp 65001 >nul
+setlocal EnableExtensions
+title ä¼—è‰ºä¼ åª’è¿è¥å·¥å…· - é¡¹ç›®æ¬è¿å¤‡ä»½ä¸æ¢å¤
+
+set "PROJECT=H:\ä¼—è‰ºä¼ åª’è¿è¥å·¥å…·"
+set "RUNTIME=%APPDATA%\douyin-live-info"
 
 echo ============================================================
-echo    »» µç ÄÔ °á Ç¨
-echo    °Ñ¸Ã´ø×ßµÄ¶¼´ø×ß£¨ÏîÄ¿¡¢Êı¾İ¡¢ÊÚÈ¨¡¢Codex£©
+echo   ä¼—è‰ºä¼ åª’è¿è¥å·¥å…· - é¡¹ç›®å¤‡ä»½ä¸æ¢å¤
 echo ============================================================
 echo.
-echo    1 = ±¸·İµ½ÒÆ¶¯Ó²ÅÌ   £¨ÔÚ¾ÉµçÄÔÉÏ×ö£©
-echo    2 = ´ÓÒÆ¶¯Ó²ÅÌ»¹Ô­   £¨ÔÚĞÂµçÄÔÉÏ×ö£©
+echo   1 = å¤‡ä»½åˆ°ç§»åŠ¨ç¡¬ç›˜
+echo   2 = ä»ç§»åŠ¨ç¡¬ç›˜æ¢å¤åˆ°æœ¬æœº
 echo.
-set /p MODE=ÊäÈë 1 »ò 2 È»ºó°´»Ø³µ£º
+set /p MODE=è¯·è¾“å…¥ 1 æˆ– 2ï¼Œç„¶åå›è½¦ï¼š
 
 if "%MODE%"=="1" goto BACKUP
 if "%MODE%"=="2" goto RESTORE
 echo.
-echo    Ö»ÄÜÊä 1 »ò 2¡£
+echo   åªèƒ½è¾“å…¥ 1 æˆ– 2ã€‚
 pause
 exit /b 1
 
-
 :BACKUP
 echo.
-set /p DEST=°ÑÒÆ¶¯Ó²ÅÌ²åÉÏ£¬ÊäÈëËüµÄÅÌ·û£¨ÀıÈç E:\£©ÔÙ»Ø³µ£º
+set /p DEST=è¯·è¾“å…¥ç§»åŠ¨ç¡¬ç›˜ç›˜ç¬¦ï¼Œä¾‹å¦‚ E:\ï¼Œç„¶åå›è½¦ï¼š
 if not exist "%DEST%\" (
   echo.
-  echo    [X] ÕÒ²»µ½ %DEST% Õâ¸öÅÌ£¬ÏÈÈ·ÈÏÅÌ·û¶Ô²»¶Ô¡£
+  echo   [X] æ‰¾ä¸åˆ° %DEST%ï¼Œè¯·æ£€æŸ¥ç›˜ç¬¦ã€‚
   pause
   exit /b 1
 )
-set "ROOT=%DEST%ÖÚÒÕ±¸·İ"
+
+set "ROOT=%DEST%ä¼—è‰ºä¼ åª’è¿è¥å·¥å…·_å¤‡ä»½"
 echo.
-echo    ±¸·İµ½£º%ROOT%
-echo    ´ó¸Å 5GB£¬µÚÒ»´ÎÒª¼¸·ÖÖÓ£¬ºóÃæÖØ¸´±¸·İ»áºÜ¿ì¡£
+echo   å°†å¤‡ä»½åˆ°ï¼š%ROOT%
+echo   æ³¨æ„ï¼šå¤‡ä»½ä¸­åŒ…å«æˆæƒã€é…ç½®å’Œ Codex æ•°æ®ï¼Œç§»åŠ¨ç¡¬ç›˜å¿…é¡»å¦¥å–„ä¿ç®¡ã€‚
 echo.
-mkdir "%ROOT%\CÅÌ_ÓÃ»§" 2>nul
-mkdir "%ROOT%\HÅÌ" 2>nul
-mkdir "%ROOT%\DÅÌ" 2>nul
 
-echo [1/6] ÏîÄ¿Ä¿Â¼£¨Ô´Âë¡¢×ÊÁÏ¡¢¿ª·¢¼ÇÂ¼¡¢Ë½Ô¿¶¼ÔÚÀïÃæ£©...
-robocopy "H:\ÖÚÒÕÖ±²¥ÔËÓª¹¤¾ß" "%ROOT%\HÅÌ\ÖÚÒÕÖ±²¥ÔËÓª¹¤¾ß" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] ÕâÒ»²½Ê§°ÜÁË£¬¼ì²é¿Õ¼äºÍÈ¨ÏŞ & pause & exit /b 1)
-
-echo [2/6] ²ğ½âÒıÇæ...
-robocopy "D:\Ö±²¥²ğ½â¹¤¾ß" "%ROOT%\DÅÌ\Ö±²¥²ğ½â¹¤¾ß" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] ÕâÒ»²½Ê§°ÜÁË & pause & exit /b 1)
-
-echo [3/6] Èí¼şÊı¾İ£¨µ¯Ä»¿â¡¢·õ»¯¿â¡¢»ã×ÜÊı¾İ¡¢ÃÜÔ¿£©...
-robocopy "%APPDATA%\douyin-live-info" "%ROOT%\CÅÌ_ÓÃ»§\douyin-live-info" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] ÕâÒ»²½Ê§°ÜÁË & pause & exit /b 1)
-
-echo [4/6] Codex ÅäÖÃÓë¼¼ÄÜ...
-robocopy "%USERPROFILE%\.codex" "%ROOT%\CÅÌ_ÓÃ»§\codex" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] ÕâÒ»²½Ê§°ÜÁË & pause & exit /b 1)
-
-echo [5/6] Codex µÄ½Ó¿ÚÅäÖÃ£¨CC Switch£¬Ã»ÓĞËü Codex ÓÃ²»ÁË£©...
-if exist "%USERPROFILE%\.cc-switch" (
-  robocopy "%USERPROFILE%\.cc-switch" "%ROOT%\CÅÌ_ÓÃ»§\cc-switch" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-) else (
-  echo     £¨ÕâÌ¨Ã»ÓĞ .cc-switch£¬Ìø¹ı£©
-)
-
-echo [6/6] ¼¼ÄÜÄ¿Â¼ .agents...
-if exist "%USERPROFILE%\.agents" (
-  robocopy "%USERPROFILE%\.agents" "%ROOT%\CÅÌ_ÓÃ»§\agents" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-) else (
-  echo     £¨ÕâÌ¨Ã»ÓĞ .agents£¬Ìø¹ı£©
-)
+call :COPY "é¡¹ç›®æ€»ç›®å½•" "%PROJECT%" "%ROOT%\é¡¹ç›®"
+call :COPY "App è¿è¡Œæ•°æ®" "%RUNTIME%" "%ROOT%\è¿è¡Œæ•°æ®\douyin-live-info"
+if exist "%USERPROFILE%\.codex" call :COPY "Codex æ•°æ®" "%USERPROFILE%\.codex" "%ROOT%\ç”¨æˆ·æ•°æ®\.codex"
+if exist "%USERPROFILE%\.cc-switch" call :COPY "Codex æ¥å£é…ç½®" "%USERPROFILE%\.cc-switch" "%ROOT%\ç”¨æˆ·æ•°æ®\.cc-switch"
+if exist "%USERPROFILE%\.agents" call :COPY "Agents æ•°æ®" "%USERPROFILE%\.agents" "%ROOT%\ç”¨æˆ·æ•°æ®\.agents"
 
 echo.
-echo ============================================================
-echo    ±¸·İÍê³É£º%ROOT%
-echo.
-echo    ÌáĞÑ£º
-echo    1) ÕâÀïÃæÒÑ¾­ÓĞ¡¾ÊÚÈ¨Ë½Ô¿¡¿£¨ÔÚ ÏîÄ¿\Ô´Âë\tools\ÊÚÈ¨ÃÜÔ¿\£©£¬
-echo       ËüÊÇ¹«Ë¾Ç©·¢µÄÃü¸ù×Ó£¬Õâ¿éÒÆ¶¯Ó²ÅÌ±ğ¶ª¡¢±ğÍâ½è¡£
-echo    2) ĞÂµçÄÔÉÏ°ÑÍ¬ÑùµÄÅÌ·û×¼±¸ºÃ£¨C / D / H£©£¬ÔÙÅÜ±¾ÎÄ¼şÑ¡ 2 »¹Ô­¡£
-echo    3) ÅÌ·ûÈç¹û±äÁË£¬»¹Ô­ºóÒª¸ÄÁ½´¦Â·¾¶£º
-echo       %APPDATA%\douyin-live-info\record.json ÀïµÄ outputPath
-echo       ÏîÄ¿\Ô´Âë\electron-builder.yml ÀïÒıÇæÄÇÒ»ĞĞ
-echo ============================================================
+echo   å¤‡ä»½å®Œæˆï¼š%ROOT%
 pause
 exit /b 0
 
-
 :RESTORE
 echo.
-echo    »¹Ô­Ö®Ç°£¬ÇëÏÈ£º
-echo      - ¹Øµô±¾Èí¼ş
-echo      - ¹Øµô Codex
-echo.
-set /p SRC=ÊäÈëÒÆ¶¯Ó²ÅÌÅÌ·û£¨ÀıÈç E:\£©ÔÙ»Ø³µ£º
-if not exist "%SRC%ÖÚÒÕ±¸·İ\" (
+set /p SRC=è¯·è¾“å…¥å¤‡ä»½ç›˜ç¬¦ï¼Œä¾‹å¦‚ E:\ï¼Œç„¶åå›è½¦ï¼š
+set "ROOT=%SRC%ä¼—è‰ºä¼ åª’è¿è¥å·¥å…·_å¤‡ä»½"
+if not exist "%ROOT%\" (
   echo.
-  echo    [X] %SRC%ÖÚÒÕ±¸·İ ²»´æÔÚ£¬È·ÈÏÅÌ·û¡£
+  echo   [X] æ‰¾ä¸åˆ° %ROOT%ï¼Œè¯·æ£€æŸ¥ç›˜ç¬¦ã€‚
   pause
   exit /b 1
 )
-set "ROOT=%SRC%ÖÚÒÕ±¸·İ"
-echo.
-echo    ´Ó %ROOT% »¹Ô­µ½±¾»ú...
-
-echo [1/6] ÏîÄ¿Ä¿Â¼...
-robocopy "%ROOT%\HÅÌ\ÖÚÒÕÖ±²¥ÔËÓª¹¤¾ß" "H:\ÖÚÒÕÖ±²¥ÔËÓª¹¤¾ß" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] Ê§°Ü & pause & exit /b 1)
-
-echo [2/6] ²ğ½âÒıÇæ...
-robocopy "%ROOT%\DÅÌ\Ö±²¥²ğ½â¹¤¾ß" "D:\Ö±²¥²ğ½â¹¤¾ß" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] Ê§°Ü & pause & exit /b 1)
-
-echo [3/6] Èí¼şÊı¾İ...
-robocopy "%ROOT%\CÅÌ_ÓÃ»§\douyin-live-info" "%APPDATA%\douyin-live-info" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] Ê§°Ü & pause & exit /b 1)
-
-echo [4/6] Codex ÅäÖÃ...
-robocopy "%ROOT%\CÅÌ_ÓÃ»§\codex" "%USERPROFILE%\.codex" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (echo    [X] Ê§°Ü & pause & exit /b 1)
-
-echo [5/6] Codex ½Ó¿ÚÅäÖÃ...
-if exist "%ROOT%\CÅÌ_ÓÃ»§\cc-switch" robocopy "%ROOT%\CÅÌ_ÓÃ»§\cc-switch" "%USERPROFILE%\.cc-switch" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
-
-echo [6/6] ¼¼ÄÜÄ¿Â¼...
-if exist "%ROOT%\CÅÌ_ÓÃ»§\agents" robocopy "%ROOT%\CÅÌ_ÓÃ»§\agents" "%USERPROFILE%\.agents" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
 
 echo.
-echo ============================================================
-echo    »¹Ô­Íê³É¡£
-echo    ½ÓÏÂÀ´£º
-echo    1) ×°ÏÔ¿¨/Ö÷°åÇı¶¯£¬ÔÙ´ò¿ª±¾Èí¼şµã¡¸»·¾³×Ô¼ì¡¹
-echo    2) ´ò¿ª Codex ÊÔÒ»¾ä£»ÕâÌ¨ÊÇ¿¿ CC Switch µÄ±¾µØ½Ó¿ÚÅÜµÄ£¬
-echo       ÅäÖÃÒÑ¾­»¹Ô­£¬Õı³£µÄ»°²»ÓÃÖØĞÂµÇÂ¼
-echo    3) ´ò¿ª±¾Èí¼ş¿´ÊÚÈ¨»¹ÔÚ²»ÔÚ£¨C ÅÌÃ»ÖØ×°µÄ»°£¬»úÆ÷Âë²»±ä£¬ÊÚÈ¨ÕÕÓÃ£©
-echo ============================================================
+echo   æ¢å¤å‰è¯·å…ˆå…³é—­ä¼—è‰ºä¼ åª’è¿è¥å·¥å…·ã€‚
 pause
+echo.
+call :COPY "é¡¹ç›®æ€»ç›®å½•" "%ROOT%\é¡¹ç›®" "%PROJECT%"
+call :COPY "App è¿è¡Œæ•°æ®" "%ROOT%\è¿è¡Œæ•°æ®\douyin-live-info" "%RUNTIME%"
+if exist "%ROOT%\ç”¨æˆ·æ•°æ®\.codex" call :COPY "Codex æ•°æ®" "%ROOT%\ç”¨æˆ·æ•°æ®\.codex" "%USERPROFILE%\.codex"
+if exist "%ROOT%\ç”¨æˆ·æ•°æ®\.cc-switch" call :COPY "Codex æ¥å£é…ç½®" "%ROOT%\ç”¨æˆ·æ•°æ®\.cc-switch" "%USERPROFILE%\.cc-switch"
+if exist "%ROOT%\ç”¨æˆ·æ•°æ®\.agents" call :COPY "Agents æ•°æ®" "%ROOT%\ç”¨æˆ·æ•°æ®\.agents" "%USERPROFILE%\.agents"
+
+echo.
+echo   æ¢å¤å®Œæˆã€‚æ‰“å¼€è½¯ä»¶åå…ˆåšä¸€æ¬¡ç¯å¢ƒè‡ªæ£€ã€‚
+pause
+exit /b 0
+
+:COPY
+echo [å¤åˆ¶] %~1
+if not exist "%~2\" (
+  echo       è·³è¿‡ï¼šæºç›®å½•ä¸å­˜åœ¨
+  exit /b 0
+)
+robocopy "%~2" "%~3" /E /MT:16 /R:1 /W:1 /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 (
+  echo       [X] å¤åˆ¶å¤±è´¥ï¼Œè¯·æ£€æŸ¥ç£ç›˜ç©ºé—´å’Œæ–‡ä»¶æƒé™ã€‚
+  pause
+  exit /b 1
+)
 exit /b 0

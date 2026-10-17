@@ -1,6 +1,15 @@
 <template>
   <div class="settings-page">
     <h2 class="page-title">设置</h2>
+    <div class="settings-hero">
+      <div class="settings-sub">平时只需要管录制、AI、授权和更新。高级网络/共享默认收起，避免误改。</div>
+      <div class="settings-nav">
+        <button @click="scrollSetting('set-record')">录制</button>
+        <button @click="scrollSetting('set-ai')">AI 与图片</button>
+        <button @click="scrollSetting('set-access')">运营授权</button>
+        <button @click="scrollSetting('set-system')">数据与更新</button>
+      </div>
+    </div>
 
     <div class="card settings-card">
       <div class="section-header">
@@ -8,7 +17,7 @@
           <circle cx="12" cy="12" r="3" stroke="#f97316" stroke-width="1.8"/>
           <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="#f97316" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <h3 class="section-title">录制设置</h3>
+        <h3 id="set-record" class="section-title anchor-title">录制设置</h3>
       </div>
 
       <div class="form-group">
@@ -72,7 +81,7 @@
           <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="#f97316" stroke-width="1.8" stroke-linecap="round"/>
           <circle cx="12" cy="12" r="3.2" stroke="#f97316" stroke-width="1.8"/>
         </svg>
-        <h3 class="section-title">AI 分析（运营自己就能出报告）</h3>
+        <h3 id="set-ai" class="section-title anchor-title">AI 分析（运营自己就能出报告）</h3>
       </div>
 
       <div class="form-group">
@@ -98,6 +107,20 @@
         <div class="form-hint">报告很长就调大（比如 8000）。素材包本身超长时会自动分片，不用管。</div>
       </div>
 
+      <div class="vision-box">
+        <div class="vision-title">图片分析（可选，通义千问）</div>
+        <div class="form-hint">填了才会把拆解网格图一起发给视觉模型；不填只分析文字。</div>
+        <div class="vision-grid">
+          <n-input v-model:value="vis.baseUrl" size="small" placeholder="视觉接口地址" />
+          <n-input v-model:value="vis.apiKey" size="small" type="password" show-password-on="click" placeholder="千问 API Key" />
+          <n-input v-model:value="vis.model" size="small" placeholder="qwen-vl-plus" />
+          <n-input-number v-model:value="vis.maxImages" size="small" :min="0" :max="8" style="width: 120px" />
+          <n-button size="small" type="primary" @click="saveVision">保存图片模型</n-button>
+        </div>
+        <div class="form-hint">图片数建议 4 张；0 = 不分析图。每场拆解页还能临时改。</div>
+        <div v-if="visMsg" class="form-hint">{{ visMsg }}</div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">管理员发的配置串（可选，一键填好）</label>
         <n-input v-model:value="configText" type="textarea" :rows="2" placeholder="把管理员发你的整段粘到这里（ZYAI1|地址|密钥|模型）" />
@@ -117,7 +140,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path d="M12 5v14M5 12h14" stroke="#f97316" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <h3 class="section-title">给新运营发配置（以后加人就用这个）</h3>
+        <h3 id="set-access" class="section-title anchor-title">给新运营发配置（以后加人就用这个）</h3>
       </div>
       <div class="form-hint" style="margin-bottom: 10px">
         以后新加一个运营：去 DeepSeek 官网给他建一把新 key → 填到下面 → 生成一条消息发给他。
@@ -229,20 +252,34 @@
       <div v-if="shareMsg" class="form-hint" style="white-space: pre-wrap">{{ shareMsg }}</div>
     </div>
 
-    <!-- 数据汇总 + 一键升级（局域网） -->
-    <!-- 图片分析（可选） -->
-    <div class="form-group" style="margin-top: 18px">
-      <h3 class="section-title">图片分析（可选，通义千问）</h3>
-      <div class="form-hint" style="margin: 6px 0 10px">填了才会把每场 4 张关键帧发给视觉模型，结果自动并进同一份报告；不填只分析文字。</div>
-      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
-        <n-input v-model:value="vis.baseUrl" size="small" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
-        <n-input v-model:value="vis.apiKey" size="small" placeholder="千问 API Key（sk-…）" />
-        <n-input v-model:value="vis.model" size="small" placeholder="qwen-vl-plus" style="width: 160px" />
-        <n-input-number v-model:value="vis.maxImages" size="small" :min="0" :max="8" style="width: 100px" />
-        <n-button size="small" type="primary" @click="saveVision">保存图片模型</n-button>
+    <div class="card settings-card">
+      <div class="section-header">
+        <h3 id="set-system" class="section-title anchor-title">数据同步与报表（推荐）</h3>
       </div>
-      <div v-if="visMsg" class="form-hint">{{ visMsg }}</div>
+      <div class="form-hint" style="margin-bottom: 10px">运营每天自动把孵化数据传到私有 GitHub 仓库；老板电脑随时生成日/周/月/季/年报。不传录像，不保存 AI 密钥。</div>
+      <div class="sync-grid">
+        <label>仓库所有者<n-input v-model:value="sync.owner" size="small" placeholder="shaobinmars-cmd" /></label>
+        <label>数据仓库<n-input v-model:value="sync.repo" size="small" placeholder="zhongyi-data" /></label>
+        <label>运营名字<n-input v-model:value="sync.operator" size="small" placeholder="张三" /></label>
+        <label>GitHub 令牌<n-input v-model:value="sync.token" size="small" type="password" show-password-on="click" placeholder="github_pat_..." /></label>
+      </div>
+      <div class="form-group switch-group" style="margin-top: 10px">
+        <div><label class="form-label">每天自动上传</label><div class="form-hint">电脑关机期间不会传；下次打开软件会自动补传当天最新数据。</div></div>
+        <n-switch v-model:value="sync.autoDaily" />
+      </div>
+      <div class="form-group switch-group">
+        <div><label class="form-label">这台是老板汇总电脑</label><div class="form-hint">打开后，每天自动拉取全部运营数据并生成日/周/月/季/年报。</div></div>
+        <n-switch v-model:value="sync.bossMode" />
+      </div>
+      <div class="form-actions">
+        <n-button type="primary" @click="saveSync">保存同步设置</n-button>
+        <n-button :loading="syncBusy" @click="syncNow">立即上传本机数据</n-button>
+        <n-button :loading="reportBusy" @click="makeReports">生成全部报表</n-button>
+      </div>
+      <div v-if="syncMsg" class="form-hint" style="white-space: pre-wrap">{{ syncMsg }}</div>
+      <details v-if="syncLog.length" class="sync-log"><summary>查看同步日志</summary><pre>{{ syncLog.join('\n') }}</pre></details>
     </div>
+    <!-- 公网更新、GitHub 同步、局域网升级 -->
 
     <!-- 联网更新（公网，跨路由/外场地） -->
     <div class="form-group" style="margin-top: 18px">
@@ -256,8 +293,8 @@
       <div v-if="updMsg" class="form-hint" style="white-space: pre-wrap">{{ updMsg }}</div>
     </div>
 
-    <div class="form-group" style="margin-top: 18px">
-      <h3 class="section-title">数据汇总与升级（局域网）</h3>
+    <details class="settings-advanced">
+      <summary>高级：局域网汇总与局域网升级（没有外网时可继续用）</summary>
       <div class="form-hint" style="margin: 6px 0 10px">
         运营电脑上的弹幕、孵化、场次清单、AI 报告，每天自动汇总到你这台；新版本也放在你这台，运营点一下就能升。<b>录像不上传。</b>
       </div>
@@ -297,7 +334,7 @@
         <n-button size="small" type="warning" :loading="upgrading" @click="doUpgrade">一键升级</n-button>
       </div>
       <div v-if="cliMsg" class="form-hint" style="white-space: pre-wrap">{{ cliMsg }}</div>
-    </div>
+    </details>
   </div>
 </template>
 
@@ -320,7 +357,12 @@ onMounted(() => {
   loadAi()
   loadShare()
   loadCollectAll()
+  loadSync()
 })
+
+function scrollSetting(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 // ---- AI 分析配置 ----
 const api = () => (window as any).electronAPI
@@ -346,6 +388,11 @@ const col = ref<any>({ enabled: false, port: 57889, updateDir: '' })
 const colStatus = ref<any>(null)
 const colMsg = ref('')
 const cli = ref<any>({ serverUrl: '', token: '', autoDaily: true })
+const sync = ref<any>({ owner: 'shaobinmars-cmd', repo: 'zhongyi-data', token: '', operator: '', autoDaily: true, bossMode: false, lastUploadAt: 0, lastReportDate: '', lastResult: '' })
+const syncBusy = ref(false)
+const reportBusy = ref(false)
+const syncMsg = ref('')
+const syncLog = ref<string[]>([])
 const cliMsg = ref('')
 const sending = ref(false)
 const checking = ref(false)
@@ -366,7 +413,13 @@ async function saveVision() {
 }
 loadVision()
 
-const updUrl = ref(localStorage.getItem('upd_url') || 'https://cdn.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json')
+const DEFAULT_UPDATE_URL = 'https://fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json'
+const savedUpdateUrl = localStorage.getItem('upd_url') || ''
+const updUrl = ref(
+  !savedUpdateUrl || savedUpdateUrl.includes('cdn.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates')
+    ? DEFAULT_UPDATE_URL
+    : savedUpdateUrl
+)
 const updMsg = ref('')
 const updInfo = ref<any>(null)
 const updChecking = ref(false)
@@ -679,6 +732,40 @@ async function doUpgrade() {
   } finally { upgrading.value = false }
 }
 
+async function loadSync() {
+  try { sync.value = await api().syncGet() } catch { /* ignore */ }
+}
+
+async function saveSync() {
+  try {
+    sync.value = await api().syncSet({ ...sync.value })
+    syncMsg.value = '同步设置已保存。以后打开软件会自动补传。'
+  } catch (e: any) { syncMsg.value = '保存失败：' + (e?.message || e) }
+}
+
+async function syncNow() {
+  syncBusy.value = true
+  syncMsg.value = '正在打包并上传本机数据…'
+  try {
+    await api().syncSet({ ...sync.value })
+    const r = await api().syncNow()
+    syncMsg.value = r?.message || (r?.ok ? '上传完成' : '上传失败')
+    syncLog.value = Array.isArray(r?.output) ? r.output.slice(-30) : []
+    await loadSync()
+  } catch (e: any) { syncMsg.value = '上传失败：' + (e?.message || e) } finally { syncBusy.value = false }
+}
+
+async function makeReports() {
+  reportBusy.value = true
+  syncMsg.value = '正在拉取全部运营数据并生成日报、周报、月报、季报、年报…'
+  try {
+    await api().syncSet({ ...sync.value })
+    const r = await api().syncReports()
+    syncMsg.value = r?.message || (r?.ok ? '报表已生成' : '生成失败')
+    syncLog.value = Array.isArray(r?.output) ? r.output.slice(-30) : []
+  } catch (e: any) { syncMsg.value = '生成失败：' + (e?.message || e) } finally { reportBusy.value = false }
+}
+
 async function loadAi() {
   try { ai.value = await api().aiConfigGet() } catch { /* 读不到就用默认值 */ }
 }
@@ -730,9 +817,15 @@ async function testAi() {
 
 <style scoped>
 .settings-page { padding: 16px 20px 20px; height: 100%; overflow-y: auto; }
+.settings-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; max-width:1040px; margin:0 auto 14px; padding:14px 18px; border-radius:14px; background:linear-gradient(100deg,#eaf7ff,#f8fcff 58%,#eefbf8); border:1px solid #d7e9f5; }
+.settings-sub { color:var(--ink-3); font-size:12px; }
+.settings-nav { display:flex; gap:7px; flex-wrap:wrap; }
+.settings-nav button { border:1px solid #c9ddea; background:#fff; color:#24546e; border-radius:999px; padding:7px 12px; cursor:pointer; font-size:12px; }
+.settings-nav button:hover { border-color:#0b76be; color:#0b76be; }
+.anchor-title { scroll-margin-top:20px; }
 .page-title { margin-bottom: 20px; }
 
-.settings-card { padding: 24px; max-width: 520px; margin: 0 auto; }
+.settings-card { padding: 22px 24px; max-width: 1040px; margin: 0 auto 16px; }
 
 .section-header {
   display: flex;
@@ -756,12 +849,12 @@ async function testAi() {
 .form-hint { font-size: 10px; color: #9aa1ab; margin-top: 6px; }
 
 .form-divider {
-.switch-group { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 
   height: 1px;
   background: #e6e8ec;
   margin: 20px 0;
 }
+.switch-group { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 
 .form-actions { display: flex; align-items: center; gap: 12px; }
 .success-text { font-size: 12px; color: #10b981; font-weight: 500; }
@@ -775,4 +868,14 @@ async function testAi() {
 .client-token { font-family: Consolas, monospace; font-size: 11px; color: #6b7280; cursor: pointer; }
 .client-line2 { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; color: #6b7280; margin-top: 4px; flex-wrap: wrap; }
 .client-line3 { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.vision-box { margin: 16px 0 4px; padding: 14px; border:1px solid #d8e8f3; border-radius:12px; background:#f6fbff; }
+.vision-title { font-size:13px; font-weight:700; color:#174f6c; }
+.vision-grid { display:grid; grid-template-columns: 1.35fr 1fr .75fr 110px auto; gap:8px; align-items:center; margin-top:9px; }
+.sync-grid { display:grid; grid-template-columns: repeat(2,minmax(220px,1fr)); gap:12px; }
+.sync-grid label { display:flex; flex-direction:column; gap:5px; font-size:11px; color:#607587; }
+.sync-log { margin-top:10px; border:1px solid #e2ebf4; border-radius:10px; padding:8px 10px; background:#f8fbfd; }
+.sync-log summary { cursor:pointer; color:#56748a; font-size:12px; }
+.sync-log pre { margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap; font:11px/1.6 Consolas,monospace; color:#385065; }
+.settings-advanced { max-width:1040px; margin:0 auto 16px; border:1px solid #e2ebf4; border-radius:12px; background:#fbfdff; padding:12px 16px; }
+.settings-advanced > summary { cursor:pointer; color:#56748a; font-size:12px; font-weight:600; }
 </style>

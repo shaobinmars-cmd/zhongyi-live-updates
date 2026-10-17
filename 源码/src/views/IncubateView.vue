@@ -12,6 +12,7 @@
       <!-- ⓪ 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈（运营主入口） -->
       <n-tab-pane name="plan" tab="主播跟踪">
         <div class="plan-wrap">
+          <section class="inc-block inc-base-block">
           <div class="blk-head blk-base-head">① 基础信息</div>
           <div class="plan-import">
             <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
@@ -21,9 +22,9 @@
               <n-input v-model:value="opFilter" placeholder="运营名字（带教）" style="width: 150px" @update:value="onOperatorName" />
               <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
               <input type="date" v-model="planStart" class="date-input" title="计划开始日期" />
-              <n-button type="primary" :loading="planBusy" @click="importAndGenerate">导入报告并生成 60 天计划</n-button>
+              <n-button type="primary" :loading="planBusy" @click="importAndGenerate">{{ planStreamer === ALL_PLAN ? '导入报告并批量生成' : '导入报告并生成 60 天计划' }}</n-button>
               <n-button @click="showPaste = true">粘贴报告</n-button>
-              <n-button quaternary @click="justGenerate">只重新生成计划</n-button>
+              <n-button quaternary @click="justGenerate">{{ planStreamer === ALL_PLAN ? '批量重新生成' : '只重新生成计划' }}</n-button>
             </div>
             <div class="plan-hint">支持 .md / .txt / Word(.docx/.doc) / WPS(.wps/.rtf)；也可以把文件拖进来，或点「粘贴报告」贴全文。</div>
             <div class="plan-import-row" style="margin-top: 10px">
@@ -32,9 +33,17 @@
               <label class="field"><span>入司日期</span><input type="date" v-model="profile['入司日期']" class="date-input" /></label>
               <label class="field"><span>首播日期</span><input type="date" v-model="profile['首播日期']" class="date-input" /></label>
               <label class="field"><span>离司日期</span><input type="date" v-model="profile['离司日期']" class="date-input" /></label>
+              <label class="field"><span>固定休息日</span><n-select v-model:value="profile['固定休息日']" :options="restOptions" placeholder="不固定" style="width: 150px" /></label>
               <label class="field"><span>是否正常开播</span><n-select v-model:value="profile['是否正常开播']" :options="airOptions" placeholder="请选择" style="width: 150px" /></label>
               <label class="field"><span>配合程度</span><n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="请选择" style="width: 140px" /></label>
-              <n-button :disabled="!planStreamer" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
+              <n-button :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
+            </div>
+            <div class="leave-row">
+              <b>请假登记</b>
+              <label class="field"><span>开始</span><input type="date" v-model="profile['请假开始日期']" class="date-input" /></label>
+              <label class="field"><span>结束</span><input type="date" v-model="profile['请假结束日期']" class="date-input" /></label>
+              <n-input v-model:value="profile['请假原因']" size="small" placeholder="原因（可留空）" style="width: 170px" />
+              <span class="hint">请假日期不排课、不计完成率，也不会进入今天该盯</span>
             </div>
             <div class="groups" style="margin-top: 10px">
               <div v-for="g in groupChips" :key="g.key" class="chip" :class="[g.cls, { active: statusFilter === g.key }]" @click="toggleGroup(g.key)">
@@ -51,15 +60,19 @@
             </div>
             <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
           </div>
+          </section>
 
           <template v-if="planInfo">
+            <section class="inc-block inc-today-block">
             <div class="blk-head blk-today-head">② 今日的工作</div>
             <div class="plan-head">
               <div class="plan-head-left">
                 <b>{{ planStreamer }}</b>
                 <span class="pill">{{ planInfo.plan?.赛道 || planTrack || '未定赛道' }}</span>
-                <span class="pill">第 {{ planInfo.dayIndex }} / 60 天</span>
+                <span class="pill">{{ planInfo.dayIndex > 0 ? `第 ${Math.min(planInfo.dayIndex, 60)} / 60 天` : '尚未开始' }}</span>
                 <span class="pill on">{{ planInfo.phase }}</span>
+                <span class="pill rest">{{ planInfo.plan?.['固定休息日'] ? '休息：' + planInfo.plan['固定休息日'] : '休息日未固定' }}</span>
+                <span v-if="onLeaveToday" class="pill leave">请假中</span>
                 <span v-if="profile['离司日期']" class="pill departed">已离司 {{ profile['离司日期'] }}</span>
               </div>
               <div class="plan-head-right">开始 {{ planInfo.plan?.开始日期 }} · 来源 {{ planInfo.plan?.报告来源 }}</div>
@@ -73,7 +86,12 @@
             </div>
 
             <div class="sec-head today-head">今天 · 第 {{ planInfo.dayIndex }} 天 · {{ planInfo.phase }}</div>
-            <div class="today-card" v-if="todayTask">
+            <div v-if="onLeaveToday" class="leave-card">
+              <div class="today-title">今天请假/停播</div>
+              <div class="today-main">不安排训练，不计完成率</div>
+              <div class="today-line">请假原因：{{ planInfo.leaveReason || profile['请假原因'] || '未填写' }}；复工后沿用原课表继续。</div>
+            </div>
+            <div :class="['today-card', { rest: /休息/.test(String(todayTask?.['今天练什么'] || '')) }]" v-else-if="todayTask">
               <div class="today-title">今天练什么 · {{ todayTask['日期'] }}</div>
               <div class="today-main">{{ todayTask['今天练什么'] }}</div>
               <div class="today-line"><b>怎么练：</b>{{ todayTask['怎么练'] }}</div>
@@ -98,7 +116,17 @@
               </div>
             </div>
 
+            </section>
+            <section class="inc-block inc-all-block">
             <div class="blk-head blk-all-head">③ 全部课表与记录</div>
+            <div class="week-card">
+              <div class="week-head">本周课表（所有主播的今日任务）</div>
+              <div class="week-tools">
+                <span>按周一到周日展开，每个主播只显示本周该练的课</span>
+                <n-button size="tiny" type="primary" ghost @click="showAllCourses">查看当前主播全部 60 天</n-button>
+              </div>
+              <n-data-table size="small" :columns="weekColumns" :data="weekTasks" :max-height="240" virtual-scroll />
+            </div>
             <div class="plan-table-title">最近反馈（全部主播）</div>
             <div class="plan-filter">
               <n-select v-model:value="feedbackScope" :options="feedbackScopeOptions" style="width: 180px" />
@@ -110,10 +138,14 @@
               <n-select v-model:value="dayPhase" :options="dayPhaseOptions" style="width: 220px" />
             </div>
             <n-data-table class="schedule-table" size="small" :columns="dayColumns" :data="filteredPlanDays" :max-height="300" virtual-scroll />
+            </section>
           </template>
+          <div v-else-if="planStreamer === ALL_PLAN" class="plan-empty">已选择“全部主播”。导入报告后点上面的「导入报告并批量生成」，会按每个主播自己的赛道分别生成 60 天课表。</div>
           <div v-else class="plan-empty">还没有计划：选好主播、导入 AI 报告，点「导入报告并生成 60 天计划」。</div>
         </div>
       
+          <details class="advanced-block">
+            <summary>补充工具：今日五项评分（可选，点这里展开）</summary>
           <div class="track-daily">
             <div class="sec-title">今日打分（可选：这一场五个分）</div>
         <div class="picker">
@@ -240,6 +272,7 @@
         </template>
       
           </div>
+          </details>
 </n-tab-pane>
 
       
@@ -249,13 +282,13 @@
         <div class="bar">
           <n-input v-model:value="month" size="small" placeholder="月份，如 2026-10" style="width: 150px" />
           <n-button type="primary" size="small" @click="calc">算分</n-button>
-          <span class="hint">只算三项：主播成长 45% ｜ 每日按时提交 35% ｜ 学习 20%</span>
+          <span class="hint">只算三项：主播成长 40% ｜ 学习 40% ｜ 每日按时提交 20%</span>
         </div>
         <n-data-table :columns="scoreColumns" :data="store.scoreRows" size="small" :bordered="false" max-height="calc(100vh - 420px)" />
         <div class="rule">
-          <div><b>主播成长 45%</b>＝40% 现状（名下主播本月所有场次按赛道合格线的达标率）＋ 60% 变化（每个主播本月最后一场 vs 第一场的单场得分；提升 20 分算满分、退 20 分算 0 分）</div>
-          <div><b>每日按时提交 35%</b>＝（当天交的场次 ＋ 事后补交 × 0.5）÷ 应交场次；应交＝名下主播数 × 4 场/月（一周一场的最低线，不看录像）；五个分都打才算一次提交</div>
-          <div><b>学习 20%</b>＝课表（月目标 10 条）、资产贡献（2 条）、周复盘（4 次）三项平均</div>
+          <div><b>主播成长 40%</b>＝40% 现状（名下主播本月所有场次按赛道合格线的达标率）＋ 60% 变化（每个主播本月最后一场 vs 第一场的单场得分；提升 20 分算满分、退 20 分算 0 分）</div>
+          <div><b>每日按时提交 20%</b>＝（当天交的场次 ＋ 事后补交 × 0.5）÷ 应交场次；应交＝名下主播数 × 4 场/月（一周一场的最低线，不看录像）；五个分都打才算一次提交</div>
+          <div><b>学习 40%</b>＝课表（月目标 10 条）、资产贡献（2 条）、周复盘（4 次）三项平均</div>
           <div>抽查门禁：本月抽查合格率 &lt;70% → 总分 ×0.8（没抽查不罚）；结论：<b>≥80 达标</b> ｜ <b>60–79 待改进</b> ｜ <b>&lt;60 不合格</b></div>
         </div>
       </n-tab-pane>
@@ -334,7 +367,7 @@ const viewTable = ref('资产库')
 const viewOptions = [
   { label: '资产库', value: '资产库' },
   { label: '本周课表', value: '课表' }
-  ,{ label: '案例库', value: '案例库' }
+  ,{ label: '案例库（可直接打开视频和报告）', value: '案例库' }
 ]
 const yesNo: SelectOption[] = [
   { label: '是', value: '是' },
@@ -353,7 +386,7 @@ const showImport = ref(false)
 const importText = ref('')
 const importOp = ref(localStorage.getItem('inc_operator') || '')
 const useV5 = ref(false)
-const today = new Date().toISOString().slice(0, 10)
+const today = (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` })()
 
 /** 1–5 分下拉：把 hint 里的锚点直接当选项，四个运营打分才一致 */
 function rateOptions(hint: string): SelectOption[] {
@@ -446,6 +479,7 @@ function localDate(d = new Date()): string {
 }
 
 const planStreamer = ref('')
+const ALL_PLAN = '__all__'
 const planTrack = ref('')
 const planStart = ref(localDate())
 const planInfo = ref<any>(null)
@@ -465,17 +499,31 @@ const willOptions: SelectOption[] = [
   { label: '① 极配合', value: '极配合' }, { label: '② 配合', value: '配合' },
   { label: '③ 一般', value: '一般' }, { label: '④ 消极', value: '消极' }, { label: '⑤ 不配合', value: '不配合' }
 ]
-const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 离司日期: '', 是否正常开播: '', 配合意愿: '' })
+const restOptions: SelectOption[] = [
+  { label: '不固定休息日', value: '' },
+  { label: '每周日休息', value: '周日' }, { label: '每周一休息', value: '周一' }, { label: '每周二休息', value: '周二' },
+  { label: '每周三休息', value: '周三' }, { label: '每周四休息', value: '周四' }, { label: '每周五休息', value: '周五' }, { label: '每周六休息', value: '周六' }
+]
+const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 离司日期: '', 固定休息日: '', 请假开始日期: '', 请假结束日期: '', 请假原因: '', 是否正常开播: '', 配合意愿: '' })
 const profileBusy = ref(false)
 function loadProfile(name: string) {
   const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
   profile.value = {
     入司日期: String(s?.['入司日期'] || ''), 首播日期: String(s?.['首播日期'] || ''), 离司日期: String(s?.['离司日期'] || ''),
+    固定休息日: String(s?.['固定休息日'] || ''),
+    请假开始日期: String(s?.['请假开始日期'] || ''),
+    请假结束日期: String(s?.['请假结束日期'] || ''),
+    请假原因: String(s?.['请假原因'] || ''),
     是否正常开播: String(s?.['是否正常开播'] || ''), 配合意愿: String(s?.['配合意愿'] || '')
   }
 }
 async function saveProfile() {
   if (!planStreamer.value) return msg.warning('先选主播')
+  const ls = String(profile.value['请假开始日期'] || '').trim()
+  const le = String(profile.value['请假结束日期'] || ls).trim()
+  if (ls && le && le < ls) return msg.warning('请假结束日期不能早于开始日期')
+  if (ls && !profile.value['请假结束日期']) profile.value['请假结束日期'] = ls
+  if (planStreamer.value === ALL_PLAN) return msg.warning('全部主播模式下不能统一保存档案，请先选具体主播。')
   profileBusy.value = true
   try {
     await store.saveStreamerProfile(planStreamer.value, { ...profile.value })
@@ -507,11 +555,72 @@ function pickPhase(p: any) {
   const el = document.querySelector('.plan-filter')
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
-const planStreamerOptions = computed<SelectOption[]>(() => filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n })))
+function showAllCourses() {
+  if (!planInfo.value && planStreamer.value !== ALL_PLAN) return msg.warning('先选一个主播并生成计划')
+  dayPhase.value = 'all'
+  const el = document.querySelector('.schedule-title')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+const weekTasks = ref<any[]>([])
+const weekColumns: DataTableColumns<any> = [
+  { title: '日期', key: '日期', width: 108 },
+  { title: '主播', key: '主播', width: 110 },
+  { title: '赛道', key: '赛道', width: 90 },
+  { title: '第几天', key: '天', width: 70 },
+  { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
+  { title: '验收', key: '验收', width: 220, ellipsis: { tooltip: true } }
+]
+async function loadWeekTasks() {
+  try {
+    const plans = await api().incubateList('培训计划')
+    const rows = await api().incubateList('课表')
+    const roster = await api().incubateList('主播学籍')
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+    const out: any[] = []
+    const names = new Set<string>()
+    for (const p of plans || []) {
+      const name = String(p['主播'] || '').trim()
+      const start = new Date(String(p['开始日期'] || '') + 'T00:00:00')
+      if (!name || isNaN(start.getTime()) || names.has(name)) continue
+      names.add(name)
+      for (let offset = 0; offset < 7; offset++) {
+        const d = new Date(monday)
+        d.setDate(monday.getDate() + offset)
+        const idx = Math.floor((d.getTime() - start.getTime()) / 86400000) + 1
+        if (idx < 1 || idx > 60) continue
+        const row = (rows || []).find((r: any) => String(r['主播'] || '').trim() === name && String(r['日期']) === `D${idx}`)
+        const person = (roster || []).find((r: any) => String(r['主播'] || '').trim() === name)
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+        const leaveEnd = String(person?.['请假结束日期'] || person?.['请假开始日期'] || '')
+        if (person?.['请假开始日期'] && leaveEnd && ds >= String(person['请假开始日期']) && ds <= leaveEnd) {
+          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 天: `D${idx}`, 今天练什么: `请假${person['请假原因'] ? '：' + person['请假原因'] : ''}`, 验收: '不计完成率，不催课' })
+          continue
+        }
+        if (!row) continue
+        out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 天: `D${idx}`, 今天练什么: row['今天练什么'] || '', 验收: row['验收'] || '' })
+      }
+    }
+    weekTasks.value = out.sort((a, b) => Number(a._sort) - Number(b._sort) || String(a['主播']).localeCompare(String(b['主播'])))
+  } catch { /* ignore */ }
+}
+
+const planStreamerOptions = computed<SelectOption[]>(() => [
+  { label: '全部主播（批量生成课表）', value: ALL_PLAN },
+  ...filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n }))
+])
 const fbOptions: SelectOption[] = [
   { label: '完成', value: '完成' },
   { label: '部分完成', value: '部分完成' },
-  { label: '未完成', value: '未完成' }
+  { label: '未完成', value: '未完成' },
+  { label: '今日休息', value: '休息' },
+  { label: '今天未开播', value: '未开播' },
+  { label: '请假/停播', value: '请假' },
+  { label: '设备故障', value: '设备故障' },
+  { label: '平台问题', value: '平台问题' },
+  { label: '临时停播', value: '临时停播' }
 ]
 const dayPhaseOptions: SelectOption[] = [
   { label: '全部 60 天', value: 'all' },
@@ -525,6 +634,13 @@ const todayTask = computed(() => {
   if (!idx) return null
   const key = `D${Math.min(Math.max(idx, 1), 60)}`
   return store.planDays.find((r: any) => String(r['日期']) === key) || null
+})
+
+const onLeaveToday = computed(() => {
+  const start = String(planInfo.value?.leaveStart || profile.value['请假开始日期'] || '')
+  const end = String(planInfo.value?.leaveEnd || profile.value['请假结束日期'] || '')
+  const end2 = end || start
+  return !!start && !!end2 && today >= start && today <= end2
 })
 
 const filteredPlanDays = computed(() => {
@@ -550,11 +666,14 @@ const fbColumns: DataTableColumns<any> = [
 
 async function loadPlanFor(name: string) {
   if (!name) { planInfo.value = null; return }
+  if (name === ALL_PLAN) { planInfo.value = null; return }
   const r = await store.loadPlan(name)
   planInfo.value = r
   if (r?.plan?.['赛道']) planTrack.value = String(r.plan['赛道'])
   if (r?.plan?.['开始日期']) planStart.value = String(r.plan['开始日期'])
+  else if (r?.plan && !r.plan['开始日期']) planStart.value = localDate()
   fb.value['今日任务'] = todayTask.value ? String(todayTask.value['今天练什么']) : ''
+  fb.value['完成情况'] = onLeaveToday.value ? '请假' : (todayTask.value && /休息/.test(String(todayTask.value['今天练什么'] || '')) ? '休息' : '完成')
   const todayStr = localDate()
   const exist = (r?.feedback || []).find((x: any) => String(x['日期']) === todayStr)
   if (exist) {
@@ -569,6 +688,12 @@ async function loadPlanFor(name: string) {
 async function onPlanStreamer(name: string) {
   planStreamer.value = name || ''
   if (!name) { planInfo.value = null; return }
+  if (name === ALL_PLAN) {
+    planInfo.value = null
+    planTrack.value = ''
+    current.value = ''
+    return
+  }
   planTrack.value = store.trackOf(name) || store.defaultTrack
   loadProfile(name)
   // 下方“今日打分”区也用同一个主播，避免选两次
@@ -612,16 +737,44 @@ async function justGenerate() {
   await doGenerate()
 }
 
+async function generateTargets() {
+  const targets = planStreamer.value === ALL_PLAN ? filteredStreamers.value.slice() : [planStreamer.value]
+  if (!targets.length) throw new Error('还没有主播，先点「+ 添加主播」')
+  let done = 0
+  for (const name of targets) {
+    if (!name) continue
+    await store.generatePlan({
+      streamer: name,
+      track: planStreamer.value === ALL_PLAN ? (store.trackOf(name) || planTrack.value || store.defaultTrack) : planTrack.value,
+      restDay: planStreamer.value === ALL_PLAN
+        ? String(store.streamers.find((s: any) => String(s['主播'] || '').trim() === name)?.['固定休息日'] || '')
+        : String(profile.value['固定休息日'] || ''),
+      leaveStart: planStreamer.value === ALL_PLAN
+        ? String(store.streamers.find((s: any) => String(s['主播'] || '').trim() === name)?.['请假开始日期'] || '')
+        : String(profile.value['请假开始日期'] || ''),
+      leaveEnd: planStreamer.value === ALL_PLAN
+        ? String(store.streamers.find((s: any) => String(s['主播'] || '').trim() === name)?.['请假结束日期'] || '')
+        : String(profile.value['请假结束日期'] || ''),
+      leaveReason: planStreamer.value === ALL_PLAN
+        ? String(store.streamers.find((s: any) => String(s['主播'] || '').trim() === name)?.['请假原因'] || '')
+        : String(profile.value['请假原因'] || ''),
+      startDate: planStart.value,
+      source: planInfo.value?.plan?.['报告来源'] || 'AI 拆解报告'
+    })
+    done++
+    if (targets.length > 1) msg.info(`正在生成：${done}/${targets.length} ${name}`)
+  }
+  return done
+}
+
 async function doGenerate() {
   if (!planStreamer.value) return msg.warning('先选主播')
   planBusy.value = true
   try {
-    const r = await store.generatePlan({
-      streamer: planStreamer.value, track: planTrack.value, startDate: planStart.value,
-      source: planInfo.value?.plan?.['报告来源'] || 'AI 拆解报告'
-    })
-    await loadPlanFor(planStreamer.value)
-    msg.success(r?.message || '已生成计划')
+    const n = await generateTargets()
+    await loadWeekTasks()
+    if (planStreamer.value !== ALL_PLAN) await loadPlanFor(planStreamer.value)
+    msg.success(planStreamer.value === ALL_PLAN ? `已为 ${n} 个主播批量生成 60 天计划` : '已生成计划')
   } catch (e: any) {
     msg.error('生成失败：' + (e?.message || e))
   } finally { planBusy.value = false }
@@ -659,9 +812,23 @@ async function saveFb() {
   } finally { fbBusy.value = false }
 }
 
+function onLeaveNow(name: string): boolean {
+  const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+  const start = String(s?.['请假开始日期'] || '')
+  const end = String(s?.['请假结束日期'] || '')
+  return !!start && !!end && today >= start && today <= end
+}
+
+function onRestNow(name: string): boolean {
+  const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+  const rest = String(s?.['固定休息日'] || '')
+  return !!rest && rest === ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][new Date().getDay()]
+}
+
 const needAttention = computed(() => {
   const order: Record<Level, number> = { bad: 0, warn: 1, none: 2, ok: 9 }
   return filteredStreamers.value
+    .filter((n) => !onLeaveNow(n) && !onRestNow(n))
     .map((n) => {
       const s = statusMap.value.get(n)!
       const miss = s.fails.length ? `缺 ${s.fails.join('/')}` : s.level === 'none' ? '还没开始记录' : ''
@@ -811,9 +978,29 @@ const scoreColumns = computed<DataTableColumns<any>>(() => [
   { title: '说明', key: '说明', minWidth: 240 }
 ])
 
+async function openCaseFolder(row: any) {
+  const dir = String(row?.['来源目录'] || '').trim()
+  if (!dir) return msg.warning('这个旧案例没记录来源目录；以后新导入的报告会自动带上。')
+  const ok = await api().teardownOpen(dir)
+  if (!ok) msg.error('打不开这个目录，可能已经被移动或删除：' + dir)
+}
+
 const assetColumns = computed<DataTableColumns<any>>(() => {
   const cols = store.schema[viewTable.value] || []
-  return cols.map((c) => ({ title: c, key: c, ellipsis: c === '内容' || c === '证明了什么' }))
+  const out: DataTableColumns<any> = cols.map((c) => ({ title: c, key: c, ellipsis: c === '内容' || c === '证明了什么' || c === '来源目录' }))
+  if (viewTable.value === '案例库') {
+    out.push({
+      title: '打开',
+      key: '打开',
+      width: 92,
+      render: (row: any) => h(NButton, {
+        size: 'tiny', type: 'primary', ghost: true,
+        disabled: !String(row['来源目录'] || '').trim(),
+        onClick: () => openCaseFolder(row)
+      }, { default: () => '打开文件夹' })
+    })
+  }
+  return out
 })
 
 async function save() {
@@ -958,6 +1145,7 @@ onMounted(async () => {
   ensureSelection()
   planStreamer.value = current.value || filteredStreamers.value[0] || ''
   await loadAllFeedback()
+  await loadWeekTasks()
   if (planStreamer.value) {
     planStart.value = localDate()
     planTrack.value = store.trackOf(planStreamer.value)
@@ -1040,9 +1228,16 @@ onUnmounted(() => {
 
 /* ---------- 培训计划（导入 → 60 天 → 每日反馈） ---------- */
 .plan-wrap { display: flex; flex-direction: column; gap: 12px; }
+.inc-block { border:1px solid var(--line); border-radius:16px; padding:14px 16px 16px; margin: 0; box-shadow:var(--shadow-panel); }
+.inc-base-block { background:linear-gradient(160deg,#f0f9ff 0%,#ffffff 55%,#f7fcff 100%); border-color:#cfe8f6; }
+.inc-today-block { background:linear-gradient(160deg,#effcf8 0%,#ffffff 58%,#f7fffc 100%); border-color:#c8eee4; }
+.inc-all-block { background:linear-gradient(160deg,#f6f4ff 0%,#ffffff 58%,#fbfaff 100%); border-color:#ded9f5; }
+.inc-block .blk-head { margin-top:0; }
 .plan-import { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; }
 .plan-import-title { font-weight: 700; margin-bottom: 10px; color: #1f2328; }
 .plan-import-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.leave-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; padding:9px 11px; border-radius:9px; background:#f4fbf8; border:1px solid #d7f0e7; }
+.leave-row b { font-size:12px; color:#167a67; }
 .plan-hint { margin-top: 8px; font-size: 12px; color: #6b7280; }
 .plan-drop { margin-top: 10px; border: 1.5px dashed #c7d2fe; border-radius: 10px; padding: 14px; text-align: center; color: #64748b; font-size: 13px; background: #f8faff; }
 .plan-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -1063,11 +1258,19 @@ onUnmounted(() => {
 .plan-table-title { font-weight: 700; font-size: 13px; margin-top: 4px; }
 .plan-filter { margin-bottom: 6px; }
 .plan-empty { margin: 36px auto; color: #6b7280; font-size: 13px; text-align: center; }
-.blk-head { margin: 22px 0 10px; padding: 9px 14px; border-radius: 9px; font-size: 15px; font-weight: 800; letter-spacing: .2px; }
-.blk-base-head { background: #f1f5f9; color: #334155; }
-.blk-today-head { background: #dbeafe; color: #1d4ed8; }
-.blk-all-head { background: #e2e8f0; color: #334155; }
+.blk-head { margin: 24px 0 12px; padding: 11px 15px; border-radius: 11px; font-size: 16px; font-weight: 800; letter-spacing: .2px; border-left: 5px solid transparent; box-shadow: 0 2px 8px rgba(16, 80, 120, .05); }
+.blk-base-head { background: linear-gradient(90deg, #dff3ff, #f2fbff); color: #075985; border-left-color: #0b76be; }
+.blk-today-head { background: linear-gradient(90deg, #dcfced, #f2fff9); color: #08765f; border-left-color: #0f9d82; }
+.blk-all-head { background: linear-gradient(90deg, #eee9ff, #f8f5ff); color: #5b3d9a; border-left-color: #8065c8; }
+.week-card { background: #fff; border: 1px solid #dbe3ea; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.week-head { font-size: 14px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.week-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: var(--ink-3); font-size: 12px; }
+.advanced-block { margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+.advanced-block > summary { cursor: pointer; color: var(--pulse-accent); font-weight: 700; font-size: 13px; }
+.advanced-block .track-daily { border-top: 0; margin-top: 10px; padding-top: 0; }
 .pill.departed { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+.pill.rest { background:#ecfdf5; color:#0f766e; }
+.pill.leave { background:#fff7ed; color:#b45309; }
 /* 整页滚轮/滑条 */
 .inc-page { height: calc(100vh - 56px); overflow-y: auto; padding-right: 18px; }
 .inc-page::-webkit-scrollbar { width: 10px; }
@@ -1088,12 +1291,14 @@ onUnmounted(() => {
 /* 表格字大一点、行高一点，不费眼 */
 .inc-page :deep(.n-data-table .n-data-table-td),
 .inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13px; padding-top: 9px; padding-bottom: 9px; }
-</style>
 /* 今天 与 60 天课表：强区分 */
 .today-head { color: #1d4ed8; font-size: 16px; font-weight: 800; margin: 18px 0 10px; padding-left: 10px; border-left: 4px solid #2563eb; }
 .today-card { background: #e8f2ff !important; border: 1px solid #93c5fd !important; border-left: 7px solid #1d4ed8 !important; border-radius: 14px !important; padding: 18px 20px !important; box-shadow: 0 2px 10px rgba(29,78,216,.08); }
+.today-card.rest { background:#ecfdf5 !important; border-color:#99f6e4 !important; border-left-color:#0f9d82 !important; }
+.leave-card { background:#fffaf0 !important; border:1px solid #fed7aa !important; border-left:7px solid #f59e0b !important; border-radius:14px !important; padding:18px 20px !important; }
 .fb-card { background: #ecf8ff !important; border: 1px solid #7dd3fc !important; border-left: 7px solid #0284c7 !important; border-radius: 14px !important; padding: 18px 20px !important; margin-top: 14px; }
 .schedule-title { background: #e2e8f0; color: #334155; padding: 10px 14px; border-radius: 10px; font-size: 15px; margin: 10px 0 8px; }
 .sec-divider { height: 1px; background: #e5e7eb; margin: 22px 0 16px; }
 .schedule-table { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
 .schedule-table .n-data-table-th { background: #eef2f7 !important; }
+</style>

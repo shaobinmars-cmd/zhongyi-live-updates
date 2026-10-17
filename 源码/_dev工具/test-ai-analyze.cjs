@@ -7,7 +7,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 
-app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
+app.setPath('userData', process.env.AI_TEST_USERDATA || path.join(os.tmpdir(), 'zy-ai-test-' + Date.now()))
 app.on('window-all-closed', () => { /* 别退 */ })
 
 const LOGFILE = path.join(os.tmpdir(), 'test-ai-analyze.log')
@@ -27,6 +27,10 @@ app.whenReady().then(async () => {
       baseUrl: process.env.AI_BASE,
       apiKey: process.env.AI_KEY || '',
       model: process.env.AI_MODEL || 'deepseek-chat'
+      ,visionBaseUrl: process.env.VISION_BASE || ''
+      ,visionApiKey: process.env.VISION_KEY || ''
+      ,visionModel: process.env.VISION_MODEL || ''
+      ,visionMaxImages: Number(process.env.VISION_MAX || 4)
     })
     log('已写入 AI 配置：' + JSON.stringify({ baseUrl: saved.baseUrl, model: saved.model, hasKey: !!saved.apiKey }))
   } else {
@@ -43,7 +47,7 @@ app.whenReady().then(async () => {
   if (!target) { log('没给素材包路径'); app.exit(3); return }
   log('开始分析：' + target)
   const started = Date.now()
-  const res = await ai.analyzePacket(target, (p) => log('  [进度] ' + JSON.stringify(p)))
+  const res = await ai.analyzePacket(target, (p) => log('  [进度] ' + JSON.stringify(p)), { imageCount: Number(process.env.IMAGE_COUNT || 0) })
   log('分析返回：' + JSON.stringify(res))
   if (res.reportPath && fs.existsSync(res.reportPath)) {
     const st = fs.statSync(res.reportPath)

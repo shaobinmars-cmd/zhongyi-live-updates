@@ -10,7 +10,11 @@ const require = createRequire(APP_PKG)
 const WebSocket = require('ws')
 
 const PORT = Number(process.argv[2] || 9464)
-const KEY = process.argv[3] || 'sk-282d6643acb04ce9ba06ed0fc5083b17'   // 张家宁那把（只发一次最小请求）
+const KEY = process.argv[3] || process.env.DEEPSEEK_TEST_KEY || ''
+if (!KEY) {
+  console.error('缺少测试密钥：请传第 3 个参数，或设置 DEEPSEEK_TEST_KEY 环境变量。')
+  process.exit(2)
+}
 
 const LOGFILE = path.join(os.tmpdir(), 'ui-ai-test.log')
 try { fs.writeFileSync(LOGFILE, '') } catch { /* ignore */ }

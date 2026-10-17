@@ -85,7 +85,23 @@ export function phaseTextOf(dayIndex: number): string {
 }
 
 /** 第 d 天练什么（d = 1..60） */
-function dayPlan(d: number, drills: string[], assets: any[]): { code: string; title: string; how: string; accept: string } {
+function dayPlan(d: number, drills: string[], assets: any[], isRest = false, isLeave = false): { code: string; title: string; how: string; accept: string } {
+  if (isLeave) {
+    return {
+      code: '',
+      title: '请假/停播（不排训练）',
+      how: '运营仅确认主播状态；不催作业、不补课、不追数据，复工后沿用当天原课表继续。',
+      accept: '确认请假状态并记录原因，今天不计完成率。'
+    }
+  }
+  if (isRest) {
+    return {
+      code: '',
+      title: '休息与轻复盘（不排高强度训练）',
+      how: '睡够、护嗓、回看本周 1 个片段；今天不学新课，不追数据。',
+      accept: '完成休息打卡；写 1 条本周观察，不用补作业。'
+    }
+  }
   const asset = assets.length ? assets[(d - 1) % assets.length] : null
   const assetCode = asset ? String(asset['编号'] || '') : ''
   const assetText = asset ? String(asset['内容'] || '').slice(0, 50) : ''
@@ -138,6 +154,10 @@ export async function generateTrainingPlan(opts: {
   startDate?: string
   source?: string
   reportText?: string
+  restDay?: string
+  leaveStart?: string
+  leaveEnd?: string
+  leaveReason?: string
 }): Promise<{ days: number; track: string; assets: number; message: string }> {
   const streamer = String(opts.streamer || '').trim()
   if (!streamer) throw new Error('先在左上角选一个主播')
@@ -148,6 +168,10 @@ export async function generateTrainingPlan(opts: {
   const start = String(opts.startDate || '').trim() || new Date().toISOString().slice(0, 10)
   const assets = (await listRows('资产库')).slice(-60)
   const drills = TRACK_DRILLS[finalTrack] || TRACK_DRILLS[DEFAULT_TRACK] || TRACK_DRILLS['下单游戏']
+  const restMap: Record<string, number> = { '周日': 0, '周一': 1, '周二': 2, '周三': 3, '周四': 4, '周五': 5, '周六': 6 }
+  const restDayNum = restMap[String(opts.restDay || '').trim()] ?? -1
+  const leaveStart = String(opts.leaveStart || '')
+  const leaveEnd = String(opts.leaveEnd || opts.leaveStart || '')
 
   // 清掉该主播旧的 D 计划（保留其它非 D 开头的课表行）
   const old = (await listRows('课表')).filter(
@@ -157,7 +181,12 @@ export async function generateTrainingPlan(opts: {
 
   const rows: Row[] = []
   for (let d = 1; d <= 60; d++) {
-    const t = dayPlan(d, drills, assets)
+    const date = new Date(start + 'T00:00:00')
+    date.setDate(date.getDate() + d - 1)
+    const isRest = restDayNum >= 0 && date.getDay() === restDayNum
+    const dateText = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const isLeave = !!leaveStart && !!leaveEnd && dateText >= leaveStart && dateText <= leaveEnd
+    const t = dayPlan(d, drills, assets, isRest, isLeave)
     rows.push({
       日期: `D${d}`, 主播: streamer, 资产编号: t.code,
       今天练什么: t.title, 怎么练: t.how, 验收: t.accept, 打卡: '', 录入人: 'AI计划'
@@ -169,6 +198,7 @@ export async function generateTrainingPlan(opts: {
   const exist = plans.find((r) => String(r['主播'] || '').trim() === streamer)
   const payload: Row = {
     主播: streamer, 赛道: finalTrack, 开始日期: start, 进度: 'D1/60',
+    固定休息日: String(opts.restDay || ''),
     阶段: PLAN_PHASES[0].label, 报告来源: String(opts.source || 'AI 拆解报告').slice(0, 60),
     更新时间: localStamp()
   }
@@ -219,6 +249,7 @@ export async function saveFeedback(row: Row): Promise<{ id: number; updated: boo
 export async function getPlan(streamer: string): Promise<any> {
   const name = String(streamer || '').trim()
   const plan = (await listRows('培训计划')).find((r) => String(r['主播'] || '').trim() === name) || null
+  const roster = (await listRows('主播学籍')).find((r) => String(r['主播'] || '').trim() === name) || null
   const days = (await listRows('课表'))
     .filter((r) => String(r['主播'] || '').trim() === name && /^D\d+$/.test(String(r['日期'] || '')))
     .sort((a, b) => Number(String(a['日期']).slice(1)) - Number(String(b['日期']).slice(1)))
@@ -233,7 +264,12 @@ export async function getPlan(streamer: string): Promise<any> {
       dayIndex = Math.floor((t.getTime() - start.getTime()) / 86400000) + 1
     }
   }
-  return { plan, days, feedback, dayIndex, phase: phaseTextOf(dayIndex), phases: PLAN_PHASES }
+  return {
+    plan, days, feedback, dayIndex, phase: phaseTextOf(dayIndex), phases: PLAN_PHASES,
+    leaveStart: String(roster?.['请假开始日期'] || ''),
+    leaveEnd: String(roster?.['请假结束日期'] || ''),
+    leaveReason: String(roster?.['请假原因'] || '')
+  }
 }
 
 /** 粘贴的报告文本也走同一套导入（写临时文件，导完删掉） */

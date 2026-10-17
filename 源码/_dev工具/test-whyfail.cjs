@@ -6,7 +6,7 @@ const os = require('os')
 const { execFileSync } = require('child_process')
 
 app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
-process.env.TEARDOWN_ENGINE = 'D:\\直播拆解工具'
+process.env.TEARDOWN_ENGINE = 'H:\\众艺传媒运营工具\\直播拆解引擎'
 app.on('window-all-closed', () => { /* 别退 */ })
 
 const LOGFILE = path.join(os.tmpdir(), 'test-whyfail.log')
@@ -18,8 +18,8 @@ const log = (s) => {
 process.on('uncaughtException', (e) => log('UNCAUGHT: ' + ((e && e.stack) || e)))
 
 const DIR = 'H:\\迅雷下载'
-const FFMPEG = 'D:\\直播拆解工具\\bin\\ffmpeg\\bin\\ffmpeg.exe'
-const SRC = 'D:\\直播拆解工具\\录像\\直播_九九🍷（经典老歌）_344779995264_20261010_1926\\chunk_05.ts'
+const FFMPEG = 'H:\\众艺传媒运营工具\\直播拆解引擎\\bin\\ffmpeg\\bin\\ffmpeg.exe'
+const SRC = 'H:\\众艺传媒运营工具\\直播拆解引擎\\录像\\直播_九九🍷（经典老歌）_344779995264_20261010_1926\\chunk_05.ts'
 const CLIP = path.join(DIR, '复现_20261015130000_001.mp4')
 
 app.whenReady().then(async () => {
@@ -34,8 +34,8 @@ app.whenReady().then(async () => {
   log('素材：' + CLIP + '  ' + fs.statSync(CLIP).size + ' 字节')
 
   // 先直接跑引擎的转写脚本，看看到底报什么
-  const py = 'D:\\直播拆解工具\\python-embed\\python.exe'
-  const script = 'D:\\直播拆解工具\\scripts\\transcript.py'
+  const py = 'H:\\众艺传媒运营工具\\直播拆解引擎\\python-embed\\python.exe'
+  const script = 'H:\\众艺传媒运营工具\\直播拆解引擎\\scripts\\transcript.py'
   const outDir = path.join(DIR, 'work_复现_20261015130000')
   fs.mkdirSync(outDir, { recursive: true })
   log('\n--- 直接跑 transcript.py ---')

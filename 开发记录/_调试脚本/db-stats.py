@@ -1,5 +1,5 @@
 # 看一眼弹幕库的真实体量：多少行、什么类型最多、时间范围
-# 用法：$env:PYTHONUTF8="1"; & "D:\直播拆解工具\python-embed\python.exe" db-stats.py
+# 用法：$env:PYTHONUTF8="1"; & "H:\众艺传媒运营工具\直播拆解引擎\python-embed\python.exe" db-stats.py
 import os
 import sqlite3
 from datetime import datetime

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""老板端：拉取私有库里的运营数据，自动生成日报/周报/月报/季报/年报。
+r"""老板端：拉取私有库里的运营数据，自动生成日报/周报/月报/季报/年报。
 用法：python 生成报表.py
 配置：%APPDATA%\douyin-live-info\sync.json（owner/repo/token/operator）
 输出：H:\直播运营汇总\日报_日期.md、周报_日期.md、月报_年月.md、季报_年Qn.md、年报_年.md
@@ -68,7 +68,9 @@ def build(ops, label, start, end, name):
     sess = collect(ops, "场次记录", start, end)
     done = Counter(str(r.get("完成情况", "")).strip() for r in fb)
     total = len(fb)
-    rate = round((done.get("完成", 0) + done.get("部分完成", 0)) / total * 100, 1) if total else 0
+    non_work = sum(done.get(k, 0) for k in ("休息", "请假", "未开播", "设备故障", "平台问题", "临时停播"))
+    active_total = total - non_work
+    rate = round((done.get("完成", 0) + done.get("部分完成", 0)) / active_total * 100, 1) if active_total else 0
     streamers = {str(r.get("主播", "")).strip() for r in fb if r.get("主播")}
     reported = {str(r.get("主播", "")).strip() for r in fb if r.get("主播")}
     missing = []
@@ -77,6 +79,10 @@ def build(ops, label, start, end, name):
         if not n or n in reported:
             continue
         if r.get("离司日期"):
+            continue
+        leave_start = str(r.get("请假开始日期") or "")[:10]
+        leave_end = str(r.get("请假结束日期") or leave_start)[:10]
+        if leave_start and leave_end and leave_start <= str(end) and leave_end >= str(start):
             continue
         missing.append(n)
     issues = Counter(str(r.get("问题", "")).strip() for r in fb if str(r.get("问题", "")).strip())
@@ -87,6 +93,8 @@ def build(ops, label, start, end, name):
     L += ["## 一、总览", "",
           f"- 反馈总数：{total} 条",
           f"- 完成 / 部分完成 / 未完成：{done.get('完成', 0)} / {done.get('部分完成', 0)} / {done.get('未完成', 0)}",
+          f"- 休息日：{done.get('休息', 0)} 条（不计入完成率分母）",
+          f"- 请假/未开播/设备平台问题：{non_work - done.get('休息', 0)} 条（同样不计入分母）",
           f"- 提交率（完成+部分）：{rate}%",
           f"- 涉及主播：{len(streamers)} 人；场次记录：{len(sess)} 条", ""]
     L += ["## 二、按运营", ""]

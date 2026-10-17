@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""把本机孵化库打包成 JSON，上传到私有数据仓库。
+r"""把本机孵化库打包成 JSON，上传到私有数据仓库。
 用法：python 自动上传数据.py [--operator 张三]
 配置：%APPDATA%\douyin-live-info\sync.json
   {"owner":"shaobinmars-cmd","repo":"zhongyi-data","token":"ghp_...","operator":"张三"}

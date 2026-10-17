@@ -82,7 +82,7 @@ function looksLikeEngine(dir: string): boolean {
   }
 }
 
-/** 引擎目录：环境变量 > 打包内置 > 项目内 engine\ > 开发机上的原工具目录 */
+/** 引擎目录：环境变量 > 打包内置 > 项目内 engine\ > 新项目根目录 */
 export function resolveEngineRoot(): string {
   const candidates: string[] = []
   if (process.env.TEARDOWN_ENGINE) candidates.push(process.env.TEARDOWN_ENGINE)
@@ -90,7 +90,10 @@ export function resolveEngineRoot(): string {
   try {
     candidates.push(path.join(app.getAppPath(), 'engine'))
   } catch { /* ignore */ }
-  candidates.push('D:\\直播拆解工具')
+  try {
+    candidates.push(path.join(app.getAppPath(), '..', '直播拆解引擎'))
+  } catch { /* ignore */ }
+  candidates.push('H:\\众艺传媒运营工具\\直播拆解引擎')
 
   for (const c of candidates) {
     if (c && looksLikeEngine(c)) {
@@ -565,6 +568,90 @@ function splitLines(buf: string, push: (line: string) => void): string {
     idx = rest.indexOf('\n')
   }
   return rest
+}
+
+export interface RemoteResolveResult { ok: boolean; path?: string; message: string }
+
+/** 把线上链接交给引擎下载成本地文件；直播链接按 durationSec 现录一段。 */
+export function resolveRemote(url: string, durationSec = 600): Promise<RemoteResolveResult> {
+  return new Promise((resolve) => {
+    if (state.running) return resolve({ ok: false, message: '当前已有拆解或下载任务，先等它结束。' })
+    if (!/^https?:\/\//i.test(String(url || '').trim())) return resolve({ ok: false, message: '链接格式不对，要以 http:// 或 https:// 开头。' })
+    const status = engineStatus()
+    const script = path.join(status.root || '', 'scripts', 'fetch_url.py')
+    if (!status.ok || !fs.existsSync(script)) return resolve({ ok: false, message: '拆解引擎里缺少 fetch_url.py，请升级到最新版。' })
+
+    const outDir = path.join(app.getPath('userData'), '网络素材')
+    try { fs.mkdirSync(outDir, { recursive: true }) } catch { /* ignore */ }
+    state = emptyState()
+    state.running = true
+    state.input = String(url || '').trim()
+    state.model = ''
+    state.startedAt = Date.now()
+    state.stage = '解析/下载链接'
+    emitState()
+    pushLine('准备下载线上素材：' + state.input)
+
+    const env: NodeJS.ProcessEnv = engineEnv({ WHISPER_DEVICE: tdConfig.load().whisperDevice || 'cpu' })
+    const args = [script, state.input, '--out-dir', outDir, '--duration', String(Math.max(30, Number(durationSec) || 600))]
+    let child: ChildProcess
+    try {
+      child = spawn(status.python, args, { cwd: status.root, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      proc = child
+    } catch (ex: any) {
+      state.running = false
+      state.stage = '链接下载失败'
+      state.error = String(ex?.message || ex)
+      emitState()
+      return resolve({ ok: false, message: state.error })
+    }
+
+    let localPath = ''
+    let tail = ''
+    let outBuf = ''
+    let errBuf = ''
+    const handle = (chunk: Buffer, which: 'out' | 'err'): void => {
+      const text = chunk.toString('utf-8')
+      if (which === 'err') tail = (tail + text).slice(-4000)
+      const push = (line: string): void => {
+        const s = line.trim()
+        if (!s) return
+        if (s.startsWith('LOCAL_PATH:')) localPath = s.slice('LOCAL_PATH:'.length).trim()
+        if (/下载|识别|直播|fetch/i.test(s)) state.stage = s.slice(0, 80)
+        pushLine(s)
+        emitState()
+      }
+      if (which === 'out') outBuf = splitLines(outBuf + text, push)
+      else errBuf = splitLines(errBuf + text, push)
+    }
+    child.stdout?.on('data', (c: Buffer) => handle(c, 'out'))
+    child.stderr?.on('data', (c: Buffer) => handle(c, 'err'))
+    child.on('error', (err) => {
+      state.error = '链接下载进程错误：' + err.message
+      pushLine(state.error)
+    })
+    child.on('exit', (code) => {
+      if (outBuf.trim()) pushLine(outBuf.trim())
+      if (errBuf.trim()) pushLine(errBuf.trim())
+      proc = null
+      state.running = false
+      state.exitCode = code
+      state.finishedAt = Date.now()
+      if (code === 0 && localPath && fs.existsSync(localPath)) {
+        state.input = localPath
+        state.workDir = workDirFor(localPath)
+        state.stage = '链接素材已下载'
+        pushLine('已下载到本地：' + localPath)
+        emitState()
+        resolve({ ok: true, path: localPath, message: '下载完成' })
+      } else {
+        state.stage = '链接下载失败'
+        state.error = tail.trim().split(/\r?\n/).slice(-3).join(' ') || `下载进程退出码 ${code}`
+        emitState()
+        resolve({ ok: false, message: state.error })
+      }
+    })
+  })
 }
 
 export function start(input: string, model = 'small'): TeardownState {

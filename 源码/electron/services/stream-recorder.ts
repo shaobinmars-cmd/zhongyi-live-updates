@@ -8,6 +8,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { loadConfig, getEffectiveOutputPath } from './record-config'
 import { getPullUrl } from './live-stream'
+import { resolveGenericPullUrl } from './platform'
 import * as logger from './logger'
 
 const LOG_MODULE = 'StreamRecorder'
@@ -61,7 +62,9 @@ export class StreamRecorder {
     private roomId: string,
     private nickname: string,
     private format: string,
-    hooks: RecorderHooks
+    hooks: RecorderHooks,
+    private platform: string = 'douyin',
+    private sourceUrl: string = ''
   ) {
     this.hooks = hooks
   }
@@ -92,6 +95,8 @@ export class StreamRecorder {
         JSON.stringify({
           roomId: this.roomId,
           nickname: this.nickname,
+          platform: this.platform,
+          sourceUrl: this.sourceUrl,
           format: this.format,
           startedAtUtc: new Date().toISOString().replace('T', ' ').substring(0, 19),
           startedAtLocal: new Date().toLocaleString('zh-CN')
@@ -244,7 +249,10 @@ export class StreamRecorder {
 
     setTimeout(async () => {
       if (this.stopping || this.finished) return
-      const { success, pullUrl } = await getPullUrl(this.roomId)
+      const resolved = this.platform === 'douyin'
+        ? await getPullUrl(this.roomId)
+        : await resolveGenericPullUrl(this.sourceUrl)
+      const { success, pullUrl } = resolved
       if (this.stopping || this.finished) return
       if (!success || !pullUrl) {
         this.scheduleReconnect()

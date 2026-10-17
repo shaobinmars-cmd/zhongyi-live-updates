@@ -7,6 +7,7 @@ import * as ai from './services/ai-analyze'
 import * as aiShare from './services/ai-server'
 import * as collectServer from './services/collect-server'
 import * as collectClient from './services/collect-client'
+import * as githubSync from './services/github-sync'
 import * as upnp from './services/upnp'
 import { RecordingManager } from './services/recording-manager'
 import * as teardown from './services/teardown'
@@ -17,6 +18,7 @@ import { runEnvCheck } from './services/env-check'
 import * as license from './services/license'
 import { freeSpaceGB, enforceQuota } from './services/disk-guard'
 import { getPullUrl } from './services/live-stream'
+import { detectPlatform, platformLabel, genericRoomInfo, resolveGenericPullUrl } from './services/platform'
 import * as db from './services/database'
 import * as incubate from './services/incubate'
 import * as updater from './services/updater'
@@ -38,6 +40,16 @@ function licenseOk(): { ok: boolean; reason: string } {
   if (licenseRevoked) return { ok: false, reason: '本机已被管理员停用' }
   const st = license.loadLicense()
   return st.licensed ? { ok: true, reason: '' } : { ok: false, reason: st.reason || '未授权' }
+}
+
+function roomPlatform(room: any): string {
+  return String(room?.platform || detectPlatform(room?.url || ''))
+}
+
+async function resolveRoomPull(room: any): Promise<{ success: boolean; pullUrl: string; nickname: string }> {
+  return roomPlatform(room) === 'douyin'
+    ? getPullUrl(String(room?.enterRoomId || ''))
+    : resolveGenericPullUrl(String(room?.url || ''))
 }
 
 /** 联网复查授权（吐销名单）的状态：什么时候查的、查通没、有没有被停用 */
@@ -126,6 +138,8 @@ export function registerIpcHandlers(): void {
   }
 
   // 数据汇总服务：老板机开了的话，启动就把服务拉起来
+  // GitHub 私有库同步：运营开机后自动补传，老板端也能用它生成报表。
+  githubSync.startAutoSync()
   const cc = collectServer.loadCollect()
   if (cc.enabled) {
     collectServer.startShare(cc).catch(() => { /* 起不来不影响本机使用 */ })
@@ -146,27 +160,40 @@ export function registerIpcHandlers(): void {
 
 
   // ===== Room =====
-  ipcMain.handle('room:fetch', async (_e, urls: string[]) => {
+  ipcMain.handle('shell:open-external', async (_e, url: string) => {
+    if (!/^https?:\/\//i.test(String(url || ''))) return false
+    await shell.openExternal(String(url))
+    return true
+  })
+  ipcMain.handle('room:fetch', async (_e, urls: string[], selectedPlatform = 'auto') => {
     const results: any[] = []
     for (const url of urls) {
+      const platform = selectedPlatform === 'auto' ? detectPlatform(url) : String(selectedPlatform || 'other')
       try {
-        const info = await douyinLive.fetchLiveRoomInfo(url)
-        results.push({ ...info, url })
+        if (platform === 'douyin') {
+          const info = await douyinLive.fetchLiveRoomInfo(url)
+          results.push({ ...info, url, platform: 'douyin', platformLabel: '抖音' })
+        } else {
+          results.push(genericRoomInfo(url, platform as any))
+        }
       } catch (ex: any) {
         logger.error(LOG_MODULE, `roomFetch失败 url=${url}`, ex)
-        results.push({ url, error: ex.message, enterRoomId: '', nickname: '', title: '', roomStatus: 0, likeCount: 0, viewCount: 0 })
+        results.push({ url, platform, platformLabel: platformLabel(platform), error: ex.message, enterRoomId: '', nickname: '', title: '', roomStatus: 0, likeCount: 0, viewCount: 0 })
       }
     }
     return results
   })
 
   ipcMain.handle('room:refresh-stats', async (_e, rooms: any[]) => {
-    await douyinLive.refreshRoomStats(rooms)
+    await douyinLive.refreshRoomStats(rooms.filter((r) => !r.platform || r.platform === 'douyin'))
     return rooms
   })
 
   // ===== Danmu =====
-  ipcMain.handle('danmu:connect', async (_e, roomId: string, nickname: string) => {
+  ipcMain.handle('danmu:connect', async (_e, roomId: string, nickname: string, platform = 'douyin') => {
+    if (platform !== 'douyin') {
+      throw new Error(`${platformLabel(platform)} 弹幕需要平台自己的登录态和协议适配；当前版本先支持多平台录制，弹幕仍为抖音专用。`)
+    }
     const service = new DanmuService()
     danmuConnections.set(roomId, service)
 
@@ -218,6 +245,15 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ai:config-set', (_e, patch: any) => ai.saveAiConfig(patch))
   ipcMain.handle('ai:test', (_e, patch: any) => ai.testAiConnection(patch))
   ipcMain.handle('ai:read-report', (_e, input: string) => ai.readReport(input))
+  ipcMain.handle('ai:pick-images', async () => {
+    if (!mainWindow) return []
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: '选择可选的画面补充图片',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
+    })
+    return picked.canceled ? [] : picked.filePaths
+  })
   // AI 共享：本机当服务器，给每个运营发一个密钥，并统计各自用量
   ipcMain.handle('ai:share-get', () => aiShare.loadShare())
   ipcMain.handle('ai:share-status', () => aiShare.shareStatus())
@@ -370,14 +406,14 @@ export function registerIpcHandlers(): void {
     const toRecord = rooms.filter((r: any) => !r.error && r.roomStatus !== 2 && !recordingManager.has(r.enterRoomId))
 
     for (const room of toRecord) {
-      const { success, pullUrl, nickname } = await getPullUrl(room.enterRoomId)
+      const { success, pullUrl, nickname } = await resolveRoomPull(room)
       if (!success) {
         logger.warn(LOG_MODULE, `获取直播流失败 roomId=${room.enterRoomId}`)
         continue
       }
 
       const nick = nickname || room.nickname
-      recordingManager.startRecording(room.enterRoomId, pullUrl, nick, format)
+      recordingManager.startRecording(room.enterRoomId, pullUrl, nick, format, roomPlatform(room), room.url)
     }
 
     return recordingManager.getState()
@@ -412,13 +448,13 @@ export function registerIpcHandlers(): void {
       protectPrefixes: [...recordingManager.activePrefixes(), ...teardown.protectedPrefixes()]
     })
 
-    const { success, pullUrl, nickname } = await getPullUrl(roomId)
+    const { success, pullUrl, nickname } = await resolveRoomPull(room)
     if (!success || !pullUrl) {
       const msg = `${nickname || room?.nickname || roomId} 取不到直播流（可能还没开播）`
       logger.warn(LOG_MODULE, msg)
       return { ...recordingManager.getState(), error: msg }
     }
-    recordingManager.startRecording(roomId, pullUrl, nickname || room?.nickname || '', cfg.outputFormat)
+    recordingManager.startRecording(roomId, pullUrl, nickname || room?.nickname || '', cfg.outputFormat, roomPlatform(room), room?.url || '')
     return recordingManager.getState()
   })
 
@@ -548,6 +584,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('teardown:list', () => teardown.listRecordings())
   ipcMain.handle('teardown:get-state', () => teardown.getState())
   ipcMain.handle('teardown:start', async (_e, input: string, model: string) => {
+    if (/^https?:\/\//i.test(String(input || '').trim())) {
+      return { running: false, stage: '链接需要先下载', error: '请先在拆解页点「下载链接」' }
+    }
     const l = licenseOk()
     if (!l.ok) throw new Error('未授权：' + l.reason)
     // 一场直播可能有多个分段（每 30 分钟一段 / 断流重连再一段）：先合并再拆
@@ -555,6 +594,11 @@ export function registerIpcHandlers(): void {
     return teardown.start(input, model)
   })
   ipcMain.handle('teardown:stop', () => teardown.stop())
+  ipcMain.handle('teardown:resolve-url', async (_e, url: string, seconds: number) => {
+    const l = licenseOk()
+    if (!l.ok) throw new Error('未授权：' + l.reason)
+    return teardown.resolveRemote(url, seconds)
+  })
   ipcMain.handle('teardown:packet', (_e, input: string) => teardown.readPacket(input))
 
   ipcMain.handle('teardown:config-get', () => tdConfig.load())
@@ -776,9 +820,9 @@ export async function resumeAfterRestart(): Promise<void> {
   let started = 0
   for (const r of st.rooms) {
     if (recordingManager.has(r.roomId)) continue
-    const { success, pullUrl, nickname } = await getPullUrl(r.roomId)
+    const { success, pullUrl, nickname } = await resolveRoomPull({ enterRoomId: r.roomId, url: r.sourceUrl, platform: r.platform })
     if (!success) continue
-    if (recordingManager.startRecording(r.roomId, pullUrl, nickname || r.nickname, cfg.outputFormat)) started++
+    if (recordingManager.startRecording(r.roomId, pullUrl, nickname || r.nickname, cfg.outputFormat, r.platform || 'douyin', r.sourceUrl || '')) started++
   }
   if (started) {
     logger.info(LOG_MODULE, `崩溃/重启后自动恢复录制 ${started} 个直播间`)
@@ -788,6 +832,11 @@ export async function resumeAfterRestart(): Promise<void> {
 
 // ---------------- 孵化系统（独立模块：新增 incubate:* 通道，不动现有通道） ----------------
 ipcMain.handle('incubate:schema', () => incubate.TABLES)
+  // GitHub 数据同步（外网可用，不依赖老板电脑一直开着）
+  ipcMain.handle('sync:get', () => githubSync.loadSyncConfig())
+  ipcMain.handle('sync:set', (_e, patch: any) => githubSync.saveSyncConfig(patch || {}))
+  ipcMain.handle('sync:now', () => githubSync.syncNow())
+  ipcMain.handle('sync:reports', () => githubSync.generateReports())
 ipcMain.handle('incubate:list', async (_e, table: string) => incubate.listRows(table))
 ipcMain.handle('incubate:add', async (_e, table: string, row: any) => incubate.addRow(table, row))
 ipcMain.handle('incubate:update', async (_e, table: string, id: number, row: any) => incubate.updateRow(table, id, row))

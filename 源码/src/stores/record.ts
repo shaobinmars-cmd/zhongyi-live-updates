@@ -34,10 +34,6 @@ export const useRecordStore = defineStore('record', () => {
   }
 
   async function recordAll() {
-    if (recordingCount.value > 0) {
-      await stopAll()
-      return
-    }
 
     const roomList = useRoomListStore()
     // Serialize rooms to plain objects for IPC
@@ -46,6 +42,8 @@ export const useRecordStore = defineStore('record', () => {
       enterRoomId: r.enterRoomId,
       nickname: r.nickname,
       title: r.title,
+      platform: r.platform,
+      platformLabel: r.platformLabel,
       roomStatus: r.roomStatus,
       likeCount: r.likeCount,
       viewCount: r.viewCount,

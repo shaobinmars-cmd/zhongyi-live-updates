@@ -124,9 +124,16 @@
           </div>
 
           <div class="pick-row">
-            <n-button size="small" type="primary" ghost @click="pickFile">选视频文件</n-button>
+            <n-button size="small" type="primary" ghost @click="pickFile">选手机/相机视频</n-button>
             <n-button size="small" @click="pickDir">选整个目录</n-button>
           </div>
+          <div class="online-row">
+            <n-select v-model:value="platform" :options="platformOptions" size="small" style="width: 150px" />
+            <n-input v-model:value="urlInput" size="small" placeholder="粘贴抖音直播、回放、B站、TikTok、快手、小红书链接" @keyup.enter="useUrl" />
+            <n-input-number v-if="platform === 'douyin-live'" v-model:value="liveSeconds" size="small" :min="30" :max="7200" :step="60" style="width: 120px" />
+            <n-button size="small" type="primary" ghost @click="useUrl">放入链接</n-button>
+          </div>
+          <div class="pick-hint">{{ platformHint }}</div>
           <div class="pick-hint">
             手机、相机录的视频也能拆 —— 点「选视频文件」，或者把视频直接拖进这个窗口。
             多个视频放同一个文件夹里，选那个目录，会按文件名顺序合并后再分析。
@@ -142,7 +149,7 @@
         <div class="zone">
           <div class="zone-head">
             <span class="zone-num num">2</span>
-            <span class="zone-title">转写设置</span>
+            <span class="zone-title">拆解设置与开始</span>
           </div>
 
           <div class="run-row">
@@ -306,17 +313,17 @@
           <div style="display:flex; gap:12px; margin-bottom:12px">
             <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:#0B76BE; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">1</div>
             <div style="flex:1; min-width:0">
-              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">放素材</div>
+              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">放素材包</div>
               <div :style="{ border: '2px dashed ' + (!input ? '#c9d3de' : (pickedBad ? '#f87171' : '#4ade80')), background: !input ? '#fafbfc' : (pickedBad ? '#fef2f2' : '#f0fdf4'), borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }">
                 <div v-if="!input" style="font-size:14px; color:#1f2328; font-weight:600">
-                  把录像 或 拆解素材包.md 拖到这里
+                  把拆解素材包.md 拖到这里（只放素材包也能出文字报告）
                 </div>
                 <div v-else style="font-size:14px; font-weight:700; color:#1f2328; word-break:break-all">
                   {{ pickedBad ? '⚠️ ' : '✅ ' }}{{ pickedName }}
                 </div>
                 <div style="font-size:12px; color:#6b7280; margin-top:6px; line-height:1.6">
-                  <template v-if="!input">也可以点「选视频文件」，或者在左边列表里选一场</template>
-                  <template v-else-if="pickedBad">读不出内容 —— 请拖录像文件，或者「拆解素材包.md」</template>
+                  <template v-if="!input">也可以在左边列表里选择已经拆解好的场次；图片是可选补充，不是必填。</template>
+                  <template v-else-if="pickedBad">读不出内容 —— 请拖「拆解素材包.md」，图片请放到下面的可选图片区</template>
                   <template v-else>{{ pickedMeta }}</template>
                 </div>
               </div>
@@ -329,6 +336,16 @@
             <div class="num" :style="{ flex:'0 0 22px', height:'22px', borderRadius:'50%', background: split ? '#0B76BE' : '#c9d3de', color:'#fff', fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }">2</div>
             <div style="flex:1; min-width:0">
               <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">出报告</div>
+              <div class="ai-img-row">
+                <span>本场喂几张图给 AI</span>
+                <n-select v-model:value="imageCount" :options="imageOptions" size="small" style="width: 180px" />
+                <span class="hint">设置页填了千问视觉模型才生效</span>
+              </div>
+              <div class="manual-image-zone" @dragover.prevent.stop @drop.prevent.stop="onAnalysisImagesDrop">
+                <div class="manual-image-head"><b>可选补充图片</b><n-button size="tiny" tertiary @click="pickAnalysisImages">选择图片</n-button><n-button v-if="analysisImages.length" size="tiny" quaternary type="error" @click="analysisImages = []">清空</n-button></div>
+                <div class="hint">可把几张现场截图拖到这里。没选图片不影响文字报告，只是不分析画面；只放素材包也能正常出报告。</div>
+                <div v-if="analysisImages.length" class="manual-image-list">{{ analysisImages.length }} 张：{{ analysisImages.map(p => p.split(/[\\/]/).pop()).join('、') }}</div>
+              </div>
               <n-button
                 block
                 size="large"
@@ -491,9 +508,18 @@ async function pickCompare(which: 'A' | 'B'): Promise<void> {
 
 // ---- 顶部「已放入」横条：一眼看到现在放的是什么 ----
 const pickedName = computed(() => (td.input || '').split(/[\\/]/).pop() || '')
-const pickedBad = computed(() => !!td.input && !packet.value)
+function isOnlineLink(v: string) { return /^https?:\/\//i.test(String(v || '').trim()) }
+function useUrl() {
+  const u = urlInput.value.trim()
+  if (!isOnlineLink(u)) return message.warning('先粘贴一个 http/https 链接')
+  td.input = u
+  td.packet = null
+  message.success('链接已放入，点「开始拆解」会自动下载/现录')
+}
+const pickedBad = computed(() => !!td.input && !isOnlineLink(td.input) && !packet.value)
 const pickedMeta = computed(() => {
   if (!td.input) return ''
+  if (isOnlineLink(td.input)) return '线上链接：开始拆解时自动下载或现录'
   if (!packet.value) return '读不出内容 —— 选录像文件，或者把「拆解素材包.md」拖进来'
   const parts = [`${packet.value.content.length.toLocaleString()} 字`]
   if (split.value) parts.push(`约 ${split.value.totalTokens} token`)
@@ -546,6 +572,29 @@ const model = computed({
   set: (v: string) => { td.model = v }
 })
 const limitInput = ref(td.contextLimit)
+const platform = ref('auto')
+const urlInput = ref('')
+const liveSeconds = ref(600)
+const platformOptions = [
+  { label: '自动识别平台', value: 'auto' },
+  { label: '抖音直播（现录一段）', value: 'douyin-live' },
+  { label: '抖音回放', value: 'douyin-video' },
+  { label: 'B站', value: 'bilibili' },
+  { label: 'TikTok', value: 'tiktok' },
+  { label: '快手', value: 'kuaishou' },
+  { label: '小红书', value: 'xiaohongshu' },
+  { label: '本地文件/目录', value: 'local' }
+]
+const platformHint = computed(() => platform.value === 'douyin-live'
+  ? `抖音直播会在开始拆解时现录 ${liveSeconds.value} 秒，再自动拆解。`
+  : '回放链接会先用 yt-dlp 下载，再走同一套拆解。需要登录的平台，请先在浏览器登录。')
+const imageCount = ref(4)
+const analysisImages = ref<string[]>([])
+const imageOptions = [
+  { label: '不分析图片', value: 0 },
+  { label: '关键 4 张（推荐）', value: 4 },
+  { label: '关键 8 张（更细）', value: 8 }
+]
 
 // ---- AI 分析：把素材包直接发给设置页里配好的 AI 接口 ----
 const aiBusy = ref(false)
@@ -584,6 +633,22 @@ const aiEtaText = computed(() => {
   return left < 60000 ? '不到 1 分钟' : Math.ceil(left / 60000) + ' 分钟'
 })
 const packetChars = computed(() => (packet.value?.content || '').length)
+function addAnalysisImages(paths: string[]) {
+  const ok = paths.filter((p) => /\.(jpe?g|png|webp)$/i.test(String(p || '')))
+  analysisImages.value = Array.from(new Set([...analysisImages.value, ...ok])).slice(0, 8)
+}
+async function pickAnalysisImages() {
+  const paths = await api().aiPickImages()
+  addAnalysisImages(Array.isArray(paths) ? paths : [])
+}
+function onAnalysisImagesDrop(e: DragEvent) {
+  const paths: string[] = []
+  for (const f of Array.from(e.dataTransfer?.files || [])) {
+    const p = (window as any).electronAPI.getFilePath(f)
+    if (p) paths.push(p)
+  }
+  addAnalysisImages(paths)
+}
 const api = () => (window as any).electronAPI
 
 async function onAnalyze() {
@@ -595,7 +660,7 @@ async function onAnalyze() {
   startAiTimer()
   aiStage.value = '准备中…'
   try {
-    const res = await api().aiAnalyze(input.value)
+    const res = await api().aiAnalyze(input.value, { imageCount: Number(imageCount.value) || 0, images: analysisImages.value.slice() })
     if (res && res.ok) {
       aiReportPath.value = res.reportPath || ''
       aiPartDone.value = aiPartTotal.value
@@ -794,6 +859,16 @@ async function onLimitChange() {
 
 async function onStart() {
   tab.value = 'log'
+  if (isOnlineLink(td.input)) {
+    const r = await api().teardownResolveUrl(td.input, Number(liveSeconds.value) || 600)
+    if (!r?.ok || !r?.path) {
+      message.error(r?.message || '链接下载失败')
+      return
+    }
+    td.input = r.path
+    urlInput.value = ''
+    await td.loadPacket(r.path).catch(() => null)
+  }
   await td.start()
 }
 
@@ -934,6 +1009,10 @@ onMounted(async () => {
   api().removePrefetchListeners()
   api().onPrefetchProgress(onPrefetch)
   await td.refreshConfig()
+  try {
+    const aiCfg = await api().aiConfigGet()
+    imageCount.value = Math.max(0, Math.min(8, Number(aiCfg?.visionMaxImages ?? 4) || 0))
+  } catch { /* ignore */ }
   limitInput.value = td.contextLimit
   await td.refreshEngine()
   await recheckEnv()
@@ -1234,6 +1313,10 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .batch-item .part-tok { max-width: 46%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .pick-row { display: flex; gap: 8px; margin-top: 10px; }
+.online-row { display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px dashed #dbe5ed; }
+.ai-img-row { display:flex; align-items:center; gap:8px; margin:8px 0 10px; padding:8px 10px; border-radius:8px; background:#f4f9fd; color:#385065; font-size:12px; }
+.manual-image-zone { margin:8px 0 10px; padding:9px 11px; border:1.5px dashed #b8d9e9; border-radius:9px; background:#fbfdff; }
+.manual-image-head { display:flex; align-items:center; gap:7px; color:#24546e; font-size:12px; } .manual-image-list { margin-top:6px; color:#5d7484; font-size:10px; word-break:break-all; }
 .pick-hint { font-size: 10px; color: #9aa1ab; line-height: 1.7; margin: 8px 0; }
 
 /* 把视频拖进窗口时的提示框 */
