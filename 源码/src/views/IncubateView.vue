@@ -34,6 +34,19 @@
               <n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="配合意愿" style="width: 130px" />
               <n-button :disabled="!planStreamer" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
             </div>
+            <div class="groups" style="margin-top: 10px">
+              <div v-for="g in groupChips" :key="g.key" class="chip" :class="[g.cls, { active: statusFilter === g.key }]" @click="toggleGroup(g.key)">
+                <b>{{ g.count }}</b><span>{{ g.label }}</span>
+              </div>
+              <n-button v-if="statusFilter !== 'all'" size="tiny" quaternary @click="statusFilter = 'all'">显示全部</n-button>
+            </div>
+            <div v-if="needAttention.length" class="watch" style="margin-top: 8px">
+              <div class="watch-title">今天该盯</div>
+              <div v-for="w in needAttention" :key="w.name" class="watch-item" :class="w.level" @click="pick(w.name)">
+                <span class="watch-name">{{ w.name }}</span>
+                <span class="watch-text">{{ w.text }}</span>
+              </div>
+            </div>
             <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
           </div>
 
@@ -458,7 +471,8 @@ async function saveProfile() {
   } catch (e: any) { msg.error('保存失败：' + (e?.message || e)) } finally { profileBusy.value = false }
 }
 
-const planStreamerOptions = computed<SelectOption[]>(() => streamerNames.value.map((n) => ({ label: n, value: n })))
+// 顶部主播下拉也跟随“只看我带的主播”和状态筛选
+const planStreamerOptions = computed<SelectOption[]>(() => filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n })))
 const fbOptions: SelectOption[] = [
   { label: '完成', value: '完成' },
   { label: '部分完成', value: '部分完成' },
