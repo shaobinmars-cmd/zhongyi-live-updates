@@ -12,6 +12,7 @@ import * as path from 'path'
 import * as zlib from 'zlib'
 import { app, shell } from 'electron'
 import * as logger from './logger'
+import { extractReportText } from './doc-text'
 
 const LOG_MODULE = 'Incubate'
 
@@ -897,7 +898,7 @@ function pickReportFile(dir: string): { file: string; fromDir: string } | null {
     for (const it of items) {
       const full = path.join(d, it.name)
       if (it.isDirectory()) { walk(full, depth + 1); continue }
-      if (!it.isFile() || !/\.(md|markdown|txt)$/i.test(it.name)) continue
+      if (!it.isFile() || !/\.(md|markdown|txt|docx|doc|wps|rtf)$/i.test(it.name)) continue
       let size = 0
       try { size = fs.statSync(full).size } catch { /* ignore */ }
       found.push({ file: it.name, fromDir: d, depth, size })
@@ -1040,8 +1041,18 @@ export async function importFromTeardown(input: string, displayName?: string): P
     filePath = path.join(picked.fromDir, picked.file)
   }
   const srcName = path.basename(filePath)
-  const text = fs.readFileSync(filePath, 'utf-8')
-  result.caseName = displayName || srcName.replace(/\.(md|markdown|txt)$/i, '')
+  let text = ''
+  try {
+    text = extractReportText(filePath).text
+  } catch (ex: any) {
+    result.message = '读不了这个文件：' + (ex?.message || ex)
+    return result
+  }
+  if (!text || text.trim().length < 20) {
+    result.message = '这个文件里没读到文字（可能是扫描版/图片）。请用 WPS 另存为 .docx，或直接粘贴报告全文。'
+    return result
+  }
+  result.caseName = displayName || srcName.replace(/\.(md|markdown|txt|docx|doc|wps|rtf)$/i, '')
 
   // ② v5 指令那种带编号的资产表：| XD-XX-001 | 类型 | 内容 |
   const assetRe = /^\|\s*([A-Z]{2,4}-[A-Z]{2,4}-\d{2,4})\s*\|([^|]*)\|([^|]*)\|/gm

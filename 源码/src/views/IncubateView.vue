@@ -23,7 +23,7 @@
               <n-button @click="showPaste = true">粘贴报告</n-button>
               <n-button quaternary @click="justGenerate">只重新生成计划</n-button>
             </div>
-            <div class="plan-hint">支持 .md / .txt。也可以把文件直接拖到下面，或点「粘贴报告」把内容贴进来。</div>
+            <div class="plan-hint">支持 .md / .txt / Word(.docx/.doc) / WPS(.wps/.rtf)；也可以把文件拖进来，或点「粘贴报告」贴全文。</div>
             <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
           </div>
 

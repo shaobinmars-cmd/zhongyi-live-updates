@@ -811,10 +811,10 @@ ipcMain.handle('incubate:browse-dir', async () => {
 ipcMain.handle('incubate:pick-report', async () => {
   // 只选单个报告文件（.md/.txt）：运营的主入口
   const opts: any = {
-    title: '选 AI 拆解报告（.md / .txt）',
+    title: '选 AI 拆解报告（md/txt/Word/WPS）',
     properties: ['openFile'],
     filters: [
-      { name: '报告文件 (md/txt)', extensions: ['md', 'markdown', 'txt'] },
+      { name: '报告文件 (md/txt/Word/WPS)', extensions: ['md', 'markdown', 'txt', 'docx', 'doc', 'wps', 'rtf'] },
       { name: '全部文件', extensions: ['*'] }
     ]
   }
