@@ -12,6 +12,7 @@
       <!-- ⓪ 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈（运营主入口） -->
       <n-tab-pane name="plan" tab="主播跟踪">
         <div class="plan-wrap">
+          <div class="blk-head blk-base-head">① 基础信息</div>
           <div class="plan-import">
             <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
             <div class="plan-import-row">
@@ -19,7 +20,7 @@
               <n-button type="primary" ghost @click="showImport = true">+ 添加主播</n-button>
               <n-input v-model:value="opFilter" placeholder="运营名字（带教）" style="width: 150px" @update:value="onOperatorName" />
               <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
-              <n-input v-model:value="planStart" placeholder="开始日期 2026-10-17" style="width: 160px" />
+              <input type="date" v-model="planStart" class="date-input" title="计划开始日期" />
               <n-button type="primary" :loading="planBusy" @click="importAndGenerate">导入报告并生成 60 天计划</n-button>
               <n-button @click="showPaste = true">粘贴报告</n-button>
               <n-button quaternary @click="justGenerate">只重新生成计划</n-button>
@@ -28,10 +29,11 @@
             <div class="plan-import-row" style="margin-top: 10px">
               <span class="hint">只看我带的主播</span>
               <n-switch v-model:value="onlyMine" size="small" @update:value="saveOnlyMine" />
-              <n-input v-model:value="profile['入司日期']" placeholder="入司日期 2026-10-17" style="width: 170px" />
-              <n-input v-model:value="profile['首播日期']" placeholder="首播日期 2026-10-17" style="width: 170px" />
-              <n-select v-model:value="profile['是否正常开播']" :options="airOptions" placeholder="是否正常开播" style="width: 150px" />
-              <n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="配合意愿" style="width: 130px" />
+              <label class="field"><span>入司日期</span><input type="date" v-model="profile['入司日期']" class="date-input" /></label>
+              <label class="field"><span>首播日期</span><input type="date" v-model="profile['首播日期']" class="date-input" /></label>
+              <label class="field"><span>离司日期</span><input type="date" v-model="profile['离司日期']" class="date-input" /></label>
+              <label class="field"><span>是否正常开播</span><n-select v-model:value="profile['是否正常开播']" :options="airOptions" placeholder="请选择" style="width: 150px" /></label>
+              <label class="field"><span>配合程度</span><n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="请选择" style="width: 140px" /></label>
               <n-button :disabled="!planStreamer" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
             </div>
             <div class="groups" style="margin-top: 10px">
@@ -51,23 +53,26 @@
           </div>
 
           <template v-if="planInfo">
+            <div class="blk-head blk-today-head">② 今日的工作</div>
             <div class="plan-head">
               <div class="plan-head-left">
                 <b>{{ planStreamer }}</b>
                 <span class="pill">{{ planInfo.plan?.赛道 || planTrack || '未定赛道' }}</span>
                 <span class="pill">第 {{ planInfo.dayIndex }} / 60 天</span>
                 <span class="pill on">{{ planInfo.phase }}</span>
+                <span v-if="profile['离司日期']" class="pill departed">已离司 {{ profile['离司日期'] }}</span>
               </div>
               <div class="plan-head-right">开始 {{ planInfo.plan?.开始日期 }} · 来源 {{ planInfo.plan?.报告来源 }}</div>
             </div>
 
             <div class="phase-cards">
-              <div v-for="p in (planInfo.phases || [])" :key="p.key" class="phase-card" :class="{ on: planInfo.dayIndex >= p.from && planInfo.dayIndex <= p.to }">
+              <div v-for="p in (planInfo.phases || [])" :key="p.key" class="phase-card" :class="{ on: planInfo.dayIndex >= p.from && planInfo.dayIndex <= p.to }" @click="pickPhase(p)">
                 <div class="phase-name">{{ p.label }}</div>
                 <div class="phase-goal">{{ p.goal }}</div>
               </div>
             </div>
 
+            <div class="sec-head today-head">今天 · 第 {{ planInfo.dayIndex }} 天 · {{ planInfo.phase }}</div>
             <div class="today-card" v-if="todayTask">
               <div class="today-title">今天练什么 · {{ todayTask['日期'] }}</div>
               <div class="today-main">{{ todayTask['今天练什么'] }}</div>
@@ -93,13 +98,18 @@
               </div>
             </div>
 
-            <div class="plan-table-title">最近反馈</div>
-            <n-data-table size="small" :columns="fbColumns" :data="planInfo.feedback || []" :max-height="200" virtual-scroll />
-            <div class="plan-table-title">60 天课表</div>
+            <div class="blk-head blk-all-head">③ 全部课表与记录</div>
+            <div class="plan-table-title">最近反馈（全部主播）</div>
+            <div class="plan-filter">
+              <n-select v-model:value="feedbackScope" :options="feedbackScopeOptions" style="width: 180px" />
+            </div>
+            <n-data-table size="small" :columns="fbColumns" :data="feedbackList" :max-height="240" virtual-scroll />
+            <div class="sec-divider"></div>
+            <div class="plan-table-title schedule-title">60 天课表</div>
             <div class="plan-filter">
               <n-select v-model:value="dayPhase" :options="dayPhaseOptions" style="width: 220px" />
             </div>
-            <n-data-table size="small" :columns="dayColumns" :data="filteredPlanDays" :max-height="300" virtual-scroll />
+            <n-data-table class="schedule-table" size="small" :columns="dayColumns" :data="filteredPlanDays" :max-height="300" virtual-scroll />
           </template>
           <div v-else class="plan-empty">还没有计划：选好主播、导入 AI 报告，点「导入报告并生成 60 天计划」。</div>
         </div>
@@ -308,11 +318,12 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NButton, NDataTable, NInput, NModal, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
+import { NButton, NDataTable, NDatePicker, NInput, NModal, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
 import { useIncubateStore } from '../stores/incubate'
 
 const store = useIncubateStore()
 const msg = useMessage()
+const api = () => (window as any).electronAPI
 
 type Level = 'ok' | 'warn' | 'bad' | 'none'
 type Filter = 'all' | Level | 'today'
@@ -454,12 +465,12 @@ const willOptions: SelectOption[] = [
   { label: '① 极配合', value: '极配合' }, { label: '② 配合', value: '配合' },
   { label: '③ 一般', value: '一般' }, { label: '④ 消极', value: '消极' }, { label: '⑤ 不配合', value: '不配合' }
 ]
-const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 是否正常开播: '', 配合意愿: '' })
+const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 离司日期: '', 是否正常开播: '', 配合意愿: '' })
 const profileBusy = ref(false)
 function loadProfile(name: string) {
   const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
   profile.value = {
-    入司日期: String(s?.['入司日期'] || ''), 首播日期: String(s?.['首播日期'] || ''),
+    入司日期: String(s?.['入司日期'] || ''), 首播日期: String(s?.['首播日期'] || ''), 离司日期: String(s?.['离司日期'] || ''),
     是否正常开播: String(s?.['是否正常开播'] || ''), 配合意愿: String(s?.['配合意愿'] || '')
   }
 }
@@ -473,6 +484,29 @@ async function saveProfile() {
 }
 
 // 顶部主播下拉也跟随“只看我带的主播”和状态筛选
+const allFeedback = ref<any[]>([])
+const feedbackScope = ref('all')
+const feedbackScopeOptions: SelectOption[] = [
+  { label: '全部主播', value: 'all' },
+  { label: '我带的主播', value: 'mine' },
+  { label: '当前主播', value: 'current' }
+]
+async function loadAllFeedback() {
+  try {
+    const rows = await api().incubateList('孵化反馈')
+    allFeedback.value = (rows || []).sort((a: any, b: any) => String(b['日期'] || '').localeCompare(String(a['日期'] || '')))
+  } catch { /* ignore */ }
+}
+const feedbackList = computed(() => {
+  if (feedbackScope.value === 'mine' && opFilter.value.trim()) return allFeedback.value.filter((r: any) => String(r['运营'] || '').trim() === opFilter.value.trim())
+  if (feedbackScope.value === 'current' && planStreamer.value) return allFeedback.value.filter((r: any) => String(r['主播'] || '').trim() === planStreamer.value)
+  return allFeedback.value
+})
+function pickPhase(p: any) {
+  dayPhase.value = p.from === 1 ? '1-7' : p.from === 8 ? '8-30' : p.from === 31 ? '31-60' : 'all'
+  const el = document.querySelector('.plan-filter')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 const planStreamerOptions = computed<SelectOption[]>(() => filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n })))
 const fbOptions: SelectOption[] = [
   { label: '完成', value: '完成' },
@@ -507,6 +541,7 @@ const dayColumns: DataTableColumns<any> = [
 ]
 const fbColumns: DataTableColumns<any> = [
   { title: '日期', key: '日期', width: 100 },
+  { title: '主播', key: '主播', width: 110 },
   { title: '完成', key: '完成情况', width: 80 },
   { title: '数据结果', key: '数据结果', ellipsis: { tooltip: true } },
   { title: '问题', key: '问题', ellipsis: { tooltip: true } },
@@ -616,6 +651,7 @@ async function saveFb() {
       完成情况: fb.value['完成情况'], 数据结果: fb.value['数据结果'], 问题: fb.value['问题'],
       明日计划: fb.value['明日计划'], 运营: fb.value['运营']
     })
+    await loadAllFeedback()
     await loadPlanFor(planStreamer.value)
     msg.success('今日反馈已保存')
   } catch (e: any) {
@@ -681,6 +717,14 @@ function ensureSelection() {
     onPick(current.value, false)
   }
 }
+
+const showTop = ref(false)
+function scroller(): HTMLElement | null {
+  const el = document.querySelector('.inc-page') as HTMLElement | null
+  return el || (document.scrollingElement as HTMLElement | null)
+}
+function scrollTop() { const el = scroller(); if (el) el.scrollTo({ top: 0, behavior: 'smooth' }) }
+function onScroll() { const el = scroller(); showTop.value = !!el && el.scrollTop > 300 }
 
 function pick(name: string) {
   current.value = name
@@ -913,6 +957,7 @@ onMounted(async () => {
   if (recent.value.length && !current.value) pick(recent.value[0])
   ensureSelection()
   planStreamer.value = current.value || filteredStreamers.value[0] || ''
+  await loadAllFeedback()
   if (planStreamer.value) {
     planStart.value = localDate()
     planTrack.value = store.trackOf(planStreamer.value)
@@ -920,10 +965,12 @@ onMounted(async () => {
     await loadPlanFor(planStreamer.value)
   }
   window.addEventListener('keydown', onKey)
+  scroller()?.addEventListener('scroll', onScroll)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
+  scroller()?.removeEventListener('scroll', onScroll)
 })
 </script>
 
@@ -1016,6 +1063,21 @@ onUnmounted(() => {
 .plan-table-title { font-weight: 700; font-size: 13px; margin-top: 4px; }
 .plan-filter { margin-bottom: 6px; }
 .plan-empty { margin: 36px auto; color: #6b7280; font-size: 13px; text-align: center; }
+.blk-head { margin: 22px 0 10px; padding: 9px 14px; border-radius: 9px; font-size: 15px; font-weight: 800; letter-spacing: .2px; }
+.blk-base-head { background: #f1f5f9; color: #334155; }
+.blk-today-head { background: #dbeafe; color: #1d4ed8; }
+.blk-all-head { background: #e2e8f0; color: #334155; }
+.pill.departed { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+/* 整页滚轮/滑条 */
+.inc-page { height: calc(100vh - 56px); overflow-y: auto; padding-right: 18px; }
+.inc-page::-webkit-scrollbar { width: 10px; }
+.inc-page::-webkit-scrollbar-thumb { background: #c1c7d0; border-radius: 6px; }
+.inc-page::-webkit-scrollbar-track { background: transparent; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #6b7280; }
+.field { min-width: 170px; }
+.date-input { height: 34px; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; width: 170px; font-size: 14px; color: #1f2328; background: #fff; }
+.to-top { position: fixed; right: 28px; bottom: 28px; z-index: 50; background: #0b76be; color: #fff; padding: 10px 16px; border-radius: 999px; cursor: pointer; box-shadow: 0 6px 18px rgba(11,118,190,.35); font-size: 13px; }
+.to-top:hover { background: #095f99; }
 /* 今天该盯：红色重点条 */
 .watch { background: #fff1f0; border: 1px solid #ffa39e; border-radius: 12px; padding: 10px 14px; }
 .watch-title { color: #cf1322; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
@@ -1027,3 +1089,11 @@ onUnmounted(() => {
 .inc-page :deep(.n-data-table .n-data-table-td),
 .inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13px; padding-top: 9px; padding-bottom: 9px; }
 </style>
+/* 今天 与 60 天课表：强区分 */
+.today-head { color: #1d4ed8; font-size: 16px; font-weight: 800; margin: 18px 0 10px; padding-left: 10px; border-left: 4px solid #2563eb; }
+.today-card { background: #e8f2ff !important; border: 1px solid #93c5fd !important; border-left: 7px solid #1d4ed8 !important; border-radius: 14px !important; padding: 18px 20px !important; box-shadow: 0 2px 10px rgba(29,78,216,.08); }
+.fb-card { background: #ecf8ff !important; border: 1px solid #7dd3fc !important; border-left: 7px solid #0284c7 !important; border-radius: 14px !important; padding: 18px 20px !important; margin-top: 14px; }
+.schedule-title { background: #e2e8f0; color: #334155; padding: 10px 14px; border-radius: 10px; font-size: 15px; margin: 10px 0 8px; }
+.sec-divider { height: 1px; background: #e5e7eb; margin: 22px 0 16px; }
+.schedule-table { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
+.schedule-table .n-data-table-th { background: #eef2f7 !important; }
