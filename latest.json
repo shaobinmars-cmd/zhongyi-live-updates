@@ -1,7 +1,7 @@
 {
-    "notes":  "修复连接直播后主账号被挤下线/弹幕断几分钟；图片分析；断点续拆",
-    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.5/zhongyi-setup-2.8.5.exe",
-    "version":  "2.8.5",
-    "size":  292294563,
-    "sha256":  "f1fc1cf771b6a5432181c92842d264e401ac519560399aa7ddee10665fa756b8"
+    "notes":  "AI 执行动作表 + 图片分析 + 断点续拆 + 弹幕掉登录修复",
+    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.6/zhongyi-setup-2.8.6.exe",
+    "version":  "2.8.6",
+    "size":  292294545,
+    "sha256":  "07d60a739ca62ec73d7515337e1c5d9cd4efc44f8a3b8cd2fc28a587d50f7779"
 }
