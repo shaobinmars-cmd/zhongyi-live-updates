@@ -40,6 +40,10 @@ const api = {
   incubateGeneratePlan: (opts: any) => invoke('incubate:generate-plan', opts),
   incubatePlan: (streamer: string) => invoke('incubate:plan', streamer),
   incubateFeedbackSave: (row: any) => invoke('incubate:feedback-save', row),
+  updateCheckUrl: (url: string) => invoke('update:check', url),
+  updateDownloadManifest: (m: any) => invoke('update:download', m),
+  updateInstallFile: (file: string) => invoke('update:install', file),
+  onUpdateProgress: (cb: (p: number) => void) => ipcRenderer.on('update:on-progress', (_e, p) => cb(p)),
   incubateOpenDataDir: () => invoke('incubate:open-data-dir'),
 
   // Room

@@ -230,6 +230,18 @@
     </div>
 
     <!-- 数据汇总 + 一键升级（局域网） -->
+    <!-- 联网更新（公网，跨路由/外场地） -->
+    <div class="form-group" style="margin-top: 18px">
+      <h3 class="section-title">联网更新（公网，跨路由/外场地可用）</h3>
+      <div class="form-hint" style="margin: 6px 0 10px">填一次公网 latest.json 地址，以后点「检查更新 → 一键升级」就行，不用管局域网。</div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <n-input v-model:value="updUrl" size="small" placeholder="https://.../latest.json" />
+        <n-button size="small" :loading="updChecking" @click="doCheckPublic">检查更新</n-button>
+        <n-button size="small" type="warning" :loading="updBusy" @click="doUpgradePublic">一键升级</n-button>
+      </div>
+      <div v-if="updMsg" class="form-hint" style="white-space: pre-wrap">{{ updMsg }}</div>
+    </div>
+
     <div class="form-group" style="margin-top: 18px">
       <h3 class="section-title">数据汇总与升级（局域网）</h3>
       <div class="form-hint" style="margin: 6px 0 10px">
@@ -324,6 +336,38 @@ const cliMsg = ref('')
 const sending = ref(false)
 const checking = ref(false)
 const upgrading = ref(false)
+const updUrl = ref(localStorage.getItem('upd_url') || 'https://gitee.com/BATULU861/zhongyi-live-updates/releases/download/v2.7.9/latest.json')
+const updMsg = ref('')
+const updInfo = ref<any>(null)
+const updChecking = ref(false)
+const updBusy = ref(false)
+const updPct = ref(0)
+
+async function doCheckPublic() {
+  localStorage.setItem('upd_url', updUrl.value.trim())
+  updChecking.value = true
+  updMsg.value = '检查中…'
+  try {
+    const r = await (window as any).electronAPI.updateCheckUrl(updUrl.value.trim())
+    updInfo.value = r
+    updMsg.value = r.message + (r.notes ? '\n' + r.notes : '')
+  } catch (e: any) { updMsg.value = '失败：' + (e?.message || e) } finally { updChecking.value = false }
+}
+
+async function doUpgradePublic() {
+  if (!updInfo.value?.ok) await doCheckPublic()
+  if (!updInfo.value?.ok) return
+  if (!updInfo.value.newer) { updMsg.value = '已经是最新版本'; return }
+  updBusy.value = true
+  updPct.value = 0
+  updMsg.value = '下载中 0%'
+  ;(window as any).electronAPI.onUpdateProgress((p: number) => { updPct.value = p; updMsg.value = `下载中 ${p}%` })
+  const m = { version: updInfo.value.latest, url: updInfo.value.url, parts: updInfo.value.parts, sha256: updInfo.value.sha256, size: updInfo.value.size }
+  const d = await (window as any).electronAPI.updateDownloadManifest(m)
+  if (!d?.ok) { updMsg.value = d?.message || '下载失败'; updBusy.value = false; return }
+  updMsg.value = '下载完成，正在安装…'
+  await (window as any).electronAPI.updateInstallFile(d.path)
+}
 const configText = ref('')
 const pendingDelete = ref('')
 

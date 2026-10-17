@@ -19,6 +19,7 @@ import { freeSpaceGB, enforceQuota } from './services/disk-guard'
 import { getPullUrl } from './services/live-stream'
 import * as db from './services/database'
 import * as incubate from './services/incubate'
+import * as updater from './services/updater'
 import * as incubatePlan from './services/incubate-plan'
 import { V5_INSTRUCTION } from './services/teardown-instruction'
 import * as config from './services/record-config'
@@ -829,6 +830,9 @@ ipcMain.handle('incubate:import-text', async (_e, text: string, name: string) =>
 ipcMain.handle('incubate:generate-plan', async (_e, opts: any) => incubatePlan.generateTrainingPlan(opts || {}))
 ipcMain.handle('incubate:plan', async (_e, streamer: string) => incubatePlan.getPlan(streamer))
 ipcMain.handle('incubate:feedback-save', async (_e, row: any) => incubatePlan.saveFeedback(row || {}))
+ipcMain.handle('update:check', async (_e, url: string) => updater.checkUrl(url))
+ipcMain.handle('update:download', async (e, m: any) => updater.downloadManifest(m || {}, (p: number) => e.sender.send('update:on-progress', p)))
+ipcMain.handle('update:install', async (_e, file: string) => updater.install(file))
 ipcMain.handle('incubate:export-csv', async () => {
   const r = mainWindow
     ? await dialog.showOpenDialog(mainWindow, { title: '选导出目录', properties: ['openDirectory', 'createDirectory'] })
