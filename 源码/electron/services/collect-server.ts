@@ -21,6 +21,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as zlib from 'zlib'
 import * as crypto from 'crypto'
+import * as dgram from 'dgram'
 import { app } from 'electron'
 import { loadShare } from './ai-server'
 import * as logger from './logger'
@@ -138,12 +139,48 @@ export function shareStatus(): { running: boolean; port: number; addresses: stri
 }
 
 export function stopShare(): void {
+  stopBeacon()
   if (server) {
     try { server.close() } catch { /* ignore */ }
     server = null
     activePort = 0
     logger.info(LOG_MODULE, '数据汇总服务已停止')
   }
+}
+
+// ---------------------------------------------------------------- 自动广播
+// 老板机的 IP 会变（DHCP、换网线、接无线），硬填一个地址迟早失效 ——
+// 之前就是 192.168.2.8 变成 192.168.3.79，运营那边全断了。
+// 这里每 3 秒在局域网广播一句「我在这里，端口是 X」，运营端听到就用，
+// 地址怎么变都能自动跟上，运营不用填任何东西。
+export const DISCOVER_PORT = 57890
+let beacon: ReturnType<typeof setInterval> | null = null
+let beaconSock: dgram.Socket | null = null
+
+function startBeacon(): void {
+  if (beacon) return
+  try {
+    beaconSock = dgram.createSocket({ type: 'udp4', reuseAddr: true })
+    beaconSock.bind(() => {
+      try { beaconSock?.setBroadcast(true) } catch { /* ignore */ }
+    })
+    beaconSock.on('error', () => { /* 网络不允许广播就算了，不影响主功能 */ })
+
+    const send = () => {
+      try {
+        const payload = Buffer.from(JSON.stringify({ zy: 'collect', port: activePort || loadCollect().port }))
+        beaconSock?.send(payload, 0, payload.length, DISCOVER_PORT, '255.255.255.255')
+      } catch { /* ignore */ }
+    }
+    send()
+    beacon = setInterval(send, 3000)
+  } catch { /* ignore */ }
+}
+
+function stopBeacon(): void {
+  if (beacon) { clearInterval(beacon); beacon = null }
+  try { beaconSock?.close() } catch { /* ignore */ }
+  beaconSock = null
 }
 
 function send(res: http.ServerResponse, code: number, obj: any): void {
@@ -295,6 +332,7 @@ export function startShare(cfg: CollectConfig): Promise<{ ok: boolean; message: 
     srv.listen(cfg.port, '0.0.0.0', () => {
       server = srv
       activePort = cfg.port
+      startBeacon()   // 让运营端能自动找到这台机器
       const ips = lanAddresses()
       logger.info(LOG_MODULE, `数据汇总服务已启动，端口 ${cfg.port}，地址 ${ips.map((i) => `http://${i}:${cfg.port}`).join(' / ')}`)
       resolve({ ok: true, message: '已开启，运营那台填：' + (ips[0] ? `http://${ips[0]}:${cfg.port}` : `http://本机IP:${cfg.port}`) })

@@ -3,14 +3,86 @@
     <div class="inc-header">
       <div>
         <h2 class="inc-title">孵化</h2>
-        <div class="inc-subtitle">选主播 → 打五个分（+空档、收尾）→ 保存。通用能力项，任何赛道都这么填。</div>
+        <div class="inc-subtitle">导入 AI 拆解报告 → 自动生成 60 天培训计划 → 每天填一次孵化反馈。「主播」页仍可打五个分。</div>
       </div>
       <n-button size="small" @click="store.openDataDir()">打开数据目录</n-button>
     </div>
 
     <n-tabs v-model:value="tab" type="line" animated>
       <!-- ① 主播 -->
-      <n-tab-pane name="streamer" tab="主播">
+      <!-- ⓪ 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈（运营主入口） -->
+      <n-tab-pane name="plan" tab="主播跟踪">
+        <div class="plan-wrap">
+          <div class="plan-import">
+            <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
+            <div class="plan-import-row">
+              <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选主播（可打字搜）" style="width: 220px" @update:value="onPlanStreamer" />
+              <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
+              <n-input v-model:value="planStart" placeholder="开始日期 2026-10-17" style="width: 160px" />
+              <n-button type="primary" :loading="planBusy" @click="importAndGenerate">导入报告并生成 60 天计划</n-button>
+              <n-button @click="showPaste = true">粘贴报告</n-button>
+              <n-button quaternary @click="justGenerate">只重新生成计划</n-button>
+            </div>
+            <div class="plan-hint">支持 .md / .txt。也可以把文件直接拖到下面，或点「粘贴报告」把内容贴进来。</div>
+            <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
+          </div>
+
+          <template v-if="planInfo">
+            <div class="plan-head">
+              <div class="plan-head-left">
+                <b>{{ planStreamer }}</b>
+                <span class="pill">{{ planInfo.plan?.赛道 || planTrack || '未定赛道' }}</span>
+                <span class="pill">第 {{ planInfo.dayIndex }} / 60 天</span>
+                <span class="pill on">{{ planInfo.phase }}</span>
+              </div>
+              <div class="plan-head-right">开始 {{ planInfo.plan?.开始日期 }} · 来源 {{ planInfo.plan?.报告来源 }}</div>
+            </div>
+
+            <div class="phase-cards">
+              <div v-for="p in (planInfo.phases || [])" :key="p.key" class="phase-card" :class="{ on: planInfo.dayIndex >= p.from && planInfo.dayIndex <= p.to }">
+                <div class="phase-name">{{ p.label }}</div>
+                <div class="phase-goal">{{ p.goal }}</div>
+              </div>
+            </div>
+
+            <div class="today-card" v-if="todayTask">
+              <div class="today-title">今天练什么 · {{ todayTask['日期'] }}</div>
+              <div class="today-main">{{ todayTask['今天练什么'] }}</div>
+              <div class="today-line"><b>怎么练：</b>{{ todayTask['怎么练'] }}</div>
+              <div class="today-line"><b>验收：</b>{{ todayTask['验收'] }}</div>
+            </div>
+            <div class="today-card" v-else>
+              <div class="today-title">今天没有对应课表</div>
+              <div class="today-line">检查开始日期，或点「只重新生成计划」。</div>
+            </div>
+
+            <div class="fb-card">
+              <div class="today-title">今天孵化结果（运营填）</div>
+              <div class="fb-row">
+                <n-select v-model:value="fb['完成情况']" :options="fbOptions" style="width: 130px" />
+                <n-input v-model:value="fb['数据结果']" placeholder="数据结果：最长空档 2 秒 / 点名 18 次 / 出单 3 单" />
+                <n-input v-model:value="fb['运营']" placeholder="运营名字" style="width: 140px" />
+              </div>
+              <div class="fb-row">
+                <n-input v-model:value="fb['问题']" type="textarea" :rows="2" placeholder="遇到的问题 / 卡点" />
+                <n-input v-model:value="fb['明日计划']" type="textarea" :rows="2" placeholder="明天怎么调整" />
+                <n-button type="primary" :loading="fbBusy" @click="saveFb">保存今日反馈</n-button>
+              </div>
+            </div>
+
+            <div class="plan-table-title">最近反馈</div>
+            <n-data-table size="small" :columns="fbColumns" :data="planInfo.feedback || []" :max-height="200" virtual-scroll />
+            <div class="plan-table-title">60 天课表</div>
+            <div class="plan-filter">
+              <n-select v-model:value="dayPhase" :options="dayPhaseOptions" style="width: 220px" />
+            </div>
+            <n-data-table size="small" :columns="dayColumns" :data="filteredPlanDays" :max-height="300" virtual-scroll />
+          </template>
+          <div v-else class="plan-empty">还没有计划：选好主播、导入 AI 报告，点「导入报告并生成 60 天计划」。</div>
+        </div>
+      
+          <div class="track-daily">
+            <div class="sec-title">今日打分（可选：这一场五个分）</div>
         <div class="picker">
           <n-input v-model:value="opFilter" size="small" placeholder="你的名字（带教运营）" style="width: 170px" @update:value="saveOpFilter" />
           <span class="switch-wrap">
@@ -133,10 +205,14 @@
             <div v-for="d in store.common" :key="d.key"><b>{{ d.label }}</b>：{{ d.hint }}</div>
           </div>
         </template>
-      </n-tab-pane>
+      
+          </div>
+</n-tab-pane>
+
+      
 
       <!-- ② 运营考核 -->
-      <n-tab-pane name="score" tab="运营考核">
+      <n-tab-pane name="score" tab="运营区域">
         <div class="bar">
           <n-input v-model:value="month" size="small" placeholder="月份，如 2026-10" style="width: 150px" />
           <n-button type="primary" size="small" @click="calc">算分</n-button>
@@ -152,10 +228,11 @@
       </n-tab-pane>
 
       <!-- ③ 资产与课表 -->
-      <n-tab-pane name="asset" tab="资产与课表">
+      <n-tab-pane name="asset" tab="知识库">
         <div class="bar">
           <n-select v-model:value="viewTable" :options="viewOptions" size="small" style="width: 180px" @update:value="loadView" />
-          <n-button size="small" @click="doImport">从拆解产物导入</n-button>
+          <n-button size="small" type="primary" @click="doImport">导入报告文件</n-button>
+          <n-button size="small" @click="doImportDir">选 work 目录</n-button>
           <n-button size="small" @click="store.exportCsv()">导出 CSV</n-button>
           <n-button size="small" @click="store.exportXlsx()">导出 Excel</n-button>
           <span class="hint">{{ store.rows.length }} 行</span>
@@ -172,7 +249,7 @@
         </div>
         <n-data-table :columns="assetColumns" :data="store.rows" size="small" :bordered="false" max-height="calc(100vh - 470px)" />
         <div class="rule">
-          <div>点「从拆解产物导入」后：<b>选那一场的 work 目录</b>（会自动往下找报告），或者<b>直接选报告那个 md 文件</b>都行。</div>
+          <div>运营平时用「导入报告文件」直接选那个 .md；只有当报告散在一场 work 目录里时，才用「选 work 目录」让它自己找。</div>
           <div>两种报告都认：① v5 格式（带 <code>XD-XX-001</code> 资产表和 <code>| D1 | … |</code> 课表）；② 普通分析报告（把「<b>话术库</b>」里的表格抽成资产、把「<b>SOP</b>」清单抽成课表，编号自动生成）。</div>
           <div v-for="(l, i) in store.logs.slice(0, 6)" :key="i" class="log">{{ l }}</div>
         </div>
@@ -191,6 +268,18 @@
         </div>
       </template>
     </n-modal>
+
+    <!-- 粘贴 AI 报告 → 生成 60 天计划 -->
+    <n-modal v-model:show="showPaste" preset="card" style="width: 760px" title="粘贴 AI 拆解报告">
+      <div class="rule"><div>把 AI 分析报告的全文粘进来（.md 内容即可）。导入后会自动生成 60 天计划。</div></div>
+      <n-input v-model:value="pasteText" type="textarea" :rows="16" placeholder="粘贴报告全文…" style="margin-top: 8px" />
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="showPaste = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="planBusy" @click="doPasteImport">导入并生成计划</n-button>
+        </div>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -205,7 +294,7 @@ const msg = useMessage()
 type Level = 'ok' | 'warn' | 'bad' | 'none'
 type Filter = 'all' | Level | 'today'
 
-const tab = ref('streamer')
+const tab = ref('plan')
 const month = ref(new Date().toISOString().slice(0, 7))
 const viewTable = ref('资产库')
 const viewOptions = [
@@ -314,6 +403,174 @@ const filteredStreamers = computed(() => {
 const streamerOptions = computed<SelectOption[]>(() =>
   filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n }))
 )
+
+// ================= 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈 =================
+function localDate(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+const planStreamer = ref('')
+const planTrack = ref('')
+const planStart = ref(localDate())
+const planInfo = ref<any>(null)
+const planBusy = ref(false)
+const fbBusy = ref(false)
+const showPaste = ref(false)
+const pasteText = ref('')
+const dayPhase = ref('all')
+const fb = ref<Record<string, string>>({
+  完成情况: '完成', 数据结果: '', 问题: '', 明日计划: '', 运营: localStorage.getItem('inc_operator') || '', 今日任务: ''
+})
+
+const planStreamerOptions = computed<SelectOption[]>(() => streamerNames.value.map((n) => ({ label: n, value: n })))
+const fbOptions: SelectOption[] = [
+  { label: '完成', value: '完成' },
+  { label: '部分完成', value: '部分完成' },
+  { label: '未完成', value: '未完成' }
+]
+const dayPhaseOptions: SelectOption[] = [
+  { label: '全部 60 天', value: 'all' },
+  { label: '1-7 天 起号基础', value: '1-7' },
+  { label: '8-30 天 能力成型', value: '8-30' },
+  { label: '31-60 天 实战冲刺', value: '31-60' }
+]
+
+const todayTask = computed(() => {
+  const idx = Number(planInfo.value?.dayIndex || 0)
+  if (!idx) return null
+  const key = `D${Math.min(Math.max(idx, 1), 60)}`
+  return store.planDays.find((r: any) => String(r['日期']) === key) || null
+})
+
+const filteredPlanDays = computed(() => {
+  const all = store.planDays
+  if (dayPhase.value === 'all') return all
+  const [a, b] = dayPhase.value.split('-').map(Number)
+  return all.filter((r: any) => { const n = Number(String(r['日期']).slice(1)); return n >= a && n <= b })
+})
+
+const dayColumns: DataTableColumns<any> = [
+  { title: '天', key: '日期', width: 64 },
+  { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
+  { title: '验收', key: '验收', width: 260, ellipsis: { tooltip: true } }
+]
+const fbColumns: DataTableColumns<any> = [
+  { title: '日期', key: '日期', width: 100 },
+  { title: '完成', key: '完成情况', width: 80 },
+  { title: '数据结果', key: '数据结果', ellipsis: { tooltip: true } },
+  { title: '问题', key: '问题', ellipsis: { tooltip: true } },
+  { title: '明日计划', key: '明日计划', ellipsis: { tooltip: true } }
+]
+
+async function loadPlanFor(name: string) {
+  if (!name) { planInfo.value = null; return }
+  const r = await store.loadPlan(name)
+  planInfo.value = r
+  if (r?.plan?.['赛道']) planTrack.value = String(r.plan['赛道'])
+  if (r?.plan?.['开始日期']) planStart.value = String(r.plan['开始日期'])
+  fb.value['今日任务'] = todayTask.value ? String(todayTask.value['今天练什么']) : ''
+  const todayStr = localDate()
+  const exist = (r?.feedback || []).find((x: any) => String(x['日期']) === todayStr)
+  if (exist) {
+    fb.value['完成情况'] = String(exist['完成情况'] || '完成')
+    fb.value['数据结果'] = String(exist['数据结果'] || '')
+    fb.value['问题'] = String(exist['问题'] || '')
+    fb.value['明日计划'] = String(exist['明日计划'] || '')
+    fb.value['运营'] = String(exist['运营'] || fb.value['运营'])
+  }
+}
+
+async function onPlanStreamer(name: string) {
+  planStreamer.value = name || ''
+  if (!name) { planInfo.value = null; return }
+  planTrack.value = store.trackOf(name) || store.defaultTrack
+  // 下方“今日打分”区也用同一个主播，避免选两次
+  current.value = name
+  curTrack.value = planTrack.value
+  blankValues()
+  await loadPlanFor(name)
+}
+
+async function importFileAndGenerate(filePath: string) {
+  planBusy.value = true
+  try {
+    const imp: any = await store.importDir(filePath)
+    if (imp?.track) planTrack.value = String(imp.track)
+    if (!planStreamer.value) {
+      msg.warning('报告导入了；选一个主播，再点「只重新生成计划」')
+      return
+    }
+    await doGenerate()
+    msg.success(imp?.message || '已导入并生成计划')
+  } catch (e: any) {
+    msg.error('导入失败：' + (e?.message || e))
+  } finally { planBusy.value = false }
+}
+
+async function importAndGenerate() {
+  const p = await store.pickReport()
+  if (!p) return
+  await importFileAndGenerate(p)
+}
+
+async function onDropReport(e: DragEvent) {
+  const f = e.dataTransfer?.files?.[0]
+  if (!f) return
+  const p = (window as any).electronAPI.getFilePath(f)
+  if (!p) return msg.warning('没拿到文件路径，请用「导入报告」按钮')
+  await importFileAndGenerate(p)
+}
+
+async function justGenerate() {
+  await doGenerate()
+}
+
+async function doGenerate() {
+  if (!planStreamer.value) return msg.warning('先选主播')
+  planBusy.value = true
+  try {
+    const r = await store.generatePlan({
+      streamer: planStreamer.value, track: planTrack.value, startDate: planStart.value,
+      source: planInfo.value?.plan?.['报告来源'] || 'AI 拆解报告'
+    })
+    await loadPlanFor(planStreamer.value)
+    msg.success(r?.message || '已生成计划')
+  } catch (e: any) {
+    msg.error('生成失败：' + (e?.message || e))
+  } finally { planBusy.value = false }
+}
+
+async function doPasteImport() {
+  if (!pasteText.value.trim()) return msg.warning('先把报告内容贴进来')
+  planBusy.value = true
+  try {
+    const imp: any = await store.importReportText(pasteText.value, '粘贴的报告')
+    if (imp?.track) planTrack.value = String(imp.track)
+    showPaste.value = false
+    pasteText.value = ''
+    if (planStreamer.value) await doGenerate()
+    msg.success((imp?.message || '已导入') + (planStreamer.value ? '' : '；再选主播点「只重新生成计划」'))
+  } catch (e: any) {
+    msg.error('导入失败：' + (e?.message || e))
+  } finally { planBusy.value = false }
+}
+
+async function saveFb() {
+  if (!planStreamer.value) return msg.warning('先选主播')
+  fbBusy.value = true
+  try {
+    await store.saveFeedback({
+      日期: localDate(), 主播: planStreamer.value, 今日任务: fb.value['今日任务'] || '',
+      完成情况: fb.value['完成情况'], 数据结果: fb.value['数据结果'], 问题: fb.value['问题'],
+      明日计划: fb.value['明日计划'], 运营: fb.value['运营']
+    })
+    await loadPlanFor(planStreamer.value)
+    msg.success('今日反馈已保存')
+  } catch (e: any) {
+    msg.error('保存失败：' + (e?.message || e))
+  } finally { fbBusy.value = false }
+}
 
 const needAttention = computed(() => {
   const order: Record<Level, number> = { bad: 0, warn: 1, none: 2, ok: 9 }
@@ -520,6 +777,18 @@ async function loadView(v: string) {
 }
 
 async function doImport() {
+  // 只选报告文件（Windows 上不能和“选文件夹”共用一个对话框）
+  const dir = await store.pickReport()
+  if (!dir) return
+  try {
+    const r = await store.importDir(dir)
+    msg.success(r?.message || '导入完成')
+  } catch (e: any) {
+    msg.error('导入失败：' + (e?.message || e))
+  }
+}
+
+async function doImportDir() {
   const dir = await store.browseDir()
   if (!dir) return
   try {
@@ -587,6 +856,12 @@ onMounted(async () => {
   blankValues()
   if (recent.value.length && !current.value) pick(recent.value[0])
   ensureSelection()
+  planStreamer.value = current.value || filteredStreamers.value[0] || ''
+  if (planStreamer.value) {
+    planStart.value = localDate()
+    planTrack.value = store.trackOf(planStreamer.value)
+    await loadPlanFor(planStreamer.value)
+  }
   window.addEventListener('keydown', onKey)
 })
 
@@ -597,7 +872,7 @@ onUnmounted(() => {
 
 <style scoped>
 /* 孵化页跟随全局浅色主题：白卡片 + 墨色字 + 紫罗兰交互色，深色遗留全部收掉 */
-.inc-page { padding: 18px 22px; color: var(--ink-2); }
+.inc-page { padding: 18px 22px; color: var(--ink-2); font-size: 14px; }
 .inc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .inc-title { font-size: var(--fs-h1); font-weight: 700; letter-spacing: -0.2px; margin: 0 0 4px; color: var(--ink); }
 .inc-subtitle { font-size: var(--fs-meta); color: var(--ink-3); }
@@ -617,7 +892,7 @@ onUnmounted(() => {
 .dot.warn { color: #f59e0b; } .dot.bad { color: var(--bad); } .dot.none { color: var(--ink-4); }
 .recent { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
 /* 填报卡：浅色卡面 + 左侧紫罗兰色带，是这一页唯一的强调 */
-.card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 14px 14px 18px; margin: 8px 0 12px; box-shadow: var(--shadow-panel); }
+.card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px 18px 18px 20px; margin: 10px 0 14px; box-shadow: var(--shadow-panel); }
 .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--pulse-line); }
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
 .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -626,9 +901,9 @@ onUnmounted(() => {
 .tag.ok { border-color: rgba(18, 183, 106, 0.4); background: rgba(18, 183, 106, 0.08); color: var(--ok); }
 .tag.warn { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08); color: #b45309; }
 .tag.bad { border-color: rgba(240, 68, 56, 0.4); background: rgba(240, 68, 56, 0.08); color: var(--bad); }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; margin: 6px 0; }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: 14px 18px; margin: 10px 0; }
 .metric { display: flex; flex-direction: column; gap: 5px; }
-.mlabel { font-size: 12px; color: var(--ink-3); }
+.mlabel { font-size: 13.5px; font-weight: 600; color: #374151; }
 .extras { margin: 6px 0; }
 .actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .hint { font-size: 12px; color: var(--ink-4); }
@@ -658,4 +933,35 @@ onUnmounted(() => {
 .rule code { background: rgba(11, 118, 190, 0.09); padding: 1px 5px; border-radius: 4px; color: var(--pulse-accent); }
 .log { font-family: var(--font-num); color: var(--ink-4); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- 培训计划（导入 → 60 天 → 每日反馈） ---------- */
+.plan-wrap { display: flex; flex-direction: column; gap: 12px; }
+.plan-import { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; }
+.plan-import-title { font-weight: 700; margin-bottom: 10px; color: #1f2328; }
+.plan-import-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.plan-hint { margin-top: 8px; font-size: 12px; color: #6b7280; }
+.plan-drop { margin-top: 10px; border: 1.5px dashed #c7d2fe; border-radius: 10px; padding: 14px; text-align: center; color: #64748b; font-size: 13px; background: #f8faff; }
+.plan-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+.plan-head-left { display: flex; gap: 8px; align-items: center; }
+.plan-head-right { font-size: 12px; color: #6b7280; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 12px; }
+.pill.on { background: #dcfce7; color: #15803d; }
+.phase-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.phase-card { border: 1px solid #e6e8ec; border-radius: 12px; padding: 10px 12px; background: #fff; }
+.phase-card.on { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+.phase-name { font-weight: 700; font-size: 13px; color: #1f2328; }
+.phase-goal { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+.today-card, .fb-card { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; }
+.today-title { font-weight: 700; font-size: 13px; color: #1f2328; margin-bottom: 8px; }
+.today-main { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+.today-line { font-size: 13px; color: #374151; line-height: 1.7; }
+.fb-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: stretch; }
+.plan-table-title { font-weight: 700; font-size: 13px; margin-top: 4px; }
+.plan-filter { margin-bottom: 6px; }
+.plan-empty { margin: 36px auto; color: #6b7280; font-size: 13px; text-align: center; }
+.track-daily { border-top: 1px dashed #e5e7eb; margin-top: 16px; padding-top: 16px; }
+.sec-title { font-size: 15px; font-weight: 700; color: #1f2328; margin-bottom: 10px; }
+/* 表格字大一点、行高一点，不费眼 */
+.inc-page :deep(.n-data-table .n-data-table-td),
+.inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13px; padding-top: 9px; padding-bottom: 9px; }
 </style>

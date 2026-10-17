@@ -6,8 +6,10 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { estimateTokens, parseTimeLabel, fmtClock } from './packet-split'
 
-const ITEM_RE = /^(\d+):(\d\d)(?:\.(\d))?\t/
-const SHOT_RE = /^#\d+\s+(\d+):(\d\d)/
+// 和 packet-split 一样：超过 1 小时的时间戳是 4:58:18.6，不是 04:58.6。
+// 以前这里只认后者，双场对比也会“只对上前 59 分钟”。
+const ITEM_RE = /^(?:(\d+):)?(\d+):(\d\d)(?:\.(\d))?\t/
+const SHOT_RE = /^#\d+\s+(?:(\d+):)?(\d+):(\d\d)/
 
 interface Section { title: string; body: string }
 
@@ -200,7 +202,7 @@ function indexShots(sections: Section[]): Shots {
   for (const raw of s.body.split('\n')) {
     if (raw.trim().startsWith('```')) continue
     const m = SHOT_RE.exec(raw.trim())
-    if (m) shots.push({ t: Number(m[1]) * 60 + Number(m[2]), line: raw })
+    if (m) shots.push({ t: Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]), line: raw })
     else if (shots.length === 0 && raw.trim()) head.push(raw)
   }
   return { head, shots }

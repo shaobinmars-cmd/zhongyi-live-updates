@@ -32,6 +32,11 @@ export const TABLES: Record<string, string[]> = {
   周复盘: ['周次', '运营', '主持', '回放片段数', '资产更新数', '课表产出', '提交时间'],
   // 运营考核：多存了「主播数 / 应交 / 有效提交 / 等级」，运营自己也能看懂这个分是怎么来的
   运营考核: ['月份', '运营', '主播数', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
+  ,
+  // 60 天培训计划：一个主播一行（什么赛道、从哪天开始）
+  培训计划: ['主播', '赛道', '开始日期', '进度', '阶段', '报告来源', '更新时间'],
+  // 每天孵化结果的运营反馈
+  孵化反馈: ['日期', '主播', '运营', '今日任务', '完成情况', '数据结果', '问题', '明日计划', '提交时间']
 }
 
 /** 运营考核权重（合计 100） */
@@ -878,6 +883,8 @@ export interface ImportResult {
   assetsAdded: number
   scheduleAdded: number
   message: string
+  /** 从报告里猜出来的赛道（给「生成 60 天计划」自动带过去） */
+  track?: string
 }
 
 /** 在目录（含子目录，最多 3 层）里挑最像报告的那个 md：拆解报告/AI分析报告 > 报告 > 素材包 > 其它 > index，草稿最后 */
@@ -981,7 +988,38 @@ function extractSopFromReport(text: string): string[] {
   return out.slice(0, 40)
 }
 
-export async function importFromTeardown(input: string): Promise<ImportResult> {
+/** 从 AI 报告里猜赛道：先找「建议赛道：X」，再按关键词，最后按赛道名出现次数 */
+export function suggestTrackFromText(text: string): string {
+  const src = String(text || '')
+  const names = Object.keys(TRACKS)
+  const m = src.match(/(?:建议)?赛道\s*[：:]\s*([^\n，。；,;|]{2,12})/) || src.match(/定位\s*[：:]\s*([^\n，。；,;|]{2,12})/)
+  if (m && m[1]) {
+    const cand = m[1].trim()
+    const hit = names.find((n) => cand.includes(n) || n.includes(cand))
+    if (hit) return hit
+  }
+  const kw: Array<[RegExp, string]> = [
+    [/唱歌|点歌|麦霸|歌曲|演唱/, '唱歌点歌'],
+    [/吉他|钢琴|古筝|乐器|弹唱/, '乐器'],
+    [/舞蹈|跳舞|爵士|韩舞|手势舞/, '舞蹈'],
+    [/脱口秀|段子|相声/, '脱口秀'],
+    [/游戏|电竞|开黑|王者|吃鸡|英雄联盟/, '游戏电竞'],
+    [/连麦|交友|PK|相亲/, '连麦交友'],
+    [/手工|画画|书法|才艺|变装/, '才艺'],
+    [/聊天|陪聊|唠嗑|情感/, '聊天陪聊'],
+    [/下单|带货|销售|逼单|礼物|打赏|电商/, '下单游戏']
+  ]
+  for (const [re, t] of kw) if (re.test(src)) return t
+  let best = ''
+  let bestN = 0
+  for (const n of names) {
+    const c = (src.match(new RegExp(n, 'g')) || []).length
+    if (c > bestN) { best = n; bestN = c }
+  }
+  return best
+}
+
+export async function importFromTeardown(input: string, displayName?: string): Promise<ImportResult> {
   const result: ImportResult = { caseName: '', assetsAdded: 0, scheduleAdded: 0, message: '' }
   if (!input || !fs.existsSync(input)) {
     result.message = '路径不存在：' + input
@@ -1003,7 +1041,7 @@ export async function importFromTeardown(input: string): Promise<ImportResult> {
   }
   const srcName = path.basename(filePath)
   const text = fs.readFileSync(filePath, 'utf-8')
-  result.caseName = srcName.replace(/\.(md|markdown|txt)$/i, '')
+  result.caseName = displayName || srcName.replace(/\.(md|markdown|txt)$/i, '')
 
   // ② v5 指令那种带编号的资产表：| XD-XX-001 | 类型 | 内容 |
   const assetRe = /^\|\s*([A-Z]{2,4}-[A-Z]{2,4}-\d{2,4})\s*\|([^|]*)\|([^|]*)\|/gm
@@ -1085,7 +1123,7 @@ export async function importFromTeardown(input: string): Promise<ImportResult> {
   }
 
   const parts: string[] = [
-    `来源：${srcName}`,
+    `来源：${result.caseName}`,
     `资产 ${result.assetsAdded} 条${looseAssets ? `（从话术库抽的 ${looseAssets}）` : ''}${looseSkipped ? `，跳过重复 ${looseSkipped}` : ''}`,
     `课表 ${result.scheduleAdded} 条${looseSched ? `（从 SOP 抽的 ${looseSched}）` : ''}`,
     caseAdded ? '案例 1 条' : '案例没记（已存在或没抽到东西）'
@@ -1096,6 +1134,8 @@ export async function importFromTeardown(input: string): Promise<ImportResult> {
     parts.push('都是已经导入过的，没有重复添加')
   }
   result.message = '已导入：' + parts.join('；')
+  // 顺便从报告里猜一下赛道，给下一步「生成 60 天计划」用
+  result.track = suggestTrackFromText(text) || undefined
   logger.info(LOG_MODULE, result.message)
   return result
 }

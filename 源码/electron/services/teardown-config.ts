@@ -14,7 +14,10 @@ export interface TeardownConfig {
 }
 
 const DEFAULT_CONFIG: TeardownConfig = {
-  contextLimit: 24000,
+  // 交付给 AI 的上下文预算。以前是 24000（给小模型留的保险值），结果一场 5 小时的直播
+  // 要切成十几段，运营又要等半天、又看不懂。现在主流的 AI（DeepSeek 128k 等）都很大，
+  // 提到 64000：留一半给 AI 写报告，大部分场次切 1~2 段就够了。
+  contextLimit: 64000,
   whisperDevice: 'cpu',
   revokeSource: '',
   useV5: false

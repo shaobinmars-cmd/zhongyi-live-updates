@@ -42,9 +42,10 @@ export function estimateTokens(text: string): number {
 }
 
 export function parseTimeLabel(label: string): number {
-  const m = /^(\d+):(\d\d)(?:\.(\d))?$/.exec(label.trim())
+  // 同时认 04:58.6 和 4:58:18.6 两种（超过 1 小时会多一段“时”）
+  const m = /^(?:(\d+):)?(\d+):(\d\d)(?:\.(\d))?$/.exec(label.trim())
   if (!m) return -1
-  return Number(m[1]) * 60 + Number(m[2]) + (m[3] ? Number(m[3]) / 10 : 0)
+  return Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) + (m[4] ? Number(m[4]) / 10 : 0)
 }
 
 export function fmtClock(sec: number): string {
@@ -59,8 +60,11 @@ interface Parsed { h1: string; sections: Section[] }
 
 interface IndexShots { head: string[]; shots: { t: number; line: string }[] }
 
-const ITEM_RE = /^(\d+):(\d\d)(?:\.(\d))?\t/
-const SHOT_RE = /^#\d+\s+(\d+):(\d\d)/
+// 时间戳有两种写法：不到 1 小时是 04:58.6，超过 1 小时是 4:58:18.6。
+// 以前两个正则只认第一种 —— 超过 1 小时的话术行全被当成“不是话术”丢掉，
+// 结果分片最多只覆盖到 59 分钟（运营报的“59 分钟以后找不到”就是这个）。
+const ITEM_RE = /^(?:(\d+):)?(\d+):(\d\d)(?:\.(\d))?\t/
+const SHOT_RE = /^#\d+\s+(?:(\d+):)?(\d+):(\d\d)/
 
 function labelOf(line: string): string {
   const i = line.indexOf('\t')
@@ -101,7 +105,7 @@ function extractIndexShots(body: string): IndexShots {
     if (raw.trim().startsWith('```')) continue
     const m = SHOT_RE.exec(raw.trim())
     if (m) {
-      shots.push({ t: Number(m[1]) * 60 + Number(m[2]), line: raw })
+      shots.push({ t: Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]), line: raw })
     } else if (shots.length === 0 && raw.trim()) {
       head.push(raw)
     }

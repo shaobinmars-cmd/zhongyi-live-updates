@@ -19,6 +19,7 @@ import { freeSpaceGB, enforceQuota } from './services/disk-guard'
 import { getPullUrl } from './services/live-stream'
 import * as db from './services/database'
 import * as incubate from './services/incubate'
+import * as incubatePlan from './services/incubate-plan'
 import { V5_INSTRUCTION } from './services/teardown-instruction'
 import * as config from './services/record-config'
 import * as logger from './services/logger'
@@ -637,9 +638,15 @@ export function registerIpcHandlers(): void {
     if (!mainWindow) return null
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: kind === 'dir' ? ['openDirectory'] : ['openFile'],
-      title: kind === 'dir' ? '选择录制目录' : '选择视频文件',
+      title: kind === 'dir' ? '选择录制目录' : '选择素材包(.md)或录像',
+      // 第一项必须把 .md 带上：以前只列视频扩展名，运营打开对话框根本看不到
+      // 自己的「拆解素材包.md」，就会说“识别不到 md 文件”。
       filters: kind === 'file'
-        ? [{ name: '视频文件', extensions: ['ts', 'mp4', 'mov', 'mkv', 'flv', 'm4v', 'avi', '3gp', 'webm', 'mpg', 'mpeg', 'wmv', 'mts', 'm2ts'] }, { name: '全部文件', extensions: ['*'] }]
+        ? [
+            { name: '素材包 / 录像（推荐）', extensions: ['md', 'markdown', 'txt', 'ts', 'mp4', 'mov', 'mkv', 'flv', 'm4v', 'avi', '3gp', 'webm', 'mpg', 'mpeg', 'wmv', 'mts', 'm2ts'] },
+            { name: '只要录像', extensions: ['ts', 'mp4', 'mov', 'mkv', 'flv', 'm4v', 'avi', '3gp', 'webm', 'mpg', 'mpeg', 'wmv', 'mts', 'm2ts'] },
+            { name: '全部文件', extensions: ['*'] }
+          ]
         : undefined
     })
     return result.canceled ? null : result.filePaths[0]
@@ -792,12 +799,20 @@ ipcMain.handle('incubate:import', async (_e, dir: string) => incubate.importFrom
 ipcMain.handle('incubate:open-data-dir', () => incubate.openDataFolder())
 ipcMain.handle('incubate:instruction', () => V5_INSTRUCTION)
 ipcMain.handle('incubate:browse-dir', async () => {
-  // 说明里写的是「选 work 目录，或直接选报告那个 md 文件」——
-  // 但以前这里只允许选目录，md 文件根本点不到，所以运营说“识别不到”。
-  // 现在两种都能选。
+  // 重要：Windows 的对话框不能同时「选文件 + 选文件夹」（同时传只会弹选文件夹），
+  // 这就是运营反馈「任何文件都不识别」的原因。现在拆成两个入口。
+  const opts: any = { title: '选整个 work 目录（会自动往下找报告）', properties: ['openDirectory'] }
+  const r = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, opts)
+    : await dialog.showOpenDialog(opts)
+  if (r.canceled || !r.filePaths.length) return null
+  return r.filePaths[0]
+})
+ipcMain.handle('incubate:pick-report', async () => {
+  // 只选单个报告文件（.md/.txt）：运营的主入口
   const opts: any = {
-    title: '选拆解产物：整个 work 目录，或者直接选报告那个 md 文件',
-    properties: ['openFile', 'openDirectory'],
+    title: '选 AI 拆解报告（.md / .txt）',
+    properties: ['openFile'],
     filters: [
       { name: '报告文件 (md/txt)', extensions: ['md', 'markdown', 'txt'] },
       { name: '全部文件', extensions: ['*'] }
@@ -809,6 +824,11 @@ ipcMain.handle('incubate:browse-dir', async () => {
   if (r.canceled || !r.filePaths.length) return null
   return r.filePaths[0]
 })
+ipcMain.handle('incubate:import-text', async (_e, text: string, name: string) =>
+  incubatePlan.importReportText(text, name || '粘贴的报告'))
+ipcMain.handle('incubate:generate-plan', async (_e, opts: any) => incubatePlan.generateTrainingPlan(opts || {}))
+ipcMain.handle('incubate:plan', async (_e, streamer: string) => incubatePlan.getPlan(streamer))
+ipcMain.handle('incubate:feedback-save', async (_e, row: any) => incubatePlan.saveFeedback(row || {}))
 ipcMain.handle('incubate:export-csv', async () => {
   const r = mainWindow
     ? await dialog.showOpenDialog(mainWindow, { title: '选导出目录', properties: ['openDirectory', 'createDirectory'] })

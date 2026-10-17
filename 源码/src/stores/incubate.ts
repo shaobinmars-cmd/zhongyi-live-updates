@@ -32,6 +32,10 @@ export const useIncubateStore = defineStore('incubate', () => {
   const sessions = ref<any[]>([])
   const streamers = ref<any[]>([])
   const schedule = ref<any[]>([])
+  // 60 天培训计划 + 每日反馈
+  const plan = ref<any>(null)
+  const planDays = ref<any[]>([])
+  const planFeedback = ref<any[]>([])
 
   function log(msg: string) {
     const t = new Date().toTimeString().slice(0, 8)
@@ -81,6 +85,41 @@ export const useIncubateStore = defineStore('incubate', () => {
 
   async function browseDir(): Promise<string | null> {
     return await api().incubateBrowseDir()
+  }
+
+  /** 只选一个报告文件（Windows 上跟“选文件夹”必须是两个对话框） */
+  async function pickReport(): Promise<string | null> {
+    return await api().incubatePickReport()
+  }
+
+  async function importReportText(text: string, name: string) {
+    const r = await api().incubateImportText(text, name)
+    await loadRows()
+    log(r?.message || '导入完成')
+    return r
+  }
+
+  async function generatePlan(opts: any) {
+    const r = await api().incubateGeneratePlan(opts)
+    await loadSchedule()
+    await loadStreamers()
+    log(r?.message || '已生成 60 天计划')
+    return r
+  }
+
+  async function loadPlan(streamer: string) {
+    const r = await api().incubatePlan(streamer)
+    plan.value = r?.plan || null
+    planDays.value = r?.days || []
+    planFeedback.value = r?.feedback || []
+    return r
+  }
+
+  async function saveFeedback(row: any) {
+    const r = await api().incubateFeedbackSave(row)
+    if (row?.主播) await loadPlan(row.主播)
+    log(r?.updated ? '反馈已更新' : '反馈已保存')
+    return r
   }
 
   async function exportCsv() {
@@ -234,7 +273,9 @@ export const useIncubateStore = defineStore('incubate', () => {
   return {
     schema, table, rows, loading, logs, scoreRows, log,
     tracks, common, defaultTrack, sessions, streamers, schedule,
-    loadSchema, loadRows, switchTable, seed, score, importDir, browseDir,
+    plan, planDays, planFeedback,
+    loadSchema, loadRows, switchTable, seed, score, importDir, browseDir, pickReport, importReportText,
+    generatePlan, loadPlan, saveFeedback,
     exportCsv, exportXlsx, openDataDir,
     loadTracks, trackNames, extraDefsOf, allDefsOf,
     loadStreamers, importStreamers, loadSessions, loadSchedule,

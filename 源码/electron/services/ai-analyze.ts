@@ -316,6 +316,20 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn): P
   logger.info(LOG_MODULE, `AI 分析完成：${reportPath}`)
   onProgress?.({ stage: '完成', total, text: reportPath })
 
+  // 报告平时埋在 work_<主播_时间戳>\ 里，翻文件夹很难找。
+  // 在录像目录里再放一份带主播和时间的，和录像摆在一起，一眼就看到。
+  try {
+    const parent = path.dirname(info.workDir)
+    // 只有真正是“录像的 work 目录”才另存一份；
+    // 运营自己拖进来的素材包（在桌面之类的地方），报告就写在它旁边，不另开一份。
+    if (!path.basename(info.workDir).startsWith('work_')) throw new Error('skip')
+    const base = path.basename(info.workDir).replace(/^work_/, '') || '本场'
+    const copyPath = path.join(parent, `AI报告_${base}.md`)
+    fs.copyFileSync(reportPath, copyPath)
+    logger.info(LOG_MODULE, `报告已另存一份便于查找：${copyPath}`)
+  } catch (ex: any) {
+    logger.warn(LOG_MODULE, `另存一份报告失败（不影响主报告）：${ex?.message}`)
+  }
   return { ok: true, note: `分析完成（${total} 片）`, reportPath, parts: total }
 }
 

@@ -54,6 +54,8 @@ export interface RecordingEntry {
   mtime: number
   analyzed: boolean
   packetPath: string
+  /** 录像文件已经不在了（被清理删掉），但 work_ 里的素材包/报告还在 */
+  videoMissing?: boolean
 }
 
 export interface PacketInfo {
@@ -203,14 +205,11 @@ export function workDirFor(input: string): string {
     const st = fs.statSync(input)
     // 老录制工具是「一场一个文件夹」，work 放里面。
     if (st.isDirectory()) return path.join(input, 'work')
-    // 新录制器把文件平铺在输出目录里：如果还共用同一个 work，
-    // 后面拆的那场会把前面那场的素材包覆盖掉，所以按文件各用一个目录。
-    // 同前缀的分段（_000 / _001 / _1000…）算「同一场」，共用一个 work 目录
-    const base = path.basename(input, path.extname(input)).replace(/_\d{3,4}$/, '')
-    return path.join(path.dirname(input), `work_${base}`)
-  } catch {
-    return ''
-  }
+  } catch { /* 录像可能已经被删了：下面仍然按路径算，别直接认输 */ }
+  // 新录制器把文件平铺在输出目录里：按文件各用一个 work 目录。
+  // 同前缀的分段（_000 / _001 / _1000…）算「同一场」，共用一个 work 目录。
+  const base = path.basename(input, path.extname(input)).replace(/_\d{3,4}$/, '')
+  return path.join(path.dirname(input), `work_${base}`)
 }
 
 /** 兼容旧版本：那时所有录像共用一个 work，翻出里面属于这个文件的那份 */
@@ -232,14 +231,24 @@ export function packetPathFor(input: string): string {
 }
 
 export function readPacket(input: string, limit?: number): PacketInfo | null {
-  let workDir = workDirFor(input)
-  if (!workDir) return null
-  let packetPath = path.join(workDir, '拆解素材包.md')
-  if (!fs.existsSync(packetPath)) {
-    const legacy = legacyWorkDir(input)
-    if (legacy) {
-      workDir = legacy
-      packetPath = path.join(workDir, '拆解素材包.md')
+  // 直接把「拆解素材包.md」拖进来：它自己就是素材包，
+  // 不用配套录像、也不用 work 目录。以前这种情况直接被当成“找不到那场”，
+  // 界面上一点反应都没有（运营说“拖进去没反应”就是这个）。
+  let workDir = ''
+  let packetPath = ''
+  if (/\.md$/i.test(input) && fs.existsSync(input)) {
+    packetPath = input
+    workDir = path.dirname(input)
+  } else {
+    workDir = workDirFor(input)
+    if (!workDir) return null
+    packetPath = path.join(workDir, '拆解素材包.md')
+    if (!fs.existsSync(packetPath)) {
+      const legacy = legacyWorkDir(input)
+      if (legacy) {
+        workDir = legacy
+        packetPath = path.join(workDir, '拆解素材包.md')
+      }
     }
   }
   if (!fs.existsSync(packetPath)) return null
@@ -376,6 +385,36 @@ export function listRecordings(): RecordingEntry[] {
       if (seen.has(out[i].path)) { out.splice(i, 1); i--; continue }
       seen.add(out[i].path)
     }
+
+    // 录像被清盘删掉之后，work_ 里的素材包和 AI 报告还在硬盘上。
+    // 以前只扫录像文件，所以「以前的场次」在界面上直接消失了，根本没地方点。
+    // 这里把这类「录像没了、产物还在」的场次也列出来。
+    try {
+      for (const name of fs.readdirSync(r)) {
+        if (!name.startsWith('work_')) continue
+        const prefix = name.slice(5)
+        if (!prefix) continue
+        // 录像还在的话，scanDir 已经列过这一场了，不重复
+        if (out.some((e) => e.kind === 'file' && e.name.startsWith(prefix + '_'))) continue
+        const wd = path.join(r, name)
+        const st = safeStat(wd)
+        if (!st || !st.isDirectory()) continue
+        const presumed = path.join(r, prefix + '.mp4')
+        if (seen.has(presumed)) continue
+        seen.add(presumed)
+        out.push({
+          kind: 'file',
+          path: presumed,
+          name: prefix + '  ·录像已删',
+          nickname: prefix.split('_')[0] || prefix,
+          sizeBytes: dirSize(wd),
+          mtime: st.mtimeMs,
+          analyzed: fs.existsSync(path.join(wd, '拆解素材包.md')),
+          packetPath: path.join(wd, '拆解素材包.md'),
+          videoMissing: true
+        })
+      }
+    } catch { /* 目录读不到就算了 */ }
   }
   out.sort((a, b) => b.mtime - a.mtime)
   return out

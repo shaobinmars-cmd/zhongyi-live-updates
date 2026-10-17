@@ -16,6 +16,7 @@ import * as os from 'os'
 import * as zlib from 'zlib'
 import * as crypto from 'crypto'
 import * as http from 'http'
+import * as dgram from 'dgram'
 import * as https from 'https'
 import { spawn } from 'child_process'
 import { app } from 'electron'
@@ -109,6 +110,69 @@ export function resolveServer(): { url: string; token: string; fromAi: boolean }
   return { url, token, fromAi }
 }
 
+/** 听老板机的广播，找出它现在在哪台机器上（IP 变了也能找到） */
+function discoverServer(timeoutMs = 5000): Promise<string> {
+  return new Promise((resolve) => {
+    let done = false
+    let sock: dgram.Socket | null = null
+    const finish = (v: string) => {
+      if (done) return
+      done = true
+      try { sock?.close() } catch { /* ignore */ }
+      resolve(v)
+    }
+    try {
+      sock = dgram.createSocket({ type: 'udp4', reuseAddr: true })
+      sock.on('message', (msg, rinfo) => {
+        try {
+          const j = JSON.parse(msg.toString('utf-8'))
+          if (j && j.zy === 'collect' && j.port) finish(`http://${rinfo.address}:${j.port}`)
+        } catch { /* 不是我们的广播，忽略 */ }
+      })
+      sock.on('error', () => finish(''))
+      sock.bind(57890, () => { setTimeout(() => finish(''), timeoutMs) })
+    } catch {
+      finish('')
+    }
+  })
+}
+
+/** 这个地址活着吗 */
+function pingHealth(base: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false
+    const fin = (v: boolean) => { if (!done) { done = true; resolve(v) } }
+    try {
+      const t = new URL('/health', base)
+      const lib = t.protocol === 'https:' ? https : http
+      const req = lib.get({ hostname: t.hostname, port: t.port || 80, path: t.pathname, timeout: 5000 }, (r) => {
+        r.resume()
+        fin((r.statusCode || 0) === 200)
+      })
+      req.on('timeout', () => { req.destroy(); fin(false) })
+      req.on('error', () => fin(false))
+    } catch {
+      fin(false)
+    }
+  })
+}
+
+/**
+ * 先试已配的地址；不通就在局域网里找老板机（IP 变了也能找到），
+ * 找到就把新地址存下来 —— 运营以后不用再管地址。
+ */
+async function resolveReachable(): Promise<{ url: string; token: string }> {
+  const r = resolveServer()
+  if (r.url && await pingHealth(r.url)) return r
+  const found = await discoverServer()
+  if (found) {
+    saveClientConfig({ serverUrl: found })
+    logger.info(LOG_MODULE, `自动找到老板机：${found}`)
+    return { url: found, token: r.token }
+  }
+  return r
+}
+
 // ---------------------------------------------------------------- 打包本机数据
 
 function readB64(p: string): string {
@@ -174,7 +238,7 @@ function buildSessions(): { 场次: any[]; 报告: { 场次: string; 内容: str
 export interface CollectResult { ok: boolean; message: string; bytes?: number; saved?: string }
 
 export async function collectNow(): Promise<CollectResult> {
-  const { url, token } = resolveServer()
+  const { url, token } = await resolveReachable()
   if (!url) return { ok: false, message: '还没填汇总地址（设置页里填，或先配好 AI 共享地址）' }
   if (!token) return { ok: false, message: '还没有密钥（找管理员要一个）' }
 
@@ -255,7 +319,7 @@ export interface UpdateCheck { ok: boolean; message: string; hasNew?: boolean; v
 
 /** 问老板那台：最新版是多少 */
 export async function checkUpdate(): Promise<UpdateCheck> {
-  const { url } = resolveServer()
+  const { url } = await resolveReachable()
   if (!url) return { ok: false, message: '还没填汇总地址' }
   const target = new URL('/update/info', url)
   const res = await new Promise<{ code: number; text: string }>((resolve, reject) => {
@@ -355,14 +419,20 @@ export async function applyUpdate(): Promise<UpdateApply> {
 /** 从当前 AI 共享的地址里把汇总地址/密钥补上（一键） */
 export function adoptFromAi(): ClientConfig {
   const ai = loadAiConfig()
+  const cur = loadClientConfig()
   const patch: Partial<ClientConfig> = {}
-  if (!loadClientConfig().serverUrl && ai.baseUrl) {
-    try {
-      const u = new URL(ai.baseUrl)
-      patch.serverUrl = `http://${u.hostname}:${DEFAULT_COLLECT_PORT}`
-    } catch { /* ignore */ }
-  }
-  if (!loadClientConfig().token && ai.apiKey) patch.token = ai.apiKey
+  // 只有 AI 地址本身就是局域网时才推得出汇总地址。
+  // 以前没判断：AI 填的是 api.deepseek.com 时，这里存成了
+  // http://api.deepseek.com:57889，谁也连不上（运营机上就撞过这个）。
+  let lanUrl = ''
+  try {
+    const u = new URL(ai.baseUrl || '')
+    if (isLanHost(u.hostname)) lanUrl = `http://${u.hostname}:${DEFAULT_COLLECT_PORT}`
+  } catch { /* 地址不合法就当没填 */ }
+  // 存的不是局域网地址就纠正过来（包括以前存错的老值）
+  const curHost = (cur.serverUrl || '').replace(/^https?:\/\//, '').split(':')[0]
+  if (lanUrl && !isLanHost(curHost)) patch.serverUrl = lanUrl
+  if (!cur.token && ai.apiKey) patch.token = ai.apiKey
   return saveClientConfig(patch)
 }
 

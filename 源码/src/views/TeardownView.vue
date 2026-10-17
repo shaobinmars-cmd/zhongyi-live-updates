@@ -6,6 +6,30 @@
     @dragleave.prevent="dragging = false"
     @drop.prevent="onDrop"
   >
+
+    <!-- 拖进来的时候：整页盖一层，明确告诉你“松手就放进来” -->
+    <div
+      v-if="dragging"
+      style="position:fixed; inset:0; z-index:9999; background:rgba(11,118,190,0.10); border:3px dashed #0B76BE; display:flex; align-items:center; justify-content:center; pointer-events:none"
+    >
+      <div style="background:#fff; border-radius:14px; padding:22px 40px; font-size:20px; font-weight:700; color:#0B76BE; box-shadow:0 10px 40px rgba(0,0,0,.18)">
+        松手就放进来
+      </div>
+    </div>
+
+    <!-- 放进来之后：常驻一条，一眼能看到“现在放的是什么” -->
+    <div
+      v-if="input"
+      :style="{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', padding:'10px 14px', borderRadius:'10px', marginBottom:'10px', border:'1px solid ' + (pickedBad ? '#fecaca' : '#bbf7d0'), background: pickedBad ? '#fef2f2' : '#f0fdf4' }"
+    >
+      <span style="font-size:16px">{{ pickedBad ? '⚠️' : '✅' }}</span>
+      <span style="font-size:14px; font-weight:700" :style="{ color: pickedBad ? '#b91c1c' : '#15803d' }">
+        {{ pickedBad ? '这个放进来读不出内容：' : '已放入：' }}
+      </span>
+      <span style="font-size:13px; color:#1f2328; word-break:break-all">{{ pickedName }}</span>
+      <span style="font-size:12px; color:#6b7280">{{ pickedMeta }}</span>
+      <button class="link-btn" style="margin-left:auto" @click="pickedReset">换一个</button>
+    </div>
     <div class="td-head">
       <div>
         <h2 class="page-title">拆解直播间</h2>
@@ -211,10 +235,12 @@
           <div class="run-row">
             <div class="run-label">A 对标</div>
             <n-select v-model:value="compareA" size="small" :options="recOptions" placeholder="选对标主播的场次" style="width: 100%" />
+            <n-button size="small" @click="pickCompare('A')">选文件</n-button>
           </div>
           <div class="run-row">
             <div class="run-label">B 自家</div>
             <n-select v-model:value="compareB" size="small" :options="recOptions" placeholder="选自家主播的场次" style="width: 100%" />
+            <n-button size="small" @click="pickCompare('B')">选文件</n-button>
           </div>
 
           <div class="run-actions">
@@ -226,7 +252,7 @@
               @click="onCompare"
             >生成对比素材包</n-button>
           </div>
-          <div class="model-hint">两边都要先拆解过；生成后到右边「双场对比」页签看结果</div>
+          <div class="model-hint">两边都要先拆解过（有「拆解素材包.md」）；下拉里没有的场次，点「选文件」直接指定那个素材包。生成后到右边「双场对比」页签看结果</div>
           <div v-if="compareError" class="err-text">{{ compareError }}</div>
         </div>
 
@@ -261,9 +287,7 @@
             <div class="packet-actions">
               <n-button size="tiny" type="primary" @click="onExport">导出素材包</n-button>
               <n-button size="tiny" @click="onCopy">{{ copied ? '已复制' : '复制全文' }}</n-button>
-              <n-button size="tiny" type="info" :loading="aiBusy" @click="onAnalyze">AI 分析</n-button>
-              <n-button v-if="aiBusy" size="tiny" type="warning" @click="onCancelAnalyze">停止分析</n-button>
-              <n-button v-if="aiReportPath" size="tiny" @click="openTarget(aiReportPath)">打开分析报告</n-button>
+              <span class="packet-meta" style="color:#0B76BE">出报告请看右边「喂给 AI」页签</span>
               <n-button size="tiny" @click="openTarget(packet.workDir)">打开输出目录</n-button>
               <span class="packet-meta">
                 网格图 {{ packet.grids.length }} 张
@@ -276,16 +300,92 @@
         </div>
 
         <div v-show="tab === 'split'" class="split-wrap">
-          <div v-if="!split" class="empty-line">这一场还没有拆解过</div>
-          <template v-else>
-            <div class="split-head">
+          <!-- ============ 三步走：放素材 → 出报告 → 拿报告 ============ -->
+
+          <!-- 1 放素材 -->
+          <div style="display:flex; gap:12px; margin-bottom:12px">
+            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:#0B76BE; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">1</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">放素材</div>
+              <div :style="{ border: '2px dashed ' + (!input ? '#c9d3de' : (pickedBad ? '#f87171' : '#4ade80')), background: !input ? '#fafbfc' : (pickedBad ? '#fef2f2' : '#f0fdf4'), borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }">
+                <div v-if="!input" style="font-size:14px; color:#1f2328; font-weight:600">
+                  把录像 或 拆解素材包.md 拖到这里
+                </div>
+                <div v-else style="font-size:14px; font-weight:700; color:#1f2328; word-break:break-all">
+                  {{ pickedBad ? '⚠️ ' : '✅ ' }}{{ pickedName }}
+                </div>
+                <div style="font-size:12px; color:#6b7280; margin-top:6px; line-height:1.6">
+                  <template v-if="!input">也可以点「选视频文件」，或者在左边列表里选一场</template>
+                  <template v-else-if="pickedBad">读不出内容 —— 请拖录像文件，或者「拆解素材包.md」</template>
+                  <template v-else>{{ pickedMeta }}</template>
+                </div>
+              </div>
+              <div v-if="input" style="margin-top:6px"><button class="link-btn" @click="pickedReset">换一个</button></div>
+            </div>
+          </div>
+
+          <!-- 2 出报告 -->
+          <div style="display:flex; gap:12px; margin-bottom:12px">
+            <div class="num" :style="{ flex:'0 0 22px', height:'22px', borderRadius:'50%', background: split ? '#0B76BE' : '#c9d3de', color:'#fff', fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }">2</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">出报告</div>
+              <n-button
+                block
+                size="large"
+                :type="aiReportPath && !aiBusy ? 'success' : 'primary'"
+                :loading="aiBusy"
+                :disabled="!split"
+                @click="aiReportPath && !aiBusy ? openTarget(aiReportPath) : onAnalyze()"
+              >
+                {{ aiBusy ? '正在出报告…' : (aiReportPath ? '查看报告' : '一键出报告') }}
+              </n-button>
+              <div style="font-size:12px; color:#6b7280; margin-top:6px; line-height:1.6">
+                <template v-if="!split">把素材放进上面，这个按钮就亮了。分几段、怎么合并都是自动的，不用你管。</template>
+                <template v-else-if="aiReportPath">这一场的报告已经生成过，点一下就能看。</template>
+                <template v-else>点一下就行：整包约 {{ split.totalTokens }} 字，自动跑完再合并。以前拆过的也能直接出报告。</template>
+              </div>
+            </div>
+          </div>
+
+          <!-- 跑的时候：进度 -->
+          <div v-if="aiBusy" style="display:flex; gap:12px; margin-bottom:12px">
+            <div class="num">…</div>
+            <div style="flex:1; min-width:0">
+              <div style="height:8px; background:#eef0f3; border-radius:4px; overflow:hidden">
+                <div :style="{ width: aiPercent + '%', height: '100%', background: 'linear-gradient(90deg,#0B76BE,#00C2D1)', transition: 'width .4s' }"></div>
+              </div>
+              <div style="font-size:13px; color:#1f2328; margin-top:6px">
+                {{ aiStage }}　·　已用 {{ aiElapsedText }}<template v-if="aiEtaText">　·　预计还需 {{ aiEtaText }}</template>
+              </div>
+              <div v-for="(h, i) in aiHistory" :key="i" style="font-size:12px; color:#10b981; margin-top:4px">✅ {{ h }}</div>
+              <n-button size="tiny" type="warning" style="margin-top:8px" @click="onCancelAnalyze">停止分析</n-button>
+              <div style="font-size:11px; color:#9aa1ab; margin-top:6px">中途停了也不白跑：已经跑完的那几段会留在报告里。</div>
+            </div>
+          </div>
+
+          <!-- 3 拿报告 -->
+          <div v-if="!aiBusy && aiReportPath" style="display:flex; gap:12px; margin-bottom:12px">
+            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:#10b981; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">3</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:14px; font-weight:700; color:#10b981; margin-bottom:6px">报告好了</div>
+              <div style="display:flex; gap:8px">
+                <n-button size="small" type="primary" @click="openTarget(aiReportPath)">打开报告</n-button>
+                <n-button size="small" @click="openTarget(packet.workDir)">打开文件夹</n-button>
+              </div>
+              <div style="font-size:11px; color:#9aa1ab; margin-top:6px; word-break:break-all">{{ aiReportPath }}</div>
+            </div>
+          </div>
+
+          <!-- 高级：运营平时不用碰，默认收起 -->
+          <details v-if="split" style="border-top:1px solid #e6e8ec; padding-top:8px; margin-top:4px">
+            <summary style="font-size:12px; color:#9aa1ab; cursor:pointer">高级（分片明细 / 导出分片 / 单份复制）</summary>
+            <div class="split-head" style="margin-top:10px">
               <span :class="['split-badge', split.split ? 'warn' : 'ok']">
                 {{ split.split ? `已切成 ${split.parts.length} 份` : '未超预算' }}
               </span>
               <span class="split-note">{{ split.note }}</span>
               <n-button size="tiny" :disabled="!split.split" @click="onExportParts">导出分片</n-button>
             </div>
-
             <div v-if="split.split" class="part-list">
               <div
                 v-for="p in split.parts"
@@ -299,12 +399,8 @@
                 <button class="link-btn" @click.stop="onCopyPart(p)">复制</button>
               </div>
             </div>
-
             <pre v-if="split.split" class="packet">{{ previewPart }}</pre>
-            <div v-else class="empty-line">
-              这场没超预算，直接把素材包整份发给 AI 就行。
-            </div>
-          </template>
+          </details>
         </div>
 
         <div v-show="tab === 'compare'" class="split-wrap">
@@ -382,6 +478,33 @@ const logEl = ref<HTMLElement | null>(null)
 const selectedPart = ref(1)
 const dragging = ref(false)
 
+/**
+ * 对比那两栏也能直接指定一个素材包文件。
+ * 为什么需要：拖进来的素材包不在录像列表里，下拉里根本找不到它。
+ */
+async function pickCompare(which: 'A' | 'B'): Promise<void> {
+  const p = await api().teardownBrowse('file')
+  if (!p) return
+  if (which === 'A') compareA.value = p
+  else compareB.value = p
+}
+
+// ---- 顶部「已放入」横条：一眼看到现在放的是什么 ----
+const pickedName = computed(() => (td.input || '').split(/[\\/]/).pop() || '')
+const pickedBad = computed(() => !!td.input && !packet.value)
+const pickedMeta = computed(() => {
+  if (!td.input) return ''
+  if (!packet.value) return '读不出内容 —— 选录像文件，或者把「拆解素材包.md」拖进来'
+  const parts = [`${packet.value.content.length.toLocaleString()} 字`]
+  if (split.value) parts.push(`约 ${split.value.totalTokens} token`)
+  if (aiReportPath.value) parts.push('已有报告')
+  return parts.join(' · ')
+})
+function pickedReset() {
+  td.input = ''
+  aiReportPath.value = ''
+}
+
 // ---- 环境自检（装到新电脑上先看这个）----
 const env = ref<any>({ ok: true, items: [], checkedAt: 0 })
 const envBusy = ref(false)
@@ -428,16 +551,54 @@ const limitInput = ref(td.contextLimit)
 const aiBusy = ref(false)
 const aiStage = ref('')
 const aiReportPath = ref('')
+// 进度：第几段/共几段 + 已用时间 + 预估剩余 + 每段完成的记录
+const aiPartDone = ref(0)
+const aiPartTotal = ref(0)
+const aiHistory = ref<string[]>([])
+const aiStartAt = ref(0)
+const aiNow = ref(Date.now())
+let aiTimer: ReturnType<typeof setInterval> | null = null
+function startAiTimer(): void {
+  stopAiTimer()
+  aiStartAt.value = Date.now()
+  aiNow.value = Date.now()
+  aiTimer = setInterval(() => { aiNow.value = Date.now() }, 1000)
+}
+function stopAiTimer(): void {
+  if (aiTimer) { clearInterval(aiTimer); aiTimer = null }
+}
+const aiPercent = computed(() => {
+  if (!aiPartTotal.value) return aiBusy.value ? 5 : 0
+  return Math.min(99, Math.round((aiPartDone.value / aiPartTotal.value) * 100))
+})
+const aiElapsedText = computed(() => {
+  if (!aiStartAt.value) return '0 秒'
+  const sec = Math.max(0, Math.round((aiNow.value - aiStartAt.value) / 1000))
+  return sec < 60 ? sec + ' 秒' : Math.floor(sec / 60) + ' 分钟'
+})
+const aiEtaText = computed(() => {
+  if (!aiStartAt.value || !aiPartDone.value || !aiPartTotal.value) return ''
+  const per = (aiNow.value - aiStartAt.value) / aiPartDone.value
+  const left = per * (aiPartTotal.value - aiPartDone.value)
+  if (left <= 0) return ''
+  return left < 60000 ? '不到 1 分钟' : Math.ceil(left / 60000) + ' 分钟'
+})
+const packetChars = computed(() => (packet.value?.content || '').length)
 const api = () => (window as any).electronAPI
 
 async function onAnalyze() {
   if (!input.value) { message.warning('先选一个录制'); return }
   aiBusy.value = true
+  aiHistory.value = []
+  aiPartDone.value = 0
+  aiPartTotal.value = split.value?.parts?.length || 1
+  startAiTimer()
   aiStage.value = '准备中…'
   try {
     const res = await api().aiAnalyze(input.value)
     if (res && res.ok) {
       aiReportPath.value = res.reportPath || ''
+      aiPartDone.value = aiPartTotal.value
       aiStage.value = res.note || '完成'
       message.success('AI 分析完成：' + (res.note || ''))
     } else {
@@ -449,6 +610,7 @@ async function onAnalyze() {
     message.error('分析失败: ' + (ex?.message || ex))
   } finally {
     aiBusy.value = false
+    stopAiTimer()
   }
 }
 
@@ -735,11 +897,39 @@ watch(() => td.contextLimit, (v) => { limitInput.value = v })
 // 换模型会影响「内存够不够 / 模型下没下」，顺手重查一次
 watch(() => td.model, () => { recheckEnv() })
 
+/**
+ * 换了一场就看看这一场有没有已经生成过的报告（以前拆过的也能直接看/直接再跑）。
+ * 有报告的话上面那个大按钮会变成「查看报告」。这里不需要新的 IPC：
+ * 读得到报告内容就说明文件在，路径用 packet.workDir 拼出来。
+ */
+watch(() => packet.value?.workDir, async (wd) => {
+  const v = td.input
+  if (!v) { aiReportPath.value = ''; return }
+  if (!wd) return
+  try {
+    const text = await api().aiReadReport(v)
+    aiReportPath.value = text ? wd + '\\AI分析报告.md' : ''
+  } catch { /* 读不到就当没报告 */ }
+}, { immediate: true })
+
 onMounted(async () => {
   td.setupListeners()
   // 每次进页面先清掉旧的（否则来回切页会越叠越多）
   api().removeAiListeners()
-  api().onAiProgress((p: any) => { if (p && p.stage) aiStage.value = p.stage })
+  // 进度：字数 / 第几段 / 每段完成的记录，都从这里来
+  api().onAiProgress((p: any) => {
+    if (!p) return
+    if (p.total) aiPartTotal.value = Number(p.total) || aiPartTotal.value
+    if (p.stage) aiStage.value = p.stage
+    // 「第 N 段完成」这类事件：进度条往前走一格，并记一行到下面
+    if (typeof p.part === 'number' && p.part > 0 && /完成/.test(String(p.stage || ''))) {
+      if (p.part > aiPartDone.value) {
+        aiPartDone.value = p.part
+        const total = Number(p.total) || 0
+        aiHistory.value = [...aiHistory.value, total ? `第 ${p.part}/${total} 段完成` : `第 ${p.part} 段完成`]
+      }
+    }
+  })
   // 下载进度监听器同样先去重再注册
   api().removePrefetchListeners()
   api().onPrefetchProgress(onPrefetch)

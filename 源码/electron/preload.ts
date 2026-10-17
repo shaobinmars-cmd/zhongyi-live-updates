@@ -35,6 +35,11 @@ const api = {
   incubateExportCsv: () => invoke('incubate:export-csv'),
   incubateExportXlsx: () => invoke('incubate:export-xlsx'),
   incubateBrowseDir: () => invoke('incubate:browse-dir'),
+  incubatePickReport: () => invoke('incubate:pick-report'),
+  incubateImportText: (text: string, name: string) => invoke('incubate:import-text', text, name),
+  incubateGeneratePlan: (opts: any) => invoke('incubate:generate-plan', opts),
+  incubatePlan: (streamer: string) => invoke('incubate:plan', streamer),
+  incubateFeedbackSave: (row: any) => invoke('incubate:feedback-save', row),
   incubateOpenDataDir: () => invoke('incubate:open-data-dir'),
 
   // Room
