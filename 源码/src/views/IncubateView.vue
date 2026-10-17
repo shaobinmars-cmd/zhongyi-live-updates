@@ -17,6 +17,7 @@
             <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
             <div class="plan-import-row">
               <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选主播（可打字搜）" style="width: 220px" @update:value="onPlanStreamer" />
+              <n-button type="primary" ghost @click="showImport = true">+ 添加主播</n-button>
               <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
               <n-input v-model:value="planStart" placeholder="开始日期 2026-10-17" style="width: 160px" />
               <n-button type="primary" :loading="planBusy" @click="importAndGenerate">导入报告并生成 60 天计划</n-button>
@@ -135,7 +136,7 @@
         </div>
 
         <div v-if="streamerNames.length === 0" class="empty">
-          还没有主播 —— 点上面的「批量粘贴名单」，一行一个把主播加进来（也可以写 <code>主播名,运营名</code> 指定带教）。
+          还没有主播 —— 点最上面的「+ 添加主播」，一行一个把主播加进来（也可以写 <code>主播名,运营名</code> 指定带教）。
         </div>
         <div v-else-if="!current" class="empty">先选一个主播 —— 30 个主播用上面的搜索框，打两个字就能定位；也可以 ↑↓ 直接翻。</div>
 
