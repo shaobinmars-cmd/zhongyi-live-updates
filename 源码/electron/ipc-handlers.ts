@@ -830,9 +830,9 @@ ipcMain.handle('incubate:import-text', async (_e, text: string, name: string) =>
 ipcMain.handle('incubate:generate-plan', async (_e, opts: any) => incubatePlan.generateTrainingPlan(opts || {}))
 ipcMain.handle('incubate:plan', async (_e, streamer: string) => incubatePlan.getPlan(streamer))
 ipcMain.handle('incubate:feedback-save', async (_e, row: any) => incubatePlan.saveFeedback(row || {}))
-ipcMain.handle('update:check', async (_e, url: string) => updater.checkUrl(url))
-ipcMain.handle('update:download', async (e, m: any) => updater.downloadManifest(m || {}, (p: number) => e.sender.send('update:on-progress', p)))
-ipcMain.handle('update:install', async (_e, file: string) => updater.install(file))
+ipcMain.handle('update:check-url', async (_e, url: string) => updater.checkUrl(url))
+ipcMain.handle('update:download-manifest', async (e, m: any) => updater.downloadManifest(m || {}, (p: number) => e.sender.send('update:on-progress', p)))
+ipcMain.handle('update:install-file', async (_e, file: string) => updater.install(file))
 ipcMain.handle('incubate:export-csv', async () => {
   const r = mainWindow
     ? await dialog.showOpenDialog(mainWindow, { title: '选导出目录', properties: ['openDirectory', 'createDirectory'] })
