@@ -230,6 +230,20 @@
     </div>
 
     <!-- 数据汇总 + 一键升级（局域网） -->
+    <!-- 图片分析（可选） -->
+    <div class="form-group" style="margin-top: 18px">
+      <h3 class="section-title">图片分析（可选，通义千问）</h3>
+      <div class="form-hint" style="margin: 6px 0 10px">填了才会把每场 4 张关键帧发给视觉模型，结果自动并进同一份报告；不填只分析文字。</div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+        <n-input v-model:value="vis.baseUrl" size="small" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+        <n-input v-model:value="vis.apiKey" size="small" placeholder="千问 API Key（sk-…）" />
+        <n-input v-model:value="vis.model" size="small" placeholder="qwen-vl-plus" style="width: 160px" />
+        <n-input-number v-model:value="vis.maxImages" size="small" :min="0" :max="8" style="width: 100px" />
+        <n-button size="small" type="primary" @click="saveVision">保存图片模型</n-button>
+      </div>
+      <div v-if="visMsg" class="form-hint">{{ visMsg }}</div>
+    </div>
+
     <!-- 联网更新（公网，跨路由/外场地） -->
     <div class="form-group" style="margin-top: 18px">
       <h3 class="section-title">联网更新（公网，跨路由/外场地可用）</h3>
@@ -336,7 +350,23 @@ const cliMsg = ref('')
 const sending = ref(false)
 const checking = ref(false)
 const upgrading = ref(false)
-const updUrl = ref(localStorage.getItem('upd_url') || 'https://gitee.com/BATULU861/zhongyi-live-updates/releases/download/v2.7.9/latest.json')
+const vis = ref<any>({ baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', apiKey: '', model: 'qwen-vl-plus', maxImages: 4 })
+const visMsg = ref('')
+async function loadVision() {
+  try {
+    const c = await (window as any).electronAPI.aiConfigGet()
+    vis.value = { baseUrl: c.visionBaseUrl || vis.value.baseUrl, apiKey: c.visionApiKey || '', model: c.visionModel || 'qwen-vl-plus', maxImages: Number(c.visionMaxImages) || 4 }
+  } catch { /* ignore */ }
+}
+async function saveVision() {
+  try {
+    await (window as any).electronAPI.aiConfigSet({ visionBaseUrl: String(vis.value.baseUrl || '').trim(), visionApiKey: String(vis.value.apiKey || '').trim(), visionModel: String(vis.value.model || '').trim(), visionMaxImages: Number(vis.value.maxImages) || 4 })
+    visMsg.value = '已保存'
+  } catch (e: any) { visMsg.value = '保存失败：' + (e?.message || e) }
+}
+loadVision()
+
+const updUrl = ref(localStorage.getItem('upd_url') || 'https://cdn.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json')
 const updMsg = ref('')
 const updInfo = ref<any>(null)
 const updChecking = ref(false)

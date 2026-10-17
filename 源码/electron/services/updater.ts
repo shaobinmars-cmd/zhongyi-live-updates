@@ -53,23 +53,40 @@ export async function checkUrl(url: string): Promise<any> {
   }
 }
 
+/** 国内访问 GitHub 经常超时：内置三个加速前缀，直连失败就自动换 */
+const GITHUB_PROXIES = ['https://ghfast.top/', 'https://ghproxy.net/', 'https://gh-proxy.com/']
+function proxied(url: string, i: number): string {
+  if (!/github\.com|githubusercontent\.com/i.test(url)) return url
+  return GITHUB_PROXIES[i] + url
+}
+
 async function downloadTo(url: string, file: string, offset: number, total: number, onPct?: (p: number) => void): Promise<number> {
-  const res = await axios.get(url, { responseType: 'stream', timeout: 0, maxContentLength: 500 * 1024 * 1024, maxBodyLength: Infinity })
-  const len = Number(res.headers['content-length'] || 0) || 0
-  const all = total || len || 0
-  let got = 0
-  await new Promise<void>((resolve, reject) => {
-    const ws = fs.createWriteStream(file, { flags: 'a' })
-    res.data.on('data', (c: Buffer) => {
-      got += c.length
-      if (all) onPct?.(Math.min(99, Math.round((offset + got) / all * 100)))
-    })
-    res.data.on('error', reject)
-    ws.on('error', reject)
-    ws.on('finish', () => resolve())
-    res.data.pipe(ws)
-  })
-  return got
+  let lastErr: any = null
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const target = attempt === 0 ? url : proxied(url, attempt - 1)
+    try {
+      const res = await axios.get(target, { responseType: 'stream', timeout: 0, maxContentLength: 500 * 1024 * 1024, maxBodyLength: Infinity })
+      const len = Number(res.headers['content-length'] || 0) || 0
+      const all = total || len || 0
+      let got = 0
+      await new Promise<void>((resolve, reject) => {
+        const ws = fs.createWriteStream(file, { flags: 'a' })
+        res.data.on('data', (c: Buffer) => {
+          got += c.length
+          if (all) onPct?.(Math.min(99, Math.round((offset + got) / all * 100)))
+        })
+        res.data.on('error', reject)
+        ws.on('error', reject)
+        ws.on('finish', () => resolve())
+        res.data.pipe(ws)
+      })
+      return got
+    } catch (ex) {
+      lastErr = ex
+      try { fs.unlinkSync(file) } catch { /* ignore */ }
+    }
+  }
+  throw lastErr || new Error('下载失败')
 }
 
 export async function downloadManifest(m: Manifest, onPct?: (p: number) => void): Promise<any> {
