@@ -1,7 +1,7 @@
 {
-    "notes":  "AI 执行动作表 + 图片分析 + 断点续拆 + 弹幕掉登录修复",
-    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.6/zhongyi-setup-2.8.6.exe",
-    "version":  "2.8.6",
-    "size":  292294545,
-    "sha256":  "07d60a739ca62ec73d7515337e1c5d9cd4efc44f8a3b8cd2fc28a587d50f7779"
+    "notes":  "修复更新通道重名导致的启动失败（打不开）",
+    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.7/zhongyi-setup-2.8.7.exe",
+    "version":  "2.8.7",
+    "size":  292294483,
+    "sha256":  "e4c2e4b299fa0d93ec0c45c4f41dd6f3d28384887067d35641302683c226f955"
 }
