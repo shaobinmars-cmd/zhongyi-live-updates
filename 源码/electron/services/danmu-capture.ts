@@ -31,8 +31,9 @@ const MAX_FRAME_BYTES = 4 * 1024 * 1024
  * 第一次只用 90 秒：真掉线时运营不用干等；每刷一次失败就退避一倍，上限 6 分钟。
  * 这样「房间本来就没开播」也不会 90 秒刷一次页面。
  */
-const IDLE_RELOAD_BASE_MS = 90 * 1000
-const IDLE_RELOAD_MAX_MS = 6 * 60 * 1000
+// 以前 90 秒就开始刷新，抖音会把上一次会话挤下线（提示“别处登录”）。现在最少 15 分钟、最多 1 小时。
+const IDLE_RELOAD_BASE_MS = 15 * 60 * 1000
+const IDLE_RELOAD_MAX_MS = 60 * 60 * 1000
 
 /** 看门狗检查间隔（只是比时间戳，20 秒一跳，掉线发现得更早） */
 const WATCHDOG_INTERVAL_MS = 20 * 1000
@@ -443,8 +444,16 @@ export class RoomTap {
         return
       }
       if (this.ready && Date.now() - this.lastFrameAt > this.idleWaitMs) {
-        logger.warn(LOG_MODULE, `超过 ${Math.round(this.idleWaitMs / 1000)} 秒没收到弹幕帧，刷新弹幕窗口 房间=${this.roomId}`)
-        this.reload('长时间无数据')
+        // 未登录时刷新毫无意义，反而会制造新会话把账号挤下线
+        douyinLoginState().then((s) => {
+          if (this.disposed) return
+          if (!s.loggedIn) {
+            this.handlers.onStatus('长时间无弹幕：当前未登录抖音，不自动刷新（避免把账号挤下线）')
+            return
+          }
+          logger.warn(LOG_MODULE, `超过 ${Math.round(this.idleWaitMs / 1000)} 秒没收到弹幕帧，刷新弹幕窗口 房间=${this.roomId}`)
+          this.reload('长时间无数据')
+        }).catch(() => { /* ignore */ })
       }
       // 长时间没数据时顺便看看是不是抖音登录掉了（未登录的话再怎么刷也收不到）
       if (this.ready && Date.now() - this.lastRealFrameAt > 10 * 60 * 1000) {
