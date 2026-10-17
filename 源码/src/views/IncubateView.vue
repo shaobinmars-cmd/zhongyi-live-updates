@@ -3,13 +3,12 @@
     <div class="inc-header">
       <div>
         <h2 class="inc-title">孵化</h2>
-        <div class="inc-subtitle">导入 AI 拆解报告 → 自动生成 60 天培训计划 → 每天填一次孵化反馈。「主播」页仍可打五个分。</div>
+        <div class="inc-subtitle">导入 AI 拆解报告 → 自动生成 60 天培训计划 → 每天填一次孵化反馈；页面下方可打五个分。</div>
       </div>
       <n-button size="small" @click="store.openDataDir()">打开数据目录</n-button>
     </div>
 
     <n-tabs v-model:value="tab" type="line" animated>
-      <!-- ① 主播 -->
       <!-- ⓪ 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈（运营主入口） -->
       <n-tab-pane name="plan" tab="主播跟踪">
         <div class="plan-wrap">
