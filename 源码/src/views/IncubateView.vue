@@ -17,6 +17,7 @@
             <div class="plan-import-row">
               <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选主播（可打字搜）" style="width: 220px" @update:value="onPlanStreamer" />
               <n-button type="primary" ghost @click="showImport = true">+ 添加主播</n-button>
+              <n-input v-model:value="opFilter" placeholder="运营名字（带教）" style="width: 150px" @update:value="onOperatorName" />
               <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
               <n-input v-model:value="planStart" placeholder="开始日期 2026-10-17" style="width: 160px" />
               <n-button type="primary" :loading="planBusy" @click="importAndGenerate">导入报告并生成 60 天计划</n-button>
@@ -588,6 +589,11 @@ const needAttention = computed(() => {
 
 function saveOpFilter() {
   localStorage.setItem('inc_operator', opFilter.value.trim())
+}
+function onOperatorName(v: string) {
+  opFilter.value = v
+  saveOpFilter()
+  fb.value['运营'] = v
 }
 function saveOnlyMine() {
   localStorage.setItem('inc_only_mine', onlyMine.value ? '1' : '0')
