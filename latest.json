@@ -1,7 +1,7 @@
 {
-    "notes":  "孵化三页签、主播档案、导入报告、断点续拆、公网自动更新",
-    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.2/zhongyi-setup-2.8.2.exe",
-    "version":  "2.8.2",
-    "size":  292292550,
-    "sha256":  "93f29b5c0bfade1f0014547e55b5e157997207e2a286ac20408f0d8df0fea10d"
+    "notes":  "图片分析（千问）+ 素材包 8 块提示词 + 断点续拆 + 国内加速更新",
+    "url":  "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.8.3/zhongyi-setup-2.8.3.exe",
+    "version":  "2.8.3",
+    "size":  292294100,
+    "sha256":  "96da36b65af35a0acf36e56343dcce71e75a66d6a1e4ef97a297fad34c780820"
 }
