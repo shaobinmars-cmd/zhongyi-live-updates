@@ -451,7 +451,8 @@ const airOptions: SelectOption[] = [
   { label: '正常开播', value: '是' }, { label: '未正常开播', value: '否' }, { label: '待定', value: '待定' }
 ]
 const willOptions: SelectOption[] = [
-  { label: '积极配合', value: '高' }, { label: '一般', value: '中' }, { label: '不配合', value: '低' }
+  { label: '① 极配合', value: '极配合' }, { label: '② 配合', value: '配合' },
+  { label: '③ 一般', value: '一般' }, { label: '④ 消极', value: '消极' }, { label: '⑤ 不配合', value: '不配合' }
 ]
 const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 是否正常开播: '', 配合意愿: '' })
 const profileBusy = ref(false)
@@ -1015,6 +1016,11 @@ onUnmounted(() => {
 .plan-table-title { font-weight: 700; font-size: 13px; margin-top: 4px; }
 .plan-filter { margin-bottom: 6px; }
 .plan-empty { margin: 36px auto; color: #6b7280; font-size: 13px; text-align: center; }
+/* 今天该盯：红色重点条 */
+.watch { background: #fff1f0; border: 1px solid #ffa39e; border-radius: 12px; padding: 10px 14px; }
+.watch-title { color: #cf1322; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.watch-item { cursor: pointer; }
+.watch-item:hover { background: #ffe7e6; }
 .track-daily { border-top: 1px dashed #e5e7eb; margin-top: 16px; padding-top: 16px; }
 .sec-title { font-size: 15px; font-weight: 700; color: #1f2328; margin-bottom: 10px; }
 /* 表格字大一点、行高一点，不费眼 */
