@@ -1,6 +1,6 @@
 # 众艺传媒运营工具
 
-> 当前基线：**2.9.9**
+> 当前版本：**2.9.10**（长期基线与对照标签仍为 `baseline-2.9.9`）
 > 项目根目录：`H:\众艺传媒运营工具`
 
 众艺传媒自用的直播运营工作台，覆盖直播监看、录制、弹幕与礼物记录、视频拆解、AI 复盘、双场对比、主播孵化和运营数据汇总。
@@ -39,6 +39,8 @@ cmd /c "cd /d H:\众艺传媒运营工具\源码 && set ELECTRON_NO_ASAR=1 && no
 构建、打包和完整验收命令见 [项目基线与迭代入口.md](./项目基线与迭代入口.md)。
 
 ## 下载与更新
+
+> 当前 GitHub 线上稳定版仍是 **2.9.9**；本地已构建 **2.9.10**，尚未上传外网。2.9.10 安装包在 `安装包` 目录。
 
 - 2.9.9 安装版（国内首选，已实测）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
 - 备用通道 1：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>

@@ -20,6 +20,25 @@ const LOG_MODULE = 'DanmuPacket'
 const MAX_CHAT_LINES = 600
 /** 礼物明细最多写多少条 */
 const MAX_GIFT_LINES = 400
+/** 弹幕—主播回应对照最多写多少组 */
+const MAX_REPLY_PAIRS = 220
+const REPLY_MATCH_SECONDS = 20
+
+export interface TranscriptSegment {
+  t_ms: number
+  end_ms: number
+  t_label?: string
+  text: string
+}
+
+export interface ReplyPair {
+  chatAt: number
+  replyAt: number
+  firstDelay: number
+  lastDelay: number
+  chats: string[]
+  reply: string
+}
 
 interface RecMeta {
   roomId: string
@@ -69,7 +88,89 @@ function localFull(ts: string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-function buildSection(rows: DanmuRow[], meta: RecMeta, durationSec: number): string {
+function utcMs(ts: string): number {
+  return Date.parse(String(ts || '').replace(' ', 'T') + 'Z')
+}
+
+function offsetSeconds(startedAtUtc: string, ts: string): number {
+  const a = utcMs(startedAtUtc)
+  const b = utcMs(ts)
+  return Number.isFinite(a) && Number.isFinite(b) ? (b - a) / 1000 : -1
+}
+
+function localClock(ts: string): string {
+  const s = localFull(ts)
+  return s.length >= 19 ? s.slice(11, 19) : s
+}
+
+function clockAtOffset(startedAtUtc: string, sec: number): string {
+  return localClock(addSeconds(startedAtUtc, sec))
+}
+
+function mdCell(s: string): string {
+  return String(s || '').replace(/\r?\n/g, ' ').replace(/\|/g, '/').trim()
+}
+
+function readTranscript(workDir: string): TranscriptSegment[] {
+  try {
+    const p = path.join(workDir, 'transcript.json')
+    if (!fs.existsSync(p)) return []
+    const data = JSON.parse(fs.readFileSync(p, 'utf-8'))
+    return (Array.isArray(data?.segments) ? data.segments : [])
+      .map((s: any) => ({ t_ms: Number(s?.t_ms) || 0, end_ms: Number(s?.end_ms) || Number(s?.t_ms) || 0, t_label: String(s?.t_label || ''), text: String(s?.text || '').trim() }))
+      .filter((s: TranscriptSegment) => s.text && Number.isFinite(s.t_ms) && s.t_ms >= 0)
+  } catch {
+    return []
+  }
+}
+
+/** 把每条弹幕配到随后 20 秒内最早开始的那段主播原话；同一段回复聚合成一组。 */
+export function pairChatReplies(
+  chats: DanmuRow[],
+  segments: TranscriptSegment[],
+  startedAtUtc: string,
+  maxDelaySec = REPLY_MATCH_SECONDS
+): ReplyPair[] {
+  const segs = segments.slice().filter((s) => s.text).sort((a, b) => a.t_ms - b.t_ms)
+  if (!segs.length) return []
+  const groups = new Map<number, { seg: TranscriptSegment; chats: string[]; chatAt: number; first: number; last: number }>()
+  for (const chat of chats) {
+    const sec = offsetSeconds(startedAtUtc, chat.time)
+    if (sec < 0) continue
+    const ms = sec * 1000
+    let idx = -1
+    for (let i = 0; i < segs.length; i++) {
+      const s = segs[i]
+      if (s.t_ms < ms - 1500) continue
+      if (s.t_ms > ms + maxDelaySec * 1000) break
+      if (s.end_ms + 500 < ms) continue
+      idx = i
+      break
+    }
+    if (idx < 0) continue
+    const delay = Math.max(0, (segs[idx].t_ms - ms) / 1000)
+    const text = `${chat.userName || '观众'}：${chat.content}`.trim()
+    const g = groups.get(idx) || { seg: segs[idx], chats: [], chatAt: sec, first: delay, last: delay }
+    if (g.chats.length < 8) g.chats.push(text)
+    g.chatAt = Math.min(g.chatAt, sec)
+    g.first = Math.min(g.first, delay)
+    g.last = Math.max(g.last, delay)
+    groups.set(idx, g)
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.seg.t_ms - b.seg.t_ms)
+    .slice(0, MAX_REPLY_PAIRS)
+    .map((g) => ({
+      chatAt: g.chatAt,
+      replyAt: g.seg.t_ms / 1000,
+      firstDelay: g.first,
+      lastDelay: g.last,
+      chats: g.chats,
+      reply: g.seg.text
+    }))
+}
+
+function buildSection(rows: DanmuRow[], meta: RecMeta, durationSec: number, transcript: TranscriptSegment[] = []): string {
   const chats = rows.filter((r) => r.type === 'Chat' && r.content)
   const gifts = rows.filter((r) => r.type === 'Gift')
   const members = rows.filter((r) => r.type === 'Member')
@@ -121,7 +222,7 @@ function buildSection(rows: DanmuRow[], meta: RecMeta, durationSec: number): str
   // 这行是给「双场对比」用的：对比要按「相对开播的偏移」对齐，
   // 而下面是墙钟时间（12:28 这种），没这行就算不出偏移。
   L.push(`- 起点：${localFull(meta.startedAtUtc)}（下面所有时间都以本机时间为准）`)
-  L.push('- 用法：把「弹幕密度高的分钟」和上面的逐句话术稿对照，就是「哪句话/哪个动作把场子带起来了」')
+  L.push('- 用法：先看下方「弹幕—主播回应对照」，分析主播接话方式；再用互动密度判断哪句话、哪个动作把场子带起来了')
   L.push('')
   if (giftAgg.size) {
     L.push('### 礼物汇总（按礼物名称）')
@@ -154,6 +255,26 @@ function buildSection(rows: DanmuRow[], meta: RecMeta, durationSec: number): str
   L.push('')
 
   if (gifts.length) {
+    if (transcript.length && chats.length) {
+      const pairs = pairChatReplies(chats, transcript, meta.startedAtUtc)
+      L.push('### 弹幕—主播回应对照（自动时间对齐）')
+      L.push('')
+      L.push(`- 匹配规则：弹幕发出后 ${REPLY_MATCH_SECONDS} 秒内，主播最早开始的一段话；同一段话前的多条弹幕会合并成一组。`)
+      L.push(`- 本场识别到 ${pairs.length} 组可分析对答。自动对齐可能有少量误差，AI 需结合前后文判断，不能把每条都当成严格一问一答。`)
+      L.push('')
+      if (pairs.length) {
+        L.push('| 弹幕时间 | 观众弹幕 | 主播回复 | 回复时间 | 延迟 |')
+        L.push('|---|---|---|---|---|')
+        for (const p of pairs) {
+          const delay = p.lastDelay > p.firstDelay + 0.2 ? `${p.firstDelay.toFixed(1)}–${p.lastDelay.toFixed(1)} 秒` : `${p.firstDelay.toFixed(1)} 秒`
+          L.push(`| ${clockAtOffset(meta.startedAtUtc, p.chatAt)} | ${mdCell(p.chats.join(' / '))} | ${mdCell(p.reply).slice(0, 260)} | ${clockAtOffset(meta.startedAtUtc, p.replyAt)} | ${delay} |`)
+        }
+      } else {
+        L.push('- 本场有弹幕和转写，但没有找到符合时间窗口的稳定对答。')
+      }
+      L.push('')
+    }
+
     L.push('### 礼物明细')
     L.push('')
     for (const g of gifts.slice(0, MAX_GIFT_LINES)) {
@@ -243,7 +364,8 @@ export async function appendDanmuSection(
     return null
   }
 
-  const section = buildSection(rows, meta, durationSec)
+  const transcript = readTranscript(workDir)
+  const section = buildSection(rows, meta, durationSec, transcript)
   fs.appendFileSync(packetPath, section, 'utf-8')
   logger.info(LOG_MODULE, `已把 ${rows.length} 条观众互动并进素材包：${packetPath}`)
   return packetPath

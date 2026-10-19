@@ -27,3 +27,7 @@
 开发记录/备份/
 源码/_dev工具/e2e-out/
 *.log
+
+# Python 本地编译缓存
+__pycache__/
+*.pyc

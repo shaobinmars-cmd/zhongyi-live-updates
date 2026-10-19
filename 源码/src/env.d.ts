@@ -74,6 +74,10 @@ interface Window {
     windowMaximize: () => Promise<void>
     windowClose: () => Promise<void>
     getFilePath: (file: File) => string
+    incubateImportStreamers: (text: string, operator: string, defaultTrack: string) => Promise<any>
+    incubateDepartStreamer: (name: string, date: string) => Promise<any>
+    incubateRestoreStreamer: (name: string) => Promise<any>
+    incubateCustomCourseAdd: (opts: any) => Promise<any>
     envCheck: (model: string) => Promise<any>
   }
 }

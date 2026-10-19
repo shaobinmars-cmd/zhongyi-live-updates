@@ -175,7 +175,7 @@ export async function generateTrainingPlan(opts: {
 
   // 清掉该主播旧的 D 计划（保留其它非 D 开头的课表行）
   const old = (await listRows('课表')).filter(
-    (r) => String(r['主播'] || '').trim() === streamer && /^D\d+$/.test(String(r['日期'] || ''))
+    (r) => String(r['主播'] || '').trim() === streamer && /^D\d+$/.test(String(r['日期'] || '')) && String(r['课程来源'] || '') !== '运营自定义'
   )
   for (const r of old) await deleteRow('课表', Number(r.id))
 
@@ -189,7 +189,7 @@ export async function generateTrainingPlan(opts: {
     const t = dayPlan(d, drills, assets, isRest, isLeave)
     rows.push({
       日期: `D${d}`, 主播: streamer, 资产编号: t.code,
-      今天练什么: t.title, 怎么练: t.how, 验收: t.accept, 打卡: '', 录入人: 'AI计划'
+      今天练什么: t.title, 怎么练: t.how, 验收: t.accept, 打卡: '', 录入人: 'AI计划', 执行日期: dateText, 课程来源: 'AI计划'
     })
   }
   await importRows('课表', rows)
@@ -212,6 +212,47 @@ export async function generateTrainingPlan(opts: {
 
   logger.info(LOG_MODULE, `已生成 60 天计划：${streamer} / ${finalTrack} / 资产 ${assets.length} 条`)
   return { days: 60, track: finalTrack, assets: assets.length, message: `已生成 60 天计划：${streamer} · ${finalTrack}` }
+}
+
+/** 运营给主播追加一节自定义课程；不覆盖 AI 的 60 天计划。 */
+export async function addCustomCourse(opts: {
+  streamer: string
+  date: string
+  title: string
+  how?: string
+  accept?: string
+  operator?: string
+}): Promise<{ ok: boolean; id: number; day: string; date: string }> {
+  const streamer = String(opts.streamer || '').trim()
+  const date = String(opts.date || '').trim() || new Date().toISOString().slice(0, 10)
+  const title = String(opts.title || '').trim()
+  if (!streamer) throw new Error('先选择主播')
+  if (!title) throw new Error('请填写今天要练什么')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('课程日期格式不对')
+  const plan = (await listRows('培训计划')).find((r) => String(r['主播'] || '').trim() === streamer)
+  let day = '自定义'
+  const start = String(plan?.['开始日期'] || '').trim()
+  if (start) {
+    const s = new Date(start + 'T00:00:00')
+    const d = new Date(date + 'T00:00:00')
+    const idx = Math.floor((d.getTime() - s.getTime()) / 86400000) + 1
+    if (idx >= 1 && idx <= 60) day = `D${idx}`
+  }
+  const row: Row = {
+    日期: day,
+    主播: streamer,
+    资产编号: ''
+    ,今天练什么: title
+    ,怎么练: String(opts.how || '').trim()
+    ,验收: String(opts.accept || '').trim()
+    ,打卡: ''
+    ,录入人: String(opts.operator || '').trim() || '运营'
+    ,执行日期: date
+    ,课程来源: '运营自定义'
+  }
+  const res = await addRow('课表', row)
+  logger.info(LOG_MODULE, `新增运营课程：${streamer} / ${date} / ${title}`)
+  return { ok: true, id: res.id, day, date }
 }
 
 export async function listFeedback(streamer: string, limit = 60): Promise<Row[]> {
@@ -251,8 +292,12 @@ export async function getPlan(streamer: string): Promise<any> {
   const plan = (await listRows('培训计划')).find((r) => String(r['主播'] || '').trim() === name) || null
   const roster = (await listRows('主播学籍')).find((r) => String(r['主播'] || '').trim() === name) || null
   const days = (await listRows('课表'))
-    .filter((r) => String(r['主播'] || '').trim() === name && /^D\d+$/.test(String(r['日期'] || '')))
-    .sort((a, b) => Number(String(a['日期']).slice(1)) - Number(String(b['日期']).slice(1)))
+    .filter((r) => String(r['主播'] || '').trim() === name && (/^D\d+$/.test(String(r['日期'] || '')) || String(r['课程来源'] || '') === '运营自定义'))
+    .sort((a, b) => {
+      const na = /^D\d+$/.test(String(a['日期'])) ? Number(String(a['日期']).slice(1)) : 9999
+      const nb = /^D\d+$/.test(String(b['日期'])) ? Number(String(b['日期']).slice(1)) : 9999
+      return na - nb || String(a['执行日期'] || '').localeCompare(String(b['执行日期'] || ''))
+    })
   const feedback = await listFeedback(name, 60)
 
   let dayIndex = 0

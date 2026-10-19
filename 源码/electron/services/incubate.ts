@@ -24,7 +24,7 @@ export const TABLES: Record<string, string[]> = {
   资产库: ['编号', '类型', '内容', '来源场次', '时间戳', '证据等级', '复用次数', '适用主播', '状态', '提交人', '维护人', '录入时间'],
   主播学籍: ['主播', '带教运营', '赛道', '入司日期', '首播日期', '离司日期', '固定休息日', '请假开始日期', '请假结束日期', '请假原因', '是否正常开播', '配合意愿', '路径', '起点_连说3分钟', '起点_有开场收尾', '起点_独立开播', '当前等级', '更新时间'],
   每周数字: ['周次', '主播', '最长空档秒', '每10分钟事件数', '点名次数', '口令道具次数', '收尾完成', '录入人', '录入时间'],
-  课表: ['日期', '主播', '资产编号', '今天练什么', '怎么练', '验收', '打卡', '录入人'],
+  课表: ['日期', '主播', '资产编号', '今天练什么', '怎么练', '验收', '打卡', '录入人', '执行日期', '课程来源'],
   案例库: ['案例名', '日期', '赛道', '证明了什么', '不能证明什么', '证据等级', '提交人', '来源目录'],
   变更日志: ['日期', '谁', '改了什么', '为什么', '影响谁'],
   场次记录: ['日期', '运营', '主播', '赛道', '指标', '数值', '提交时间'],
@@ -32,7 +32,7 @@ export const TABLES: Record<string, string[]> = {
   运营抽查: ['日期', '运营', '主播', '指标', '运营值', '复核值', '误差百分比', '是否合格', '复核人'],
   周复盘: ['周次', '运营', '主持', '回放片段数', '资产更新数', '课表产出', '提交时间'],
   // 运营考核：多存了「主播数 / 应交 / 有效提交 / 等级」，运营自己也能看懂这个分是怎么来的
-  运营考核: ['月份', '运营', '主播数', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
+  运营考核: ['月份', '运营', '主播数', '已离司', '离职率', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
   ,
   // 60 天培训计划：一个主播一行（什么赛道、从哪天开始）
   培训计划: ['主播', '赛道', '开始日期', '固定休息日', '进度', '阶段', '报告来源', '更新时间'],
@@ -374,13 +374,14 @@ export async function seedIfEmpty(): Promise<{ seeded: string[] }> {
 }
 
 // ---------------------------------------------------------------- 主播名册（运营带 30 个主播，靠这个下拉选人）
-export async function importStreamers(text: string, operator: string): Promise<{ added: number; updated: number }> {
+export async function importStreamers(text: string, operator: string, defaultTrack = DEFAULT_TRACK): Promise<{ added: number; updated: number }> {
   const rows = await listRows('主播学籍')
   const byName = new Map<string, any>()
   for (const r of rows) byName.set(String(r['主播'] || '').trim(), r)
 
   let added = 0
   let updated = 0
+  const fallbackTrack = TRACKS[defaultTrack] ? defaultTrack : DEFAULT_TRACK
   const lines = String(text || '').split(/[\r\n;；]+/).map((s) => s.trim()).filter(Boolean)
   for (const line of lines) {
     const parts = line.split(/[,，\t|]+/).map((s) => s.trim()).filter(Boolean)
@@ -396,7 +397,7 @@ export async function importStreamers(text: string, operator: string): Promise<{
       }
       continue
     }
-    const row: any = { 主播: name, 带教运营: op, 赛道: track || DEFAULT_TRACK, 更新时间: new Date().toISOString().slice(0, 10) }
+    const row: any = { 主播: name, 带教运营: op, 赛道: track || fallbackTrack, 更新时间: new Date().toISOString().slice(0, 10) }
     for (const c of TABLES['主播学籍']) if (!(c in row)) row[c] = ''
     const res = await addRow('主播学籍', row)
     byName.set(name, { ...row, id: res.id })   // 同名再出现时走更新，不再重复插入
@@ -404,6 +405,30 @@ export async function importStreamers(text: string, operator: string): Promise<{
   }
   logger.info(LOG_MODULE, `主播名册导入：新增 ${added}、更新 ${updated}`)
   return { added, updated }
+}
+
+/** 标记主播离司：保留姓名和全部历史，用于离职率与历史追溯。 */
+export async function departStreamer(name: string, date = ''): Promise<{ ok: boolean; date: string }> {
+  const who = String(name || '').trim()
+  if (!who) throw new Error('主播名字不能为空')
+  const day = String(date || '').trim() || new Date().toISOString().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('离司日期格式不对')
+  const hit = (await listRows('主播学籍')).find((r) => String(r['主播'] || '').trim() === who)
+  if (!hit) throw new Error('找不到这个主播的学籍')
+  await updateRow('主播学籍', Number(hit.id), { ...hit, 离司日期: day, 更新时间: day })
+  logger.info(LOG_MODULE, `主播标记离司：${who} / ${day}`)
+  return { ok: true, date: day }
+}
+
+/** 恢复在职：保留历史，只清空离司日期。 */
+export async function restoreStreamer(name: string): Promise<{ ok: boolean }> {
+  const who = String(name || '').trim()
+  if (!who) throw new Error('主播名字不能为空')
+  const hit = (await listRows('主播学籍')).find((r) => String(r['主播'] || '').trim() === who)
+  if (!hit) throw new Error('找不到这个主播的学籍')
+  await updateRow('主播学籍', Number(hit.id), { ...hit, 离司日期: '', 更新时间: new Date().toISOString().slice(0, 10) })
+  logger.info(LOG_MODULE, `主播恢复在职：${who}`)
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------- 运营考核（全自动）
@@ -585,12 +610,24 @@ export async function scoreOperators(month?: string): Promise<any[]> {
 
     // 这个运营名下的主播：学籍里的带教关系优先，其次本月提交里出现过的
     const roster = new Set<string>()
+    const activeRoster = new Set<string>()
     for (const s of students) {
       const who = String(s['主播'] || '').trim()
       if (who && String(s['带教运营'] || '').trim() === op) roster.add(who)
+      if (who && String(s['带教运营'] || '').trim() === op && !String(s['离司日期'] || '').trim()) activeRoster.add(who)
     }
     for (const s of mine) { const who = String(s['主播'] || '').trim(); if (who) roster.add(who) }
+    for (const s of mine) {
+      const who = String(s['主播'] || '').trim()
+      if (!who) continue
+      roster.add(who)
+      const person = students.find((r) => String(r['主播'] || '').trim() === who)
+      if (!String(person?.['离司日期'] || '').trim()) activeRoster.add(who)
+    }
     const names = Array.from(roster)
+    const activeNames = Array.from(activeRoster)
+    const departed = Math.max(0, names.length - activeNames.length)
+    const turnoverRate = names.length ? Math.round((departed / names.length) * 100) : 0
     const trackCache = new Map<string, string>()
     const trackOfName = (nm: string) => {
       if (!trackCache.has(nm)) trackCache.set(nm, trackOf(nm, students, sessionsRaw as any[]))
@@ -608,7 +645,7 @@ export async function scoreOperators(month?: string): Promise<any[]> {
 
     // ① 每日按时提交：应交 = 主播数 × 4 场/月（不看录像，运营电脑上新装也能直接算）；
     //    当天交满额、事后补交半额、没交 0 分 —— 直接对着「每日按时」这个要求。
-    const needDays = names.length * MIN_SESSIONS_PER_STREAMER
+    const needDays = activeNames.length * MIN_SESSIONS_PER_STREAMER
     const onTime = valid.filter((s) => sameDay(String(s['日期'] || ''), String(s['提交时间'] || '')))
     const lateCount = valid.length - onTime.length
     const rateOnTime = needDays === 0 ? 0 : Math.min(100, ((onTime.length + lateCount * 0.5) / needDays) * 100)
@@ -670,7 +707,8 @@ export async function scoreOperators(month?: string): Promise<any[]> {
     const verdict = nothing ? '无数据' : score >= 80 ? '达标' : score >= 60 ? '待改进' : '不合格'
 
     const notes: string[] = []
-    notes.push(`应交 ${needDays}（主播 ${names.length}×4）`)
+    notes.push(`应交 ${needDays}（在职主播 ${activeNames.length}×4）`)
+    notes.push(`主播离职 ${departed}/${names.length}，离职率 ${turnoverRate}%`)
     notes.push(`按时 ${onTime.length}／补交 ${lateCount}，完整度 ${fillPct}%`)
     notes.push(`成长 达标 ${hit}/${tot || 0}`)
     notes.push(`学习 课表 ${schedMine}/${LEARN_TARGETS.课表}·资产 ${assetMine}/${LEARN_TARGETS.资产}·复盘 ${reviewMine}/${LEARN_TARGETS.复盘}`)
@@ -680,7 +718,9 @@ export async function scoreOperators(month?: string): Promise<any[]> {
 
     out.push({
       月份: m, 运营: op,
-      主播数: String(names.length),
+      主播数: String(activeNames.length),
+      已离司: String(departed),
+      离职率: String(turnoverRate),
       应交场次: String(needDays),
       按时提交: String(onTime.length),
       补交: String(lateCount),
@@ -698,7 +738,7 @@ export async function scoreOperators(month?: string): Promise<any[]> {
   const db = await getDb()
   db.run('DELETE FROM [运营考核] WHERE [月份] = ?', [m])
   for (const r of out) {
-    const cols = ['月份', '运营', '主播数', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
+    const cols = ['月份', '运营', '主播数', '已离司', '离职率', '应交场次', '按时提交', '补交', '按时率', '成长分', '学习分', '得分', '等级', '结论', '说明', '计算时间']
     await addRow('运营考核', Object.fromEntries(cols.map((c) => [c, String(r[c] ?? '')])))
   }
   scheduleSave()

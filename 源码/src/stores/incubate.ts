@@ -122,6 +122,20 @@ export const useIncubateStore = defineStore('incubate', () => {
     return r
   }
 
+  /** 运营自定义课程：和 AI 计划并存，不覆盖原计划。 */
+  async function addCustomCourse(opts: any) {
+    const r = await api().incubateCustomCourseAdd(opts)
+    await loadSchedule()
+    log(`已添加运营课程：${opts?.streamer || ''} · ${opts?.title || ''}`)
+    return r
+  }
+
+  async function removeCourse(id: number) {
+    const r = await api().incubateDelete('课表', Number(id))
+    await loadSchedule()
+    return r
+  }
+
   async function exportCsv() {
     const r = await api().incubateExportCsv()
     log(r?.files?.length ? `已导出 ${r.files.length} 个 CSV` : '导出 CSV 已取消')
@@ -168,10 +182,29 @@ export const useIncubateStore = defineStore('incubate', () => {
     return streamers.value
   }
 
-  async function importStreamers(text: string, operator: string) {
-    const r = await api().incubateImportStreamers(text, operator)
+  async function importStreamers(text: string, operator: string, defaultTrackName = '') {
+    const r = await api().incubateImportStreamers(text, operator, defaultTrackName || defaultTrack.value)
     await loadStreamers()
     log(`名册导入：新增 ${r?.added ?? 0}、更新 ${r?.updated ?? 0}`)
+    return r
+  }
+
+  /** 标记离司：保留主播姓名和历史，只改离司日期。 */
+  async function departStreamer(name: string, date: string) {
+    const clean = String(name || '').trim()
+    if (!clean) throw new Error('请先选择主播')
+    const r = await api().incubateDepartStreamer(clean, date)
+    await loadStreamers()
+    log(`已标记离司：${clean}（${r?.date || date}）`)
+    return r
+  }
+
+  async function restoreStreamer(name: string) {
+    const clean = String(name || '').trim()
+    if (!clean) throw new Error('请先选择主播')
+    const r = await api().incubateRestoreStreamer(clean)
+    await loadStreamers()
+    log(`已恢复在职：${clean}`)
     return r
   }
 
@@ -284,10 +317,10 @@ export const useIncubateStore = defineStore('incubate', () => {
     tracks, common, defaultTrack, sessions, streamers, schedule,
     plan, planDays, planFeedback,
     loadSchema, loadRows, switchTable, seed, score, importDir, browseDir, pickReport, importReportText,
-    generatePlan, loadPlan, saveFeedback,
+    generatePlan, loadPlan, saveFeedback, addCustomCourse, removeCourse,
     exportCsv, exportXlsx, openDataDir,
     loadTracks, trackNames, extraDefsOf, allDefsOf,
-    loadStreamers, importStreamers, saveStreamerProfile, loadSessions, loadSchedule,
+    loadStreamers, importStreamers, departStreamer, restoreStreamer, saveStreamerProfile, loadSessions, loadSchedule,
     trackOf, sessionsOf, evaluate, saveSession, removeSession, ensureStreamer, updateStreamerTrack
   }
 })

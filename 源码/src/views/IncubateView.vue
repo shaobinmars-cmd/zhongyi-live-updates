@@ -18,9 +18,9 @@
             <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
             <div class="plan-import-row">
               <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选主播（可打字搜）" style="width: 220px" @update:value="onPlanStreamer" />
-              <n-button type="primary" ghost @click="showImport = true">+ 添加主播</n-button>
+              <n-button type="primary" ghost @click="openAddStreamer">+ 添加主播</n-button>
               <n-input v-model:value="opFilter" placeholder="运营名字（带教）" style="width: 150px" @update:value="onOperatorName" />
-              <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（导入后自动带出）" style="width: 180px" />
+              <n-select v-model:value="planTrack" :options="trackOptions" placeholder="赛道（选择后立即保存）" style="width: 180px" @update:value="onPlanTrackChanged" />
               <input type="date" v-model="planStart" class="date-input" title="计划开始日期" />
               <n-button type="primary" :loading="planBusy" @click="importAndGenerate">{{ planStreamer === ALL_PLAN ? '导入报告并批量生成' : '导入报告并生成 60 天计划' }}</n-button>
               <n-button @click="showPaste = true">粘贴报告</n-button>
@@ -37,6 +37,18 @@
               <label class="field"><span>是否正常开播</span><n-select v-model:value="profile['是否正常开播']" :options="airOptions" placeholder="请选择" style="width: 150px" /></label>
               <label class="field"><span>配合程度</span><n-select v-model:value="profile['配合意愿']" :options="willOptions" placeholder="请选择" style="width: 140px" /></label>
               <n-button :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="profileBusy" @click="saveProfile">保存主播档案</n-button>
+              <n-button v-if="profile['离司日期']" type="success" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="statusBusy" @click="restoreCurrentStreamer">恢复在职</n-button>
+              <n-popconfirm
+                v-else
+                positive-text="标记离司"
+                negative-text="取消"
+                @positive-click="departCurrentStreamer"
+              >
+                <template #trigger>
+                  <n-button type="warning" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="statusBusy">标记离司</n-button>
+                </template>
+                将保留“{{ planStreamer }}”的全部历史数据，只把离司日期记为 {{ profile['离司日期'] || today }}。以后可自动计入离职率，也可以恢复在职。
+              </n-popconfirm>
             </div>
             <div class="leave-row">
               <b>请假登记</b>
@@ -85,21 +97,38 @@
               </div>
             </div>
 
-            <div class="sec-head today-head">今天 · 第 {{ planInfo.dayIndex }} 天 · {{ planInfo.phase }}</div>
+            <div class="today-head-row">
+              <div class="sec-head today-head">今天 · 第 {{ planInfo.dayIndex }} 天 · {{ planInfo.phase }}</div>
+              <n-button size="small" type="primary" ghost :disabled="planStreamer === ALL_PLAN" @click="openCustomCourse">+ 添加运营课程</n-button>
+            </div>
             <div v-if="onLeaveToday" class="leave-card">
               <div class="today-title">今天请假/停播</div>
               <div class="today-main">不安排训练，不计完成率</div>
               <div class="today-line">请假原因：{{ planInfo.leaveReason || profile['请假原因'] || '未填写' }}；复工后沿用原课表继续。</div>
             </div>
-            <div :class="['today-card', { rest: /休息/.test(String(todayTask?.['今天练什么'] || '')) }]" v-else-if="todayTask">
-              <div class="today-title">今天练什么 · {{ todayTask['日期'] }}</div>
-              <div class="today-main">{{ todayTask['今天练什么'] }}</div>
-              <div class="today-line"><b>怎么练：</b>{{ todayTask['怎么练'] }}</div>
-              <div class="today-line"><b>验收：</b>{{ todayTask['验收'] }}</div>
+            <div :class="['today-card', { rest: /休息/.test(String(todayAiTask?.['今天练什么'] || '')) }]" v-else-if="todayAiTask">
+              <div class="today-title">AI 计划 · {{ todayAiTask['日期'] }}</div>
+              <div class="today-main">{{ todayAiTask['今天练什么'] }}</div>
+              <div class="today-line"><b>怎么练：</b>{{ todayAiTask['怎么练'] }}</div>
+              <div class="today-line"><b>验收：</b>{{ todayAiTask['验收'] }}</div>
             </div>
-            <div class="today-card" v-else>
+            <div class="today-card" v-else-if="!todayCustomTasks.length">
               <div class="today-title">今天没有对应课表</div>
               <div class="today-line">检查开始日期，或点「只重新生成计划」。</div>
+            </div>
+            <div v-if="todayCustomTasks.length && !onLeaveToday" class="today-card custom-course-card">
+              <div class="today-title">运营额外安排 · {{ todayCustomTasks.length }} 项</div>
+              <div v-for="c in todayCustomTasks" :key="c.id" class="custom-course-row">
+                <div>
+                  <div class="custom-course-name">{{ c['今天练什么'] }}</div>
+                  <div v-if="c['怎么练']" class="today-line"><b>怎么练：</b>{{ c['怎么练'] }}</div>
+                  <div v-if="c['验收']" class="today-line"><b>验收：</b>{{ c['验收'] }}</div>
+                </div>
+                <n-popconfirm positive-text="删除" negative-text="保留" @positive-click="deleteCustomCourse(c)">
+                  <template #trigger><n-button size="tiny" type="error" quaternary>删除</n-button></template>
+                  只删除这条运营课程，AI 60 天计划不受影响。
+                </n-popconfirm>
+              </div>
             </div>
 
             <div class="fb-card">
@@ -323,9 +352,11 @@
     </n-tabs>
 
     <!-- 批量粘贴名单 -->
-    <n-modal v-model:show="showImport" preset="card" style="width: 560px" title="批量粘贴主播名单">
+    <n-modal v-model:show="showImport" preset="card" style="width: 560px" title="添加主播 / 批量导入">
       <div class="rule"><div>一行一个主播；要指定带教运营/赛道就写 <code>主播名,运营名,赛道</code>（赛道可省）。重名自动合并。</div></div>
       <n-input v-model:value="importOp" size="small" placeholder="默认带教运营（可留空）" style="margin: 10px 0" />
+      <n-select v-model:value="importTrack" :options="trackOptions" placeholder="新主播默认赛道" style="margin-bottom: 10px" />
+      <div class="plan-hint" style="margin: -2px 0 10px">默认赛道只用于本次新加的主播；名单第三段明确写了赛道时，以名单里的为准。</div>
       <n-input v-model:value="importText" type="textarea" :rows="10" placeholder="张三&#10;李四,小A,唱歌点歌&#10;王五,小B" />
       <template #footer>
         <div class="actions" style="justify-content: flex-end">
@@ -336,6 +367,22 @@
     </n-modal>
 
     <!-- 粘贴 AI 报告 → 生成 60 天计划 -->
+    <n-modal v-model:show="showCustomCourse" preset="card" style="width: 680px" title="添加运营自定义课程">
+      <div class="rule"><div>给 <b>{{ planStreamer }}</b> 追加一节课程。它会和 AI 计划同时显示，不覆盖原来的 60 天课表。</div></div>
+      <div class="custom-form">
+        <label class="field"><span>上课日期</span><input type="date" v-model="customCourse.日期" class="date-input" /></label>
+        <label class="field" style="grid-column: 1 / -1"><span>今天练什么</span><n-input v-model:value="customCourse.今天练什么" placeholder="例如：话术加练 20 分钟" /></label>
+        <label class="field" style="grid-column: 1 / -1"><span>怎么练</span><n-input v-model:value="customCourse.怎么练" type="textarea" :rows="3" placeholder="例如：开场三句练 10 遍；直播中每 5 分钟用一次封闭提问" /></label>
+        <label class="field" style="grid-column: 1 / -1"><span>验收标准</span><n-input v-model:value="customCourse.验收" type="textarea" :rows="3" placeholder="例如：脱稿完成；直播回放中至少出现 8 次；运营抽查通过" /></label>
+      </div>
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="showCustomCourse = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="customBusy" @click="saveCustomCourse">保存课程</n-button>
+        </div>
+      </template>
+    </n-modal>
+
     <n-modal v-model:show="showPaste" preset="card" style="width: 760px" title="粘贴 AI 拆解报告">
       <div class="rule"><div>把 AI 分析报告的全文粘进来（.md 内容即可）。导入后会自动生成 60 天计划。</div></div>
       <n-input v-model:value="pasteText" type="textarea" :rows="16" placeholder="粘贴报告全文…" style="margin-top: 8px" />
@@ -351,7 +398,7 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NButton, NDataTable, NDatePicker, NInput, NModal, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
+import { NButton, NDataTable, NDatePicker, NInput, NModal, NPopconfirm, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
 import { useIncubateStore } from '../stores/incubate'
 
 const store = useIncubateStore()
@@ -385,6 +432,8 @@ const recent = ref<string[]>(JSON.parse(localStorage.getItem('inc_recent') || '[
 const showImport = ref(false)
 const importText = ref('')
 const importOp = ref(localStorage.getItem('inc_operator') || '')
+const importTrack = ref('下单游戏')
+const statusBusy = ref(false)
 const useV5 = ref(false)
 const today = (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` })()
 
@@ -409,6 +458,16 @@ const streamerNames = computed(() => {
 function operatorOf(name: string): string {
   const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
   return s ? String(s['带教运营'] || '').trim() : ''
+}
+
+function isDeparted(name: string): boolean {
+  const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+  return !!String(s?.['离司日期'] || '').trim()
+}
+
+function streamerLabel(name: string): string {
+  const op = operatorOf(name)
+  return [name, op ? `（${op}）` : '', isDeparted(name) ? ' · 已离司' : ''].join('')
 }
 
 function statusOf(name: string): { level: Level; text: string; last: string; fails: string[] } {
@@ -469,7 +528,7 @@ const filteredStreamers = computed(() => {
 })
 
 const streamerOptions = computed<SelectOption[]>(() =>
-  filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n }))
+  filteredStreamers.value.map((n) => ({ label: streamerLabel(n), value: n }))
 )
 
 // ================= 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈 =================
@@ -487,6 +546,9 @@ const planBusy = ref(false)
 const fbBusy = ref(false)
 const showPaste = ref(false)
 const pasteText = ref('')
+const showCustomCourse = ref(false)
+const customBusy = ref(false)
+const customCourse = ref({ 日期: '', 今天练什么: '', 怎么练: '', 验收: '' })
 const dayPhase = ref('all')
 const fb = ref<Record<string, string>>({
   完成情况: '完成', 数据结果: '', 问题: '', 明日计划: '', 运营: localStorage.getItem('inc_operator') || '', 今日任务: ''
@@ -526,9 +588,93 @@ async function saveProfile() {
   if (planStreamer.value === ALL_PLAN) return msg.warning('全部主播模式下不能统一保存档案，请先选具体主播。')
   profileBusy.value = true
   try {
-    await store.saveStreamerProfile(planStreamer.value, { ...profile.value })
+    await store.saveStreamerProfile(planStreamer.value, { ...profile.value, 赛道: planTrack.value || store.defaultTrack })
     msg.success('主播档案已保存')
   } catch (e: any) { msg.error('保存失败：' + (e?.message || e)) } finally { profileBusy.value = false }
+}
+
+async function onPlanTrackChanged(track: string) {
+  planTrack.value = track || ''
+  if (!track || !planStreamer.value || planStreamer.value === ALL_PLAN) return
+  try {
+    await store.updateStreamerTrack(planStreamer.value, track)
+    msg.success(`赛道已保存：${track}`)
+  } catch (e: any) {
+    msg.error('赛道保存失败：' + (e?.message || e))
+  }
+}
+
+async function departCurrentStreamer() {
+  const name = String(planStreamer.value || '').trim()
+  if (!name || name === ALL_PLAN) return msg.warning('请先选择一个具体主播')
+  const date = String(profile.value['离司日期'] || today).trim() || today
+  statusBusy.value = true
+  try {
+    await store.departStreamer(name, date)
+    profile.value['离司日期'] = date
+    await Promise.all([loadAllFeedback(), loadWeekTasks()])
+    msg.success(`已标记离司：${name}（${date}）`)
+  } catch (e: any) {
+    msg.error('标记离司失败：' + (e?.message || e))
+  } finally {
+    statusBusy.value = false
+  }
+}
+
+async function restoreCurrentStreamer() {
+  const name = String(planStreamer.value || '').trim()
+  if (!name || name === ALL_PLAN) return msg.warning('请先选择一个具体主播')
+  statusBusy.value = true
+  try {
+    await store.restoreStreamer(name)
+    profile.value['离司日期'] = ''
+    await Promise.all([loadAllFeedback(), loadWeekTasks()])
+    msg.success(`已恢复在职：${name}`)
+  } catch (e: any) {
+    msg.error('恢复在职失败：' + (e?.message || e))
+  } finally {
+    statusBusy.value = false
+  }
+}
+
+function openCustomCourse() {
+  if (!planStreamer.value || planStreamer.value === ALL_PLAN) return msg.warning('请先选择一个具体主播')
+  customCourse.value = { 日期: today, 今天练什么: '', 怎么练: '', 验收: '' }
+  showCustomCourse.value = true
+}
+
+async function saveCustomCourse() {
+  if (!planStreamer.value || planStreamer.value === ALL_PLAN) return msg.warning('请先选择一个具体主播')
+  if (!customCourse.value.今天练什么.trim()) return msg.warning('先填今天练什么')
+  customBusy.value = true
+  try {
+    await store.addCustomCourse({
+      streamer: planStreamer.value,
+      date: customCourse.value.日期 || today,
+      title: customCourse.value.今天练什么,
+      how: customCourse.value.怎么练,
+      accept: customCourse.value.验收,
+      operator: opFilter.value.trim()
+    })
+    showCustomCourse.value = false
+    await Promise.all([loadPlanFor(planStreamer.value), loadWeekTasks()])
+    msg.success('运营课程已加入课表')
+  } catch (e: any) {
+    msg.error('添加课程失败：' + (e?.message || e))
+  } finally {
+    customBusy.value = false
+  }
+}
+
+async function deleteCustomCourse(row: any) {
+  try {
+    await store.removeCourse(Number(row.id))
+    if (planStreamer.value && planStreamer.value !== ALL_PLAN) await loadPlanFor(planStreamer.value)
+    await loadWeekTasks()
+    msg.success('运营课程已删除')
+  } catch (e: any) {
+    msg.error('删除课程失败：' + (e?.message || e))
+  }
 }
 
 // 顶部主播下拉也跟随“只看我带的主播”和状态筛选
@@ -566,6 +712,7 @@ const weekColumns: DataTableColumns<any> = [
   { title: '日期', key: '日期', width: 108 },
   { title: '主播', key: '主播', width: 110 },
   { title: '赛道', key: '赛道', width: 90 },
+  { title: '来源', key: '来源', width: 92 },
   { title: '第几天', key: '天', width: 70 },
   { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
   { title: '验收', key: '验收', width: 220, ellipsis: { tooltip: true } }
@@ -590,17 +737,19 @@ async function loadWeekTasks() {
         d.setDate(monday.getDate() + offset)
         const idx = Math.floor((d.getTime() - start.getTime()) / 86400000) + 1
         if (idx < 1 || idx > 60) continue
-        const row = (rows || []).find((r: any) => String(r['主播'] || '').trim() === name && String(r['日期']) === `D${idx}`)
+        const dayRows = (rows || []).filter((r: any) => String(r['主播'] || '').trim() === name && String(r['日期']) === `D${idx}`)
         const person = (roster || []).find((r: any) => String(r['主播'] || '').trim() === name)
         const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
         const leaveEnd = String(person?.['请假结束日期'] || person?.['请假开始日期'] || '')
         if (person?.['请假开始日期'] && leaveEnd && ds >= String(person['请假开始日期']) && ds <= leaveEnd) {
-          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 天: `D${idx}`, 今天练什么: `请假${person['请假原因'] ? '：' + person['请假原因'] : ''}`, 验收: '不计完成率，不催课' })
+          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: '请假', 天: `D${idx}`, 今天练什么: `请假${person['请假原因'] ? '：' + person['请假原因'] : ''}`, 验收: '不计完成率，不催课' })
           continue
         }
-        if (!row) continue
-        out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 天: `D${idx}`, 今天练什么: row['今天练什么'] || '', 验收: row['验收'] || '' })
+        if (!dayRows.length) continue
+        for (const row of dayRows) {
+          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: courseSource(row) || 'AI计划', 天: `D${idx}`, 今天练什么: row['今天练什么'] || '', 验收: row['验收'] || '' })
+        }
       }
     }
     weekTasks.value = out.sort((a, b) => Number(a._sort) - Number(b._sort) || String(a['主播']).localeCompare(String(b['主播'])))
@@ -609,7 +758,7 @@ async function loadWeekTasks() {
 
 const planStreamerOptions = computed<SelectOption[]>(() => [
   { label: '全部主播（批量生成课表）', value: ALL_PLAN },
-  ...filteredStreamers.value.map((n) => ({ label: operatorOf(n) ? `${n}（${operatorOf(n)}）` : n, value: n }))
+  ...filteredStreamers.value.map((n) => ({ label: streamerLabel(n), value: n }))
 ])
 const fbOptions: SelectOption[] = [
   { label: '完成', value: '完成' },
@@ -629,12 +778,34 @@ const dayPhaseOptions: SelectOption[] = [
   { label: '31-60 天 实战冲刺', value: '31-60' }
 ]
 
-const todayTask = computed(() => {
+function courseSource(row: any): string {
+  const src = String(row?.['课程来源'] || '').trim()
+  if (src) return src
+  return String(row?.['录入人'] || '').trim() === 'AI计划' ? 'AI计划' : String(row?.['录入人'] || '').trim()
+}
+
+const currentPlanDayKey = computed(() => {
   const idx = Number(planInfo.value?.dayIndex || 0)
-  if (!idx) return null
-  const key = `D${Math.min(Math.max(idx, 1), 60)}`
-  return store.planDays.find((r: any) => String(r['日期']) === key) || null
+  return idx > 0 ? `D${Math.min(idx, 60)}` : ''
 })
+
+const todayAiTask = computed(() => {
+  const key = currentPlanDayKey.value
+  if (!key) return null
+  return store.planDays.find((r: any) => String(r['日期']) === key && courseSource(r) !== '运营自定义') || null
+})
+
+const todayCustomTasks = computed(() => {
+  const key = currentPlanDayKey.value
+  return store.planDays.filter((r: any) => {
+    if (courseSource(r) !== '运营自定义') return false
+    const day = String(r['执行日期'] || '')
+    return day ? day === today : (!!key && String(r['日期'] || '') === key)
+  })
+})
+
+const todayTask = computed(() => todayAiTask.value || todayCustomTasks.value[0] || null)
+const todayCourseText = computed(() => [todayAiTask.value, ...todayCustomTasks.value].filter(Boolean).map((r: any) => String(r['今天练什么'] || '')).filter(Boolean).join('；'))
 
 const onLeaveToday = computed(() => {
   const start = String(planInfo.value?.leaveStart || profile.value['请假开始日期'] || '')
@@ -650,11 +821,21 @@ const filteredPlanDays = computed(() => {
   return all.filter((r: any) => { const n = Number(String(r['日期']).slice(1)); return n >= a && n <= b })
 })
 
-const dayColumns: DataTableColumns<any> = [
-  { title: '天', key: '日期', width: 64 },
+const dayColumns = computed<DataTableColumns<any>>(() => [
+  { title: '天', key: '日期', width: 68 },
+  { title: '来源', key: '来源', width: 96, render: (row: any) => courseSource(row) || 'AI计划' },
   { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
-  { title: '验收', key: '验收', width: 260, ellipsis: { tooltip: true } }
-]
+  { title: '验收', key: '验收', width: 250, ellipsis: { tooltip: true } },
+  {
+    title: '操作', key: 'ops', width: 76,
+    render: (row: any) => courseSource(row) === '运营自定义'
+      ? h(NPopconfirm, { onPositiveClick: () => deleteCustomCourse(row) }, {
+          trigger: () => h(NButton, { size: 'tiny', type: 'error', quaternary: true }, { default: () => '删除' }),
+          default: () => '只删除这条运营课程，AI 计划不受影响。'
+        })
+      : '-'
+  }
+])
 const fbColumns: DataTableColumns<any> = [
   { title: '日期', key: '日期', width: 100 },
   { title: '主播', key: '主播', width: 110 },
@@ -672,7 +853,7 @@ async function loadPlanFor(name: string) {
   if (r?.plan?.['赛道']) planTrack.value = String(r.plan['赛道'])
   if (r?.plan?.['开始日期']) planStart.value = String(r.plan['开始日期'])
   else if (r?.plan && !r.plan['开始日期']) planStart.value = localDate()
-  fb.value['今日任务'] = todayTask.value ? String(todayTask.value['今天练什么']) : ''
+  fb.value['今日任务'] = todayCourseText.value
   fb.value['完成情况'] = onLeaveToday.value ? '请假' : (todayTask.value && /休息/.test(String(todayTask.value['今天练什么'] || '')) ? '休息' : '完成')
   const todayStr = localDate()
   const exist = (r?.feedback || []).find((x: any) => String(x['日期']) === todayStr)
@@ -740,6 +921,9 @@ async function justGenerate() {
 async function generateTargets() {
   const targets = planStreamer.value === ALL_PLAN ? filteredStreamers.value.slice() : [planStreamer.value]
   if (!targets.length) throw new Error('还没有主播，先点「+ 添加主播」')
+  if (planStreamer.value !== ALL_PLAN && planStreamer.value && planTrack.value) {
+    await store.updateStreamerTrack(planStreamer.value, planTrack.value)
+  }
   let done = 0
   for (const name of targets) {
     if (!name) continue
@@ -828,7 +1012,7 @@ function onRestNow(name: string): boolean {
 const needAttention = computed(() => {
   const order: Record<Level, number> = { bad: 0, warn: 1, none: 2, ok: 9 }
   return filteredStreamers.value
-    .filter((n) => !onLeaveNow(n) && !onRestNow(n))
+    .filter((n) => !isDeparted(n) && !onLeaveNow(n) && !onRestNow(n))
     .map((n) => {
       const s = statusMap.value.get(n)!
       const miss = s.fails.length ? `缺 ${s.fails.join('/')}` : s.level === 'none' ? '还没开始记录' : ''
@@ -967,7 +1151,9 @@ const sessionColumns = computed<DataTableColumns<any>>(() => {
 
 const scoreColumns = computed<DataTableColumns<any>>(() => [
   { title: '运营', key: '运营', width: 86 },
-  { title: '主播', key: '主播数', width: 56 },
+  { title: '在职主播', key: '主播数', width: 72 },
+  { title: '已离司', key: '已离司', width: 64 },
+  { title: '离职率', key: '离职率', width: 64, render: (row: any) => `${row['离职率'] || 0}%` },
   { title: '应交', key: '应交场次', width: 56 },
   { title: '按时/补交', key: '按时提交', width: 84, render: (row: any) => `${row['按时提交']} / ${row['补交']}` },
   { title: '按时率', key: '按时率', width: 62 },
@@ -1089,7 +1275,7 @@ async function doImportDir() {
 async function doImportStreamers() {
   if (!importText.value.trim()) return msg.warning('先粘名单')
   try {
-    const r: any = await store.importStreamers(importText.value, importOp.value.trim())
+    const r: any = await store.importStreamers(importText.value, importOp.value.trim(), importTrack.value)
     msg.success(`名册导入：新增 ${r?.added ?? 0}、更新 ${r?.updated ?? 0}`)
     ensureSelection()
     showImport.value = false
@@ -1097,6 +1283,12 @@ async function doImportStreamers() {
   } catch (e: any) {
     msg.error('导入失败：' + (e?.message || e))
   }
+}
+
+function openAddStreamer() {
+  importOp.value = opFilter.value.trim()
+  importTrack.value = planTrack.value || store.defaultTrack
+  showImport.value = true
 }
 
 async function loadUseV5() {
@@ -1298,6 +1490,13 @@ onUnmounted(() => {
 .leave-card { background:#fffaf0 !important; border:1px solid #fed7aa !important; border-left:7px solid #f59e0b !important; border-radius:14px !important; padding:18px 20px !important; }
 .fb-card { background: #ecf8ff !important; border: 1px solid #7dd3fc !important; border-left: 7px solid #0284c7 !important; border-radius: 14px !important; padding: 18px 20px !important; margin-top: 14px; }
 .schedule-title { background: #e2e8f0; color: #334155; padding: 10px 14px; border-radius: 10px; font-size: 15px; margin: 10px 0 8px; }
+.today-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; }
+.today-head-row .today-head { margin: 0; }
+.custom-course-card { margin-top: 10px; border-color: #86d7c8; background: #f2fffb; }
+.custom-course-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px dashed #b9e6dd; }
+.custom-course-row:first-of-type { border-top: 0; }
+.custom-course-name { font-weight: 700; color: #0f766e; margin-bottom: 4px; }
+.custom-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
 .sec-divider { height: 1px; background: #e5e7eb; margin: 22px 0 16px; }
 .schedule-table { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
 .schedule-table .n-data-table-th { background: #eef2f7 !important; }

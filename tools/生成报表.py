@@ -99,7 +99,11 @@ def build(ops, label, start, end, name):
           f"- 涉及主播：{len(streamers)} 人；场次记录：{len(sess)} 条", ""]
     L += ["## 二、按运营", ""]
     for op, n in by_op.most_common():
-        L.append(f"- {op or '未署名'}：{n} 条")
+        mine = [r for r in roster if str(r.get('带教运营', '')).strip() == op]
+        departed = sum(1 for r in mine if r.get('离司日期'))
+        active = len(mine) - departed
+        turnover = round(departed / len(mine) * 100, 1) if mine else 0
+        L.append(f"- {op or '未署名'}：反馈 {n} 条；在职主播 {active} 人，已离司 {departed} 人，离职率 {turnover}%")
     L += ["", "## 三、按主播（反馈最多）", ""]
     for n, c in by_actor.most_common(10):
         L.append(f"- {n}：{c} 条")
