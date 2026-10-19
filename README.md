@@ -40,9 +40,11 @@ cmd /c "cd /d H:\众艺传媒运营工具\源码 && set ELECTRON_NO_ASAR=1 && no
 
 ## 下载与更新
 
-- 稳定下载页：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/latest>
-- 2.9.9 安装版：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
-- 2.9.9 便携版：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-portable-2.9.9.exe>
+- 2.9.9 安装版（国内首选，已实测）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
+- 备用通道 1：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
+- 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
+- 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
+- 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-portable-2.9.9.exe>
 - 国内更新清单：<https://fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json>
 
 ## 安全铁律
