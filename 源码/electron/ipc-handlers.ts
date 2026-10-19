@@ -23,6 +23,7 @@ import * as db from './services/database'
 import * as incubate from './services/incubate'
 import * as updater from './services/updater'
 import * as incubatePlan from './services/incubate-plan'
+import * as musicLibrary from './services/music-library'
 import { V5_INSTRUCTION } from './services/teardown-instruction'
 import * as config from './services/record-config'
 import * as logger from './services/logger'
@@ -30,6 +31,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { execFile, spawn } from 'child_process'
 import * as recordState from './services/record-state'
+import { AutoWatchManager } from './services/auto-watch'
 
 const LOG_MODULE = 'IPC'
 
@@ -50,6 +52,53 @@ async function resolveRoomPull(room: any): Promise<{ success: boolean; pullUrl: 
   return roomPlatform(room) === 'douyin'
     ? getPullUrl(String(room?.enterRoomId || ''))
     : resolveGenericPullUrl(String(room?.url || ''))
+}
+
+async function connectDanmuRoom(room: any): Promise<boolean> {
+  const roomId = String(room?.enterRoomId || '')
+  if (!roomId) throw new Error('直播间还没有解析出房间号')
+  if (danmuConnections.has(roomId)) return true
+  if (roomPlatform(room) !== 'douyin') return false
+  const service = new DanmuService()
+  danmuConnections.set(roomId, service)
+  service.onMessage = (msg: DanmuMsg) => {
+    mainWindow?.webContents.send('danmu:on-message', { roomId, msg })
+  }
+  service.onStatusChanged = (status: string) => {
+    mainWindow?.webContents.send('danmu:on-status', { roomId, status })
+  }
+  service.onDisconnected = (reason: string) => {
+    danmuConnections.delete(roomId)
+    mainWindow?.webContents.send('danmu:on-disconnect', { roomId, reason })
+  }
+  try {
+    await service.connect(roomId, douyinLive.webRidOf(roomId), String(room?.nickname || ''))
+    return true
+  } catch (ex) {
+    try { service.disconnect() } catch { /* ignore */ }
+    danmuConnections.delete(roomId)
+    throw ex
+  }
+}
+
+async function startRecordingRoom(room: any): Promise<boolean> {
+  const l = licenseOk()
+  if (!l.ok) throw new Error(l.reason)
+  const roomId = String(room?.enterRoomId || '')
+  if (!roomId) throw new Error('这个房间还没解析出房间号，先刷新一下')
+  if (recordingManager.has(roomId)) return true
+  const cfg = config.loadConfig()
+  const outDir = config.getEffectiveOutputPath(cfg)
+  const free = freeSpaceGB(outDir)
+  if (free < cfg.minFreeGB) throw new Error(`磁盘剩余 ${free.toFixed(1)}GB，低于设置的 ${cfg.minFreeGB}GB，先清理录像再录`)
+  enforceQuota(outDir, cfg.maxGB, {
+    protectPrefixes: [...recordingManager.activePrefixes(), ...teardown.protectedPrefixes()]
+  })
+  const { success, pullUrl, nickname } = await resolveRoomPull(room)
+  if (!success || !pullUrl) throw new Error(`${nickname || room?.nickname || roomId} 取不到直播流（可能还没开播）`)
+  const ok = recordingManager.startRecording(roomId, pullUrl, nickname || room?.nickname || '', cfg.outputFormat, roomPlatform(room), room?.url || '')
+  if (!ok) throw new Error('录制启动失败，请检查录制目录和 ffmpeg')
+  return true
 }
 
 /** 联网复查授权（吐销名单）的状态：什么时候查的、查通没、有没有被停用 */
@@ -77,6 +126,7 @@ async function runRevokeCheck(notify = true): Promise<boolean> {
   if (revoked) {
     logger.warn(LOG_MODULE, '联网复查发现本机已被停用，停止录制与拆解')
     try { recordingManager.stopAll() } catch { /* ignore */ }
+    try { autoWatch?.stop() } catch { /* ignore */ }
     try { teardown.stop() } catch { /* ignore */ }
     if (notify) mainWindow?.webContents.send('license:on-revoked', { reason: '本机已被管理员停用' })
   }
@@ -86,6 +136,7 @@ async function runRevokeCheck(notify = true): Promise<boolean> {
 const douyinLive = new DouyinLiveService()
 export const danmuConnections = new Map<string, DanmuService>()
 const recordingManager = new RecordingManager()
+let autoWatch: AutoWatchManager | null = null
 
 let mainWindow: BrowserWindow | null = null
 
@@ -100,6 +151,21 @@ export function setMainWindow(win: BrowserWindow): void {
 }
 
 export function registerIpcHandlers(): void {
+
+  if (!autoWatch) {
+    autoWatch = new AutoWatchManager(path.join(app.getPath('userData'), 'auto-watch.json'), {
+      refreshRoom: async (room) => room.platform === 'douyin'
+        ? await douyinLive.fetchLiveRoomInfo(room.url)
+        : room,
+      startDanmu: (room) => connectDanmuRoom(room),
+      startRecording: (room) => startRecordingRoom(room),
+      isDanmuConnected: (roomId) => danmuConnections.has(roomId),
+      isRecording: (roomId) => recordingManager.has(roomId),
+      onUpdate: (items) => mainWindow?.webContents.send('auto-watch:on-update', items)
+    })
+    autoWatch.start()
+    setTimeout(() => { autoWatch?.checkNow().catch(() => { /* ignore */ }) }, 3500)
+  }
 
   // 7×24 看门狗：每 5 分钟查一次目录配额和磁盘剩余空间
   if (!watchdog) {
@@ -189,27 +255,18 @@ export function registerIpcHandlers(): void {
     return rooms
   })
 
+  ipcMain.handle('auto-watch:list', () => autoWatch?.snapshot() || [])
+  ipcMain.handle('auto-watch:add', (_e, room: any) => autoWatch?.add(room || {}) || null)
+  ipcMain.handle('auto-watch:remove', (_e, roomId: string) => autoWatch?.remove(roomId) || false)
+  ipcMain.handle('auto-watch:check-now', () => autoWatch?.checkNow() || [])
+  ipcMain.handle('auto-watch:clear-finished', () => autoWatch?.clearFinished() || 0)
+
   // ===== Danmu =====
   ipcMain.handle('danmu:connect', async (_e, roomId: string, nickname: string, platform = 'douyin') => {
     if (platform !== 'douyin') {
       throw new Error(`${platformLabel(platform)} 弹幕需要平台自己的登录态和协议适配；当前版本先支持多平台录制，弹幕仍为抖音专用。`)
     }
-    const service = new DanmuService()
-    danmuConnections.set(roomId, service)
-
-    service.onMessage = (msg: DanmuMsg) => {
-      mainWindow?.webContents.send('danmu:on-message', { roomId, msg })
-    }
-    service.onStatusChanged = (status: string) => {
-      mainWindow?.webContents.send('danmu:on-status', { roomId, status })
-    }
-    service.onDisconnected = (reason: string) => {
-      danmuConnections.delete(roomId)
-      mainWindow?.webContents.send('danmu:on-disconnect', { roomId, reason })
-    }
-
-    // 第二个参数传直播间网页短号（live.douyin.com/<短号>），弹幕窗口靠它打开页面
-    await service.connect(roomId, douyinLive.webRidOf(roomId), nickname)
+    await connectDanmuRoom({ enterRoomId: roomId, nickname, platform })
     return true
   })
 
@@ -384,39 +441,18 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('record:start-all', async (_e, rooms: any[]) => {
-    const l = licenseOk()
-    if (!l.ok) return { items: [], count: 0, error: l.reason }
-    const cfg = config.loadConfig()
-    const outDir = config.getEffectiveOutputPath(cfg)
-
-    // 开录前先看磁盘：低于阈值就不开，免得把盘写爆
-    const free = freeSpaceGB(outDir)
-    if (free < cfg.minFreeGB) {
-      const msg = `磁盘剩余 ${free.toFixed(1)}GB，低于设定的 ${cfg.minFreeGB}GB，先清理录像再录`
-      logger.warn(LOG_MODULE, msg)
-      return { ...recordingManager.getState(), error: msg }
-    }
-    // 超过目录配额就先删最老的
-    const q = enforceQuota(outDir, cfg.maxGB, {
-      protectPrefixes: [...recordingManager.activePrefixes(), ...teardown.protectedPrefixes()]
-    })
-    if (q.deleted) logger.info(LOG_MODULE, `开录前清理：删 ${q.deleted} 个旧录像，释放 ${q.freedGB.toFixed(2)}GB`)
-
-    const format = cfg.outputFormat
-    const toRecord = rooms.filter((r: any) => !r.error && r.roomStatus !== 2 && !recordingManager.has(r.enterRoomId))
-
+    const toRecord = (rooms || []).filter((r: any) => !r.error && r.roomStatus !== 2 && !recordingManager.has(r.enterRoomId))
+    let firstError = ''
     for (const room of toRecord) {
-      const { success, pullUrl, nickname } = await resolveRoomPull(room)
-      if (!success) {
-        logger.warn(LOG_MODULE, `获取直播流失败 roomId=${room.enterRoomId}`)
-        continue
+      try {
+        await startRecordingRoom(room)
+      } catch (ex: any) {
+        if (!firstError) firstError = String(ex?.message || ex || '录制启动失败')
+        logger.warn(LOG_MODULE, `直播录制失败 roomId=${room?.enterRoomId || ''}：${firstError}`)
       }
-
-      const nick = nickname || room.nickname
-      recordingManager.startRecording(room.enterRoomId, pullUrl, nick, format, roomPlatform(room), room.url)
     }
-
-    return recordingManager.getState()
+    const state = recordingManager.getState()
+    return firstError ? { ...state, error: firstError } : state
   })
 
   ipcMain.handle('record:stop-all', async () => {
@@ -430,32 +466,14 @@ export function registerIpcHandlers(): void {
 
   /** 只录一个直播间（录制页每个房间一个按钮） */
   ipcMain.handle('record:start-one', async (_e, room: any) => {
-    const l = licenseOk()
-    if (!l.ok) return { ...recordingManager.getState(), error: l.reason }
-    const roomId = String(room?.enterRoomId || '')
-    if (!roomId) return { ...recordingManager.getState(), error: '这个房间还没解析出房间号，先去「直播间」页刷新一下' }
-    if (recordingManager.has(roomId)) return recordingManager.getState()   // 已在录
-
-    const cfg = config.loadConfig()
-    const outDir = config.getEffectiveOutputPath(cfg)
-    const free = freeSpaceGB(outDir)
-    if (free < cfg.minFreeGB) {
-      const msg = `磁盘剩余 ${free.toFixed(1)}GB，低于设定的 ${cfg.minFreeGB}GB，先清理录像再录`
+    try {
+      await startRecordingRoom(room)
+      return recordingManager.getState()
+    } catch (ex: any) {
+      const msg = String(ex?.message || ex || '录制启动失败')
       logger.warn(LOG_MODULE, msg)
       return { ...recordingManager.getState(), error: msg }
     }
-    enforceQuota(outDir, cfg.maxGB, {
-      protectPrefixes: [...recordingManager.activePrefixes(), ...teardown.protectedPrefixes()]
-    })
-
-    const { success, pullUrl, nickname } = await resolveRoomPull(room)
-    if (!success || !pullUrl) {
-      const msg = `${nickname || room?.nickname || roomId} 取不到直播流（可能还没开播）`
-      logger.warn(LOG_MODULE, msg)
-      return { ...recordingManager.getState(), error: msg }
-    }
-    recordingManager.startRecording(roomId, pullUrl, nickname || room?.nickname || '', cfg.outputFormat, roomPlatform(room), room?.url || '')
-    return recordingManager.getState()
   })
 
   // ===== Database =====
@@ -621,7 +639,8 @@ export function registerIpcHandlers(): void {
     if (picked.canceled || !picked.filePaths[0]) return { success: false, error: 'Cancelled' }
 
     const base = path.basename(input).replace(/[\\/:*?"<>|]/g, '_')
-    const dir = path.join(picked.filePaths[0], base)
+    const nick = String(info.nickname || '').replace(/[\\/:*?"<>|]/g, '_').trim()
+    const dir = path.join(picked.filePaths[0], nick ? `${nick}_${base}` : base)
     try {
       fs.mkdirSync(dir, { recursive: true })
       const parts = info.split?.split ? info.split.parts : []
@@ -629,11 +648,12 @@ export function registerIpcHandlers(): void {
         for (const p of parts) fs.writeFileSync(path.join(dir, p.fileName), p.content, 'utf-8')
       } else {
         fs.writeFileSync(path.join(dir, '拆解素材包.md'), info.content, 'utf-8')
+        if (nick) fs.writeFileSync(path.join(dir, `拆解素材包_${nick}.md`), info.content, 'utf-8')
       }
       if (info.offlineDraft && fs.existsSync(info.offlineDraft)) fs.copyFileSync(info.offlineDraft, path.join(dir, '报告草稿_离线.md'))
       if (info.segmentsStat && fs.existsSync(info.segmentsStat)) fs.copyFileSync(info.segmentsStat, path.join(dir, '分段统计.md'))
 
-      const lines: string[] = ['# 怎么喂给 AI', '']
+      const lines: string[] = ['# 怎么喂给 AI', '', `主播：${nick || '未识别主播'}`, '']
       if (info.split?.split) {
         lines.push(`本场素材包约 ${info.split.totalTokens} token，超过预算 ${info.split.limit}，已拆成 ${info.split.parts.length} 份：`, '')
         lines.push('按顺序一份一份贴给 AI，每份都自带基本信息与分析指令；最后让它把各段结论合并成一份完整报告。', '')
@@ -656,8 +676,9 @@ export function registerIpcHandlers(): void {
     const base = path.basename(input) || '素材包'
     const stamp = new Date().toISOString().substring(0, 10).replace(/-/g, '')
     const safe = base.replace(/[\\/:*?"<>|]/g, '_')
+    const nick = String(packet.nickname || '').replace(/[\\/:*?"<>|]/g, '_').trim()
     const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `${safe}_${stamp}_拆解素材包.md`,
+      defaultPath: `${nick ? nick + '_' : ''}${safe}_${stamp}_拆解素材包.md`,
       filters: [{ name: 'Markdown 文件', extensions: ['md'] }]
     })
     if (result.canceled || !result.filePath) return { success: false, error: 'Cancelled' }
@@ -741,8 +762,9 @@ export function registerIpcHandlers(): void {
     for (const it of doneItems) {
       const info = teardown.readPacket(it.path)
       if (!info) continue
+      const nick = String(info.nickname || '').replace(/[\\/:*?"<>|]/g, '_').trim()
       const safe = (it.name || path.basename(it.path)).replace(/[\\/:*?"<>|]/g, '_')
-      const dir = path.join(root, safe)
+      const dir = path.join(root, nick ? `${nick}_${safe}` : safe)
       try {
         fs.mkdirSync(dir, { recursive: true })
         const parts = info.split?.split ? info.split.parts : []
@@ -754,7 +776,8 @@ export function registerIpcHandlers(): void {
         if (info.offlineDraft && fs.existsSync(info.offlineDraft)) fs.copyFileSync(info.offlineDraft, path.join(dir, '报告草稿_离线.md'))
         if (info.segmentsStat && fs.existsSync(info.segmentsStat)) fs.copyFileSync(info.segmentsStat, path.join(dir, '分段统计.md'))
 
-        const usage: string[] = ['# 怎么喂给 AI', '']
+        if (nick && !parts.length) fs.writeFileSync(path.join(dir, `拆解素材包_${nick}.md`), info.content, 'utf-8')
+        const usage: string[] = ['# 怎么喂给 AI', '', `主播：${nick || '未识别主播'}`, '']
         if (parts.length) {
           usage.push(`本场素材包约 ${info.split?.totalTokens} token，超过预算 ${info.split?.limit}，已拆成 ${parts.length} 份：`, '')
           usage.push('按顺序一份一份贴给 AI，每份都自带基本信息与分析指令；最后让它把各段结论合并成完整报告。', '')
@@ -841,6 +864,37 @@ ipcMain.handle('incubate:list', async (_e, table: string) => incubate.listRows(t
 ipcMain.handle('incubate:add', async (_e, table: string, row: any) => incubate.addRow(table, row))
 ipcMain.handle('incubate:update', async (_e, table: string, id: number, row: any) => incubate.updateRow(table, id, row))
 ipcMain.handle('incubate:delete', async (_e, table: string, id: number) => incubate.deleteRow(table, id))
+
+// ---------------- 曲库（抖音无版权禁播清单） ----------------
+ipcMain.handle('music:folders', async () => musicLibrary.listFolders())
+ipcMain.handle('music:folder-add', async (_e, name: string) => musicLibrary.addFolder(name))
+ipcMain.handle('music:folder-rename', async (_e, id: string, name: string) => musicLibrary.renameFolder(id, name))
+ipcMain.handle('music:folder-remove', async (_e, id: string) => musicLibrary.removeFolder(id))
+ipcMain.handle('music:list', async (_e, search: string, status: string, folderId: string) => musicLibrary.listSongs(search, status, folderId))
+ipcMain.handle('music:stats', async (_e, folderId: string) => musicLibrary.stats(folderId || ''))
+ipcMain.handle('music:add', async (_e, song: any) => musicLibrary.addSong(song || {}))
+ipcMain.handle('music:update', async (_e, id: string, patch: any) => musicLibrary.updateSong(id, patch || {}))
+ipcMain.handle('music:remove', async (_e, id: string) => musicLibrary.removeSong(id))
+ipcMain.handle('music:import', async (_e, file: string, folderId: string, forceBlocked: boolean) => musicLibrary.importFile(file, folderId || musicLibrary.BLOCKED_FOLDER_ID, forceBlocked === true))
+ipcMain.handle('music:check-file', async (_e, file: string) => musicLibrary.checkFile(file))
+ipcMain.handle('music:save-check', async (_e, results: any[], folderId: string, source: string) => musicLibrary.saveCheckedResults(results || [], folderId, source || ''))
+ipcMain.handle('music:pick-file', async () => {
+  const opts: any = { title: '选择抖音无版权歌单（XLSX / CSV）', properties: ['openFile'], filters: [{ name: '歌单', extensions: ['xlsx', 'xls', 'csv', 'tsv'] }] }
+  const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts)
+  return r.canceled ? '' : (r.filePaths[0] || '')
+})
+ipcMain.handle('music:open-data', async () => {
+  shell.showItemInFolder(musicLibrary.dataFilePath())
+  return true
+})
+ipcMain.handle('music:pick-audio', async () => {
+  const opts: any = { title: '选择要加入曲库的歌曲文件', properties: ['openFile', 'multiSelections'], filters: [{ name: '音频', extensions: ['mp3', 'wav', 'm4a', 'flac', 'aac', 'ogg', 'wma'] }] }
+  const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts)
+  return r.canceled ? [] : r.filePaths
+})
+ipcMain.handle('music:upload', async (_e, files: string[], folderId: string) => musicLibrary.addAudioFiles(files || [], folderId))
+ipcMain.handle('music:open-song', async (_e, id: string) => shell.openPath(musicLibrary.openSong(id)))
+ipcMain.handle('music:open-folder', async (_e, id: string) => shell.openPath(musicLibrary.openFolder(id)))
 ipcMain.handle('incubate:score', async (_e, month?: string) => incubate.scoreOperators(month))
 ipcMain.handle('incubate:seed', async () => incubate.seedIfEmpty())
 ipcMain.handle('incubate:tracks', () => ({ tracks: incubate.TRACKS, common: incubate.COMMON_METRICS, defaultTrack: incubate.DEFAULT_TRACK }))
@@ -910,6 +964,7 @@ export async function cleanup(): Promise<void> {
   aiShare.stopShare()
   collectServer.stopShare()
   danmuConnections.clear()
+  autoWatch?.stop()
   recordingManager.stopAll()
   await db.flushDb()
   await incubate.flushIncubate()

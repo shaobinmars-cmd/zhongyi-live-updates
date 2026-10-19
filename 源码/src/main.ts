@@ -11,6 +11,7 @@ import TeardownView from './views/TeardownView.vue'
 import SettingsView from './views/SettingsView.vue'
 import AboutView from './views/AboutView.vue'
 import IncubateView from './views/IncubateView.vue'
+import MusicLibraryView from './views/MusicLibraryView.vue'
 
 import { useDanmuStore } from './stores/danmu'
 import { useRecordStore } from './stores/record'
@@ -27,6 +28,7 @@ const router = createRouter({
     { path: '/recording', component: RecordingView },
     { path: '/teardown', component: TeardownView },
     { path: '/incubate', component: IncubateView },
+    { path: '/music', component: MusicLibraryView },
     { path: '/settings', component: SettingsView },
     { path: '/about', component: AboutView }
   ]

@@ -17,7 +17,7 @@ import axios from 'axios'
 import { splitPacket } from './packet-split'
 import * as tdConfig from './teardown-config'
 import { V5_INSTRUCTION } from './teardown-instruction'
-import { readPacket } from './teardown'
+import { readPacket, stampPacketIdentity } from './teardown'
 import { load as loadTdConfig } from './teardown-config'
 import * as logger from './logger'
 
@@ -264,6 +264,8 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
     return { ok: false, note: '还没配置 AI 接口。去「设置」页填接口地址、密钥、模型名，再点「测试连接」。' }
   }
 
+  const first = readPacket(input)
+  if (first?.packetPath) stampPacketIdentity(first.packetPath, /\.md$/i.test(input) ? '' : input)
   const info = readPacket(input)
   if (!info || !info.content) {
     return { ok: false, note: '没找到拆解素材包，先把这一场拆解跑完。' }
@@ -291,9 +293,13 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
   cancelRequested = false
 
   const reportPath = path.join(info.workDir, 'AI分析报告.md')
+  const streamer = String(info.nickname || '').trim() || '未识别主播'
+  const streamerSafe = streamer.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60) || '未识别主播'
+  const namedReportPath = path.join(info.workDir, `AI分析报告_${streamerSafe}.md`)
   const header = [
-    '# AI 分析报告',
+    `# AI 分析报告 · ${streamer}`,
     '',
+    `- 主播：${streamer}`,
     `- 素材包：${info.packetPath}`,
     `- 模型：${cfg.model}`,
     `- 分析时间：${new Date().toLocaleString('zh-CN')}`,
@@ -305,9 +311,10 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
   // 每跑完一片就落盘：中途停了/失败了，前面跑完的部分不白费
   const writeReport = (partial: boolean): void => {
     try {
-      fs.writeFileSync(reportPath,
-        header + outputs.join('\n\n---\n\n') +
-        (partial ? '\n\n---\n\n> ⚠ 这次分析没有跑完，以上是已经完成的部分。\n' : '\n'), 'utf-8')
+      const text = header + outputs.join('\n\n---\n\n') +
+        (partial ? '\n\n---\n\n> ⚠ 这次分析没有跑完，以上是已经完成的部分。\n' : '\n')
+      fs.writeFileSync(reportPath, text, 'utf-8')
+      fs.writeFileSync(namedReportPath, text, 'utf-8')
     } catch { /* ignore */ }
   }
 

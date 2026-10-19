@@ -84,6 +84,30 @@ function modelBlobMB(model: string): number {
   return max / 1024 ** 2
 }
 
+function cudaRuntimeDlls(): string[] {
+  const roots: string[] = []
+  const local = String(process.env.LOCALAPPDATA || '')
+  const roaming = String(process.env.APPDATA || '')
+  if (local) roots.push(path.join(local, 'douyin-live-info', 'gpu-runtime', 'nvidia'))
+  if (roaming) roots.push(path.join(roaming, 'douyin-live-info', 'gpu-runtime', 'nvidia'))
+  const eng = engineStatus()
+  if (eng.root) roots.push(path.join(eng.root, 'python-embed', 'Lib', 'site-packages', 'nvidia'))
+  const out: string[] = []
+  for (const root of roots) {
+    try {
+      for (const name of fs.readdirSync(root)) {
+        const bin = path.join(root, name, 'bin')
+        if (!fs.existsSync(bin)) continue
+        for (const f of fs.readdirSync(bin)) {
+          const low = f.toLowerCase()
+          if (low.endsWith('.dll') && (low.includes('cublas') || low.includes('cudnn'))) out.push(path.join(bin, f))
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  return Array.from(new Set(out))
+}
+
 export async function runEnvCheck(model = 'small'): Promise<EnvReport> {
   const items: CheckItem[] = []
 
@@ -156,9 +180,15 @@ export async function runEnvCheck(model = 'small'): Promise<EnvReport> {
   const gpu = await runPS("(Get-CimInstance Win32_VideoController | Select-Object -First 1).Name")
   if (gpu && /nvidia|geforce|rtx|gtx/i.test(gpu)) {
     items.push({
-      key: 'gpu', level: 'ok', title: '显卡', detail: `${gpu} —— 转写仍固定用 CPU（包内没有 CUDA 的 cublas，走 GPU 反而会报错）`,
+      key: 'gpu', level: 'ok', title: '显卡', detail: `${gpu} —— 支持 GPU 加速`,
       fix: ''
     })
+    const dlls = cudaRuntimeDlls()
+    const names = dlls.map((x) => path.basename(x).toLowerCase()).join(' ')
+    const ready = names.includes('cublas64') && names.includes('cudnn')
+    items.push(ready
+      ? { key: 'cuda', level: 'ok', title: 'GPU 运行库', detail: `已就绪（${dlls.length} 个 CUDA 库，保存在用户目录，升级软件不会丢）`, fix: '' }
+      : { key: 'cuda', level: 'warn', title: 'GPU 运行库未安装', detail: '这台电脑有 NVIDIA 显卡，但还没装 cublas/cudnn；不装只能用 CPU 转写', fix: '打开「拆解 → 转写设置」，点「安装/校验 GPU 运行库」。GPU 库放在用户目录，以后升级软件不用重复安装。' })
   }
 
   return {

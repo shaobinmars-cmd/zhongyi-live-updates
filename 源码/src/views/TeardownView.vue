@@ -201,7 +201,7 @@
               :loading="prefetching === 'gpu'"
               :disabled="!!prefetching || running"
               @click="downloadGpu"
-            >下载 GPU 运行库</n-button>
+            >安装/校验 GPU 运行库</n-button>
             <n-button
               v-if="prefetching"
               size="tiny"
@@ -211,6 +211,7 @@
             >停止下载</n-button>
           </div>
           <div v-if="prefetchMsg" class="model-hint prefetch-msg">{{ prefetchMsg }}</div>
+          <div class="model-hint">GPU 运行库保存在用户目录，以后升级软件不用重新下载；旧版已装的 GPU 库会自动迁移。</div>
           <div class="model-hint">没下过的模型首次拆解要联网下载（medium 约 1.5GB）；点上面的按钮可以先下好，走的是国内镜像。</div>
 
           <div class="run-actions">

@@ -9,6 +9,7 @@
         <span class="pill"><b>{{ roomList.results.length }}</b> 个直播间</span>
         <span class="pill connected"><b>{{ danmuStore.connectedRoomCount }}</b> 个弹幕连接</span>
         <span class="pill recording"><b>{{ recordStore.recordingCount }}</b> 个录制中</span>
+        <span class="pill waiting"><b>{{ watchingCount }}</b> 个等待开播</span>
       </div>
     </div>
 
@@ -32,11 +33,11 @@
           </button>
         </div>
         <div class="all-actions">
-          <n-button size="tiny" @click="recordStore.recordAll()" :disabled="roomList.results.length === 0">开始未录的</n-button>
-          <n-button size="tiny" type="error" ghost @click="recordStore.stopAll()" :disabled="recordStore.recordingCount === 0">停止全部</n-button>
-          <n-button size="tiny" @click="connectAll">全部连接弹幕</n-button>
+          <n-button size="tiny" @click="recordAllOrWatch" :disabled="roomList.results.length === 0">开始未录 / 等待开播</n-button>
+          <n-button size="tiny" type="error" ghost @click="stopAllRecordingsAndWatch" :disabled="recordStore.recordingCount === 0 && watchingCount === 0">停止全部</n-button>
+          <n-button size="tiny" @click="connectAll">全部连接 / 等待开播</n-button>
           <n-button size="tiny" tertiary @click="danmuStore.disconnectAll()" :disabled="danmuStore.connectedRoomCount === 0">全部断开</n-button>
-          <n-button size="tiny" tertiary @click="roomList.clear()" :disabled="roomList.results.length === 0">清空列表</n-button>
+          <n-button size="tiny" tertiary @click="clearRooms" :disabled="roomList.results.length === 0">清空列表</n-button>
         </div>
       </div>
     </div>
@@ -47,6 +48,7 @@
         <div><span>直播中</span><b>{{ onlineCount }}</b></div>
         <div><span>录制中</span><b>{{ recordStore.recordingCount }}</b></div>
         <div><span>弹幕连接</span><b>{{ danmuStore.connectedRoomCount }}</b></div>
+        <div><span>等待开播</span><b>{{ watchingCount }}</b></div>
         <div><span>异常</span><b :class="{ bad: abnormalCount > 0 }">{{ abnormalCount }}</b></div>
       </div>
       <div v-if="overallRooms.length" class="overall-rooms">
@@ -96,11 +98,12 @@
             </div>
             <div class="selected-actions">
               <n-button size="small" @click="openRoom(selected)">打开链接</n-button>
-              <n-button size="small" :type="isConnected(selected) ? 'error' : 'primary'" :ghost="!isConnected(selected)" :disabled="(selected.platform || 'douyin') !== 'douyin'" @click="toggleConnect(selected)">
-                {{ isConnected(selected) ? '断开弹幕' : '连接弹幕' }}
+              <n-button v-if="selectedWatch && isWatchPending(selected)" size="small" type="warning" ghost @click="cancelAutoWatch(selected)">取消等待开播</n-button>
+              <n-button size="small" :type="isConnected(selected) ? 'error' : 'primary'" :ghost="!isConnected(selected)" :disabled="(selected.platform || 'douyin') !== 'douyin' || isWatchPending(selected)" @click="toggleConnect(selected)">
+                {{ isConnected(selected) ? '断开弹幕' : selected.roomStatus === 2 ? '等待开播' : '连接弹幕' }}
               </n-button>
-              <n-button size="small" :type="isRecording(selected) ? 'error' : 'success'" :ghost="!isRecording(selected)" @click="toggleRecord(selected)">
-                {{ isRecording(selected) ? '停止录制' : '开始录制' }}
+              <n-button size="small" :type="isRecording(selected) ? 'error' : 'success'" :ghost="!isRecording(selected)" :disabled="isWatchPending(selected) && !isRecording(selected)" @click="toggleRecord(selected)">
+                {{ isRecording(selected) ? '停止录制' : isWatchPending(selected) ? '等待开播' : selected.roomStatus === 2 ? '开播自动录' : '开始录制' }}
               </n-button>
             </div>
             <div v-if="selectedRecording" class="record-strip">
@@ -108,6 +111,8 @@
               <span>{{ selectedRecording.durationText }} · {{ selectedRecording.sizeText }}</span>
             </div>
             <div class="selected-note">
+              <div v-if="selectedWatch" class="auto-watch-note">{{ selectedWatch.message }}（{{ selectedWatch.lastCheckAt || '刚加入' }}）</div>
+              <div v-else-if="selected.roomStatus === 2" class="auto-watch-note">当前未开播：点「等待开播」后，开播会自动连接弹幕并开始录制。</div>
               {{ (selected.platform || 'douyin') === 'douyin'
                 ? '抖音弹幕通过网页登录态采集；登录失效后点「连接弹幕」重新连接。'
                 : `${platformLabel(selected.platform)} 当前支持录制；弹幕需要平台登录态和协议适配，暂不冒充抖音通道。` }}
@@ -130,11 +135,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, h, ref, onMounted, onBeforeUnmount } from 'vue'
 import { NButton, NDataTable, NInput, NSelect, useMessage, type DataTableColumns } from 'naive-ui'
 import { useDanmuStore } from '../stores/danmu'
 import { useRecordStore } from '../stores/record'
 import { useRoomListStore } from '../stores/room-list'
+import { DanmuConnectionState } from '../types'
 import DanmuRoomSections from '../components/DanmuRoomSections.vue'
 
 const API = () => (window as any).electronAPI
@@ -142,6 +148,7 @@ const message = useMessage()
 const danmuStore = useDanmuStore()
 const recordStore = useRecordStore()
 const roomList = useRoomListStore()
+const autoWatchItems = ref<any[]>([])
 
 const platformOptions = [
   { label: '自动识别平台', value: 'auto' },
@@ -179,13 +186,28 @@ const selectedMessages = computed(() => selected.value ? danmuStore.allMessages.
 const selectedGroups = computed(() => selected.value ? [{ roomId: selected.value.enterRoomId, nickname: selected.value.nickname, messages: selectedMessages.value }] : [])
 
 function isConnected(room: any) { return !!room?.enterRoomId && danmuStore.connectedRoomIds.has(room.enterRoomId) }
+function watchItem(room: any) { return autoWatchItems.value.find((item: any) => item.enterRoomId === room?.enterRoomId) || null }
+function isWatching(room: any) { return !!watchItem(room) }
+function isWatchPending(room: any) {
+  const state = watchItem(room)?.state
+  return state === 'waiting' || state === 'checking' || state === 'starting' || state === 'failed'
+}
+const watchingCount = computed(() => autoWatchItems.value.filter((item: any) => item.state !== 'started').length)
+const selectedWatch = computed(() => watchItem(selected.value))
 function isRecording(room: any) { return !!room?.enterRoomId && !!recordStore.recordingItems.find((i: any) => i.roomId === room.enterRoomId && i.isActive) }
 function liveStateText(room: any) {
+  const watch = watchItem(room)
+  if (watch?.state === 'waiting' || watch?.state === 'checking') return '等待开播'
+  if (watch?.state === 'starting') return '正在自动接入'
+  if (watch?.state === 'failed') return '等待重试'
+  if (watch?.state === 'started') return '已自动接入'
   if (room?.error) return '解析失败'
   if (room?.roomStatus === 2) return '未开播'
   return '直播中'
 }
 function liveStateClass(room: any) {
+  const state = watchItem(room)?.state
+  if (state === 'waiting' || state === 'checking' || state === 'starting' || state === 'failed') return 'waiting'
   if (room?.error) return 'bad'
   return room?.roomStatus === 2 ? 'idle' : 'live'
 }
@@ -194,6 +216,67 @@ function avatarGradient(id: string) {
   let n = 0
   for (let i = 0; i < (id || '').length; i++) n = (n * 31 + id.charCodeAt(i)) >>> 0
   return colors[n % colors.length]
+}
+
+function roomPayload(room: any) {
+  return {
+    enterRoomId: String(room?.enterRoomId || ''),
+    url: String(room?.url || ''),
+    nickname: String(room?.nickname || ''),
+    title: String(room?.title || ''),
+    platform: String(room?.platform || 'douyin'),
+    platformLabel: String(room?.platformLabel || ''),
+    roomStatus: Number(room?.roomStatus || 0),
+    likeCount: Number(room?.likeCount || 0),
+    viewCount: Number(room?.viewCount || 0),
+    error: String(room?.error || '')
+  }
+}
+
+async function loadAutoWatch() {
+  autoWatchItems.value = await API().autoWatchList()
+  for (const item of autoWatchItems.value) {
+    const room = roomList.results.find((row: any) => row.enterRoomId === item.enterRoomId)
+    if (room) Object.assign(room, item)
+    else roomList.results.push({ ...item, connectionState: DanmuConnectionState.None, index: roomList.results.length + 1 })
+  }
+}
+
+async function armAutoWatch(room: any, showMessage = true): Promise<boolean> {
+  if (!room?.enterRoomId) { message.warning('这个直播间还没解析出房间号，先刷新一下'); return false }
+  try {
+    await API().autoWatchAdd(roomPayload(room))
+    await loadAutoWatch()
+    if (showMessage) message.success(`${room.nickname || '直播间'} 已加入等待：开播后自动连接弹幕并录制`)
+    return true
+  } catch (ex: any) {
+    message.error('加入等待失败：' + (ex?.message || ex))
+    return false
+  }
+}
+
+async function cancelAutoWatch(room: any): Promise<void> {
+  await API().autoWatchRemove(String(room?.enterRoomId || ''))
+  await loadAutoWatch()
+  message.info('已取消等待开播')
+}
+
+async function removeAllAutoWatch(showMessage = true): Promise<void> {
+  for (const item of [...autoWatchItems.value]) {
+    await API().autoWatchRemove(String(item.enterRoomId || ''))
+  }
+  await loadAutoWatch()
+  if (showMessage) message.info('已取消全部等待开播')
+}
+
+async function stopAllRecordingsAndWatch(): Promise<void> {
+  await removeAllAutoWatch(false)
+  await recordStore.stopAll()
+}
+
+async function clearRooms(): Promise<void> {
+  await removeAllAutoWatch(false)
+  roomList.clear()
 }
 
 const columns: DataTableColumns<any> = [
@@ -208,11 +291,11 @@ const columns: DataTableColumns<any> = [
     ])
   },
   {
-    title: '操作', key: 'actions', width: 270,
+    title: '操作', key: 'actions', width: 330,
     render: (row: any) => h('div', { class: 'row-actions' }, [
       h(NButton, { size: 'tiny', quaternary: true, onClick: () => openRoom(row) }, { default: () => '链接' }),
-      h(NButton, { size: 'tiny', quaternary: true, type: isConnected(row) ? 'error' : 'primary', disabled: (row.platform || 'douyin') !== 'douyin', onClick: () => toggleConnect(row) }, { default: () => (row.platform || 'douyin') !== 'douyin' ? '弹幕未接' : isConnected(row) ? '断开弹幕' : '连接弹幕' }),
-      h(NButton, { size: 'tiny', quaternary: true, type: isRecording(row) ? 'error' : 'success', onClick: () => toggleRecord(row) }, { default: () => isRecording(row) ? '停止录制' : '开始录制' }),
+      h(NButton, { size: 'tiny', quaternary: true, type: isWatchPending(row) ? 'warning' : isConnected(row) ? 'error' : 'primary', disabled: (row.platform || 'douyin') !== 'douyin', onClick: () => toggleConnect(row) }, { default: () => (row.platform || 'douyin') !== 'douyin' ? '弹幕未接' : isWatchPending(row) ? '取消等待' : isConnected(row) ? '断开弹幕' : row.roomStatus === 2 ? '等待开播' : '连接弹幕' }),
+      h(NButton, { size: 'tiny', quaternary: true, type: isRecording(row) ? 'error' : 'success', disabled: isWatchPending(row), onClick: () => toggleRecord(row) }, { default: () => isRecording(row) ? '停止录制' : isWatchPending(row) ? '等待开播' : row.roomStatus === 2 ? '开播自动录' : '开始录制' }),
       h(NButton, { size: 'tiny', quaternary: true, type: 'error', onClick: () => removeRoom(row) }, { default: () => '删除' })
     ])
   }
@@ -226,27 +309,47 @@ function rowProps(row: any) {
 }
 
 async function toggleConnect(room: any) {
+  if (isWatchPending(room)) return cancelAutoWatch(room)
   if ((room.platform || 'douyin') !== 'douyin') return message.warning('其他平台弹幕需要各自登录态和协议适配，当前先支持多平台录制。')
   if (isConnected(room)) await danmuStore.disconnectRoom(room.enterRoomId)
+  else if (room.error || room.roomStatus === 2) await armAutoWatch(room)
   else await danmuStore.connectRoom(room.enterRoomId, room.nickname, 'douyin')
 }
 
 async function toggleRecord(room: any) {
   if (isRecording(room)) await recordStore.stopOne(room.enterRoomId)
+  else if (room.error || room.roomStatus === 2) await armAutoWatch(room)
   else await recordStore.recordOne(room)
 }
 
+async function recordAllOrWatch() {
+  const offline = roomList.results.filter((room: any) => (room.platform || 'douyin') === 'douyin' && room.enterRoomId && (room.error || room.roomStatus === 2))
+  for (const room of offline) await armAutoWatch(room, false)
+  const live = roomList.results.filter((room: any) => !room.error && room.roomStatus !== 2)
+  if (live.length) await recordStore.recordAll(live)
+  if (offline.length) message.success(`${offline.length} 个未开播直播间已加入等待，开播后自动录制`)
+}
+
 async function connectAll() {
-  await danmuStore.connectAll(roomList.results)
+  const offline = roomList.results.filter((room: any) => (room.platform || 'douyin') === 'douyin' && room.enterRoomId && (room.error || room.roomStatus === 2))
+  for (const room of offline) await armAutoWatch(room, false)
+  const online = roomList.results.filter((room: any) => (room.platform || 'douyin') === 'douyin' && !room.error && room.roomStatus !== 2)
+  if (online.length) await danmuStore.connectAll(online)
+  if (offline.length) message.success(`${offline.length} 个未开播直播间已加入等待，开播后自动连接`)
   const other = roomList.results.filter((r: any) => (r.platform || 'douyin') !== 'douyin').length
   if (other) message.info(`抖音弹幕已连接；${other} 个其他平台暂未接入弹幕`)
 }
 
 async function openRoom(room: any) {
   if (room?.url) await API().openExternal(room.url)
+  if (room?.enterRoomId && (room.error || room.roomStatus === 2)) await armAutoWatch(room, false)
 }
 
 async function removeRoom(room: any) {
+  if (watchItem(room)) {
+    await API().autoWatchRemove(String(room?.enterRoomId || ''))
+    await loadAutoWatch()
+  }
   if (isRecording(room)) await recordStore.stopOne(room.enterRoomId)
   if (isConnected(room)) await danmuStore.disconnectRoom(room.enterRoomId)
   if (selected.value === room) roomList.selectRoom(null)
@@ -255,8 +358,27 @@ async function removeRoom(room: any) {
 }
 
 async function refreshRooms() {
-  await roomList.fetchRooms()
+  if (!roomList.results.length) return roomList.fetchRooms()
+  const refreshed = await API().roomRefreshStats(roomList.results.map(roomPayload))
+  for (const item of refreshed || []) {
+    const room = roomList.results.find((row: any) => row.enterRoomId === item.enterRoomId)
+    if (room) Object.assign(room, item)
+  }
+  roomList.statusMessage = `已刷新 ${roomList.results.length} 个直播间状态`
 }
+
+onMounted(() => {
+  loadAutoWatch().catch(() => { /* ignore */ })
+  API().onAutoWatchUpdate((items: any[]) => {
+    autoWatchItems.value = items || []
+    for (const item of items || []) {
+      const room = roomList.results.find((row: any) => row.enterRoomId === item.enterRoomId)
+      if (room) Object.assign(room, item)
+    }
+  })
+})
+
+onBeforeUnmount(() => API().removeAutoWatchListeners())
 
 function importLinks() {
   const input = document.createElement('input')
@@ -328,4 +450,10 @@ function importLinks() {
 .empty-panel b { color:var(--ink-3); font-size:13px; }
 .empty-icon { font-size:30px; color:#b8cbd9; }
 @media (max-width:980px) { .live-main { grid-template-columns:1fr; } .live-head { flex-direction:column; } .live-pills { justify-content:flex-start; } }
+.pill.waiting b { color:#c27c0e; }
+.overall-kpis { grid-template-columns:repeat(5,1fr); }
+.table-status.waiting { color:#b7791f; }
+.state-chip.waiting { color:#b7791f; background:rgba(245,158,11,.12); }
+.auto-watch-note { margin-bottom:5px; padding:6px 8px; border-radius:7px; background:#fff8e8; color:#9a6700; font-size:10px; line-height:1.5; }
+@media (max-width:760px) { .overall-kpis { grid-template-columns:repeat(2,1fr); } }
 </style>

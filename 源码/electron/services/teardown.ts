@@ -62,6 +62,7 @@ export interface PacketInfo {
   split: SplitResult | null
   packetPath: string
   workDir: string
+  nickname: string
   offlineDraft: string
   segmentsStat: string
   grids: string[]
@@ -215,6 +216,57 @@ export function workDirFor(input: string): string {
   return path.join(path.dirname(input), `work_${base}`)
 }
 
+function safeFilePart(name: string): string {
+  return String(name || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60)
+}
+
+function nicknameFromRecord(videoPath: string): string {
+  if (!videoPath) return ''
+  const dir = path.dirname(videoPath)
+  const stem = path.basename(videoPath).replace(/\.[^.]+$/, '').replace(/_\d{3,4}$/, '')
+  for (const f of [`${stem}.meta.json`, `${path.basename(videoPath)}.meta.json`]) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
+      const n = String(meta?.nickname || '').trim()
+      if (n) return n
+    } catch { /* 继续用文件名 */ }
+  }
+  const parts = stem.split('_').map((x) => x.trim()).filter(Boolean)
+  if (parts[0] === '直播') parts.shift()
+  return parts[0] || ''
+}
+
+function nicknameFromPacket(content: string, workDir: string, input = ''): string {
+  const m = String(content || '').match(/(?:^|\n)\s*[-*]?\s*(?:主播|主播名称|主播名字)\s*[:：]\s*([^\r\n]+)/i)
+  if (m && m[1]) return m[1].trim().replace(/[`*]/g, '')
+  const fromRecord = nicknameFromRecord(input)
+  if (fromRecord) return fromRecord
+  const base = path.basename(workDir || '').replace(/^work_/, '')
+  return nicknameFromRecord(base + '.mp4')
+}
+
+/** 给素材包写入主播标题和基本信息，并生成带主播名的副本。 */
+export function stampPacketIdentity(packetPath: string, videoPath = ''): string {
+  try {
+    if (!packetPath || !fs.existsSync(packetPath)) return ''
+    const workDir = path.dirname(packetPath)
+    const raw = fs.readFileSync(packetPath, 'utf-8')
+    const nickname = nicknameFromPacket(raw, workDir, videoPath)
+    if (!nickname) return ''
+    let content = raw.replace(/^# 直播拆解素材包(?:\s*·.*)?$/m, `# 直播拆解素材包 · ${nickname}`)
+    if (!/(?:^|\n)\s*[-*]?\s*主播\s*[:：]/m.test(content)) {
+      content = content.replace(/(##\s*一、基本信息\s*\n)/, `$1- 主播：${nickname}\n`)
+    }
+    if (content !== raw) fs.writeFileSync(packetPath, content, 'utf-8')
+    const safe = safeFilePart(nickname) || '未命名主播'
+    const named = path.join(workDir, `拆解素材包_${safe}.md`)
+    fs.copyFileSync(packetPath, named)
+    return named
+  } catch {
+    return ''
+  }
+}
+
 /** 兼容旧版本：那时所有录像共用一个 work，翻出里面属于这个文件的那份 */
 function legacyWorkDir(input: string): string {
   try {
@@ -277,6 +329,7 @@ export function readPacket(input: string, limit?: number): PacketInfo | null {
   return {
     packetPath,
     workDir,
+    nickname: nicknameFromPacket(content, workDir, /\.md$/i.test(input) ? '' : input),
     split: content ? splitPacket(content, limit || tdConfig.load().contextLimit) : null,
     offlineDraft: opt('报告草稿_离线.md'),
     segmentsStat: opt('分段统计.md'),
@@ -307,6 +360,18 @@ function dirSize(p: string, depth = 0): number {
 
 function safeStat(p: string): fs.Stats | null {
   try { return fs.statSync(p) } catch { return null }
+}
+
+function nicknameFromSessionDir(dir: string): string {
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.toLowerCase().endsWith('.meta.json')) continue
+      const meta = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf-8'))
+      const n = String(meta?.nickname || '').trim()
+      if (n) return n
+    }
+  } catch { /* ignore */ }
+  return ''
 }
 
 function entryFor(p: string, nicknameHint = ''): RecordingEntry | null {
@@ -346,11 +411,17 @@ function scanDir(dir: string, out: RecordingEntry[], maxEntries = 200): void {
     const full = path.join(dir, e.name)
     if (e.isDirectory()) {
       // 拆解工具录的目录：直播_<主播>_<房间号>_<时间>
-      let hasChunks = false
-      try { hasChunks = fs.readdirSync(full).some(f => f.toLowerCase().startsWith('chunk_')) } catch { /* ignore */ }
-      if (hasChunks || e.name.startsWith('直播_') || e.name.startsWith('下载_')) {
+      // 新录制器：一个主播一场直播一个文件夹；也兼容旧工具的 chunk/直播_ 目录。
+      let names: string[] = []
+      try { names = fs.readdirSync(full) } catch { /* ignore */ }
+      const hasChunks = names.some((f) => f.toLowerCase().startsWith('chunk_'))
+      const hasMeta = names.some((f) => f.toLowerCase().endsWith('.meta.json'))
+      const hasVideo = names.some((f) => VIDEO_EXTS.includes(path.extname(f).toLowerCase()))
+      const looksLikeSession = /_\d{14}$/.test(e.name)
+      if (hasChunks || hasMeta || (looksLikeSession && hasVideo) || e.name.startsWith('直播_') || e.name.startsWith('下载_')) {
         const parts = e.name.split('_')
-        const entry = entryFor(full, parts[1] || '')
+        const entry = entryFor(full, nicknameFromSessionDir(full) || parts[1] || '')
+        if (entry && !hasVideo && !hasChunks) { entry.videoMissing = true; entry.name += '  ·录像已删' }
         if (entry) out.push(entry)
         continue
       }
@@ -773,6 +844,8 @@ export function start(input: string, model = 'small'): TeardownState {
           }
           const merged = await appendDanmuSection(state.workDir, video, dur)
           if (merged) pushLine('—— 已把本场弹幕/礼物并入素材包（第七节）——')
+          const named = stampPacketIdentity(packet, video)
+          if (named) pushLine('—— 已生成带主播名的素材包：' + path.basename(named) + ' ——')
         }
       } catch (ex: any) {
         logger.warn(LOG_MODULE, `并入弹幕失败：${ex.message}`)
@@ -868,12 +941,19 @@ let prefetchingKind: '' | 'model' | 'gpu' = ''
 
 export function setPrefetchHandler(cb: (e: PrefetchEvent) => void): void { prefetchHandler = cb }
 
+/** GPU 运行库放在用户目录，升级安装包覆盖 resources\engine 时不会被删。 */
+export function gpuRuntimeRoot(): string {
+  const base = String(process.env.LOCALAPPDATA || app.getPath('userData'))
+  return path.join(base, 'douyin-live-info', 'gpu-runtime')
+}
+
 /** 给引擎的 Python 传一份和拆解时一致的环境（UTF-8 + 模型镜像） */
 function engineEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     ...process.env,
     PYTHONUTF8: '1',
     PYTHONIOENCODING: 'utf-8',
+    DOUYIN_GPU_RUNTIME_DIR: gpuRuntimeRoot(),
     // 关键：不设这个，运营机下载模型会去 huggingface.co（国内连不上）
     HF_ENDPOINT: process.env.HF_ENDPOINT || 'https://hf-mirror.com',
     HF_HUB_DISABLE_XET: '1',
@@ -952,7 +1032,7 @@ export function prefetch(kind: 'model' | 'gpu', args: string[] = []): Promise<{ 
       prefetchingKind = ''
       const ok = code === 0
       const msg = ok
-        ? (kind === 'model' ? '模型已就绪，可以开始拆解了。' : 'GPU 运行库已装好：把「转写设备」改成 GPU 再跑一场。')
+        ? (kind === 'model' ? '模型已就绪，可以开始拆解了。' : 'GPU 运行库已装在用户目录：升级软件不会丢，把「转写设备」改成 GPU 再跑一场。')
         : `下载失败（退出码 ${code}），看上面的输出定位；多半是网络问题。`
       logger.info(LOG_MODULE, `下载结束 code=${code}`)
       prefetchHandler?.({ kind, running: false, line: `—— ${msg} ——` })

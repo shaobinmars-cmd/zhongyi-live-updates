@@ -1,5 +1,6 @@
 appId: com.douyin.live-info
 productName: 众艺传媒-抖音直播运营工具
+copyright: Copyright © 2026 太原烁金迪电子科技有限公司
 directories:
   output: release
 files:
@@ -31,6 +32,9 @@ extraResources:
       - "汇总数据.py"
       - "生成报表.py"
       - "自动上传_部署说明.md"
+  # 内置初始曲库（抖音无版权清单）
+  - from: "data/music-library-seed.json"
+    to: "music-library-seed.json"
 win:
   target:
     - nsis

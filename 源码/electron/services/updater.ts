@@ -4,7 +4,6 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
-import * as os from 'os'
 import * as crypto from 'crypto'
 import axios from 'axios'
 import { app } from 'electron'
@@ -12,6 +11,35 @@ import { spawn } from 'child_process'
 import * as logger from './logger'
 
 const LOG = 'Updater'
+
+function updatesDir(): string {
+  const base = String(process.env.LOCALAPPDATA || app.getPath('userData'))
+  const dir = path.join(base, 'douyin-live-info', 'updates')
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function freeBytes(dir: string): number {
+  try {
+    const st = (fs as any).statfsSync(dir)
+    return Number(st.bavail) * Number(st.bsize)
+  } catch {
+    return 0
+  }
+}
+
+function pruneOldSetups(keep: string): void {
+  try {
+    const files = fs.readdirSync(updatesDir())
+      .filter((f) => /^zhongyi-setup-.+\.exe$/i.test(f))
+      .map((f) => ({ f, t: fs.statSync(path.join(updatesDir(), f)).mtimeMs }))
+      .sort((a, b) => b.t - a.t)
+    for (const old of files.slice(2)) {
+      if (old.f === keep) continue
+      try { fs.unlinkSync(path.join(updatesDir(), old.f)) } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+}
 
 export interface Manifest {
   version: string
@@ -90,9 +118,15 @@ async function downloadTo(url: string, file: string, offset: number, total: numb
 }
 
 export async function downloadManifest(m: Manifest, onPct?: (p: number) => void): Promise<any> {
-  const out = path.join(os.tmpdir(), `zhongyi-setup-${m.version}-${Date.now()}.exe`)
+  const out = path.join(updatesDir(), `zhongyi-setup-${String(m.version || 'new').replace(/[^\w.-]/g, '_')}.exe`)
   try {
     try { fs.unlinkSync(out) } catch { /* ignore */ }
+    const expected = Number(m.size) || 0
+    const need = Math.max(2 * 1024 ** 3, expected * 2 + 512 * 1024 ** 2)
+    const free = freeBytes(updatesDir())
+    if (free > 0 && free < need) {
+      return { ok: false, message: `磁盘空间不足：更新至少需要 ${(need / 1024 ** 3).toFixed(1)} GB，当前只剩 ${(free / 1024 ** 3).toFixed(1)} GB。先清理磁盘再更新。` }
+    }
     let offset = 0
     if (Array.isArray(m.parts) && m.parts.length) {
       for (const u of m.parts) offset += await downloadTo(u, out, offset, Number(m.size) || 0, onPct)
@@ -100,6 +134,10 @@ export async function downloadManifest(m: Manifest, onPct?: (p: number) => void)
       await downloadTo(m.url, out, 0, Number(m.size) || 0, onPct)
     } else {
       return { ok: false, message: '清单里没有下载地址' }
+    }
+    if (expected > 0 && fs.statSync(out).size !== expected) {
+      try { fs.unlinkSync(out) } catch { /* ignore */ }
+      return { ok: false, message: '下载文件大小不对，已删除，请重试。' }
     }
     if (m.sha256) {
       const h = crypto.createHash('sha256')
@@ -110,15 +148,19 @@ export async function downloadManifest(m: Manifest, onPct?: (p: number) => void)
       }
     }
     onPct?.(100)
+    pruneOldSetups(path.basename(out))
     logger.info(LOG, `更新包下载完成：${out}`)
     return { ok: true, path: out, message: '下载完成' }
   } catch (ex: any) {
+    try { fs.unlinkSync(out) } catch { /* ignore */ }
     return { ok: false, message: '下载失败：' + (ex?.message || ex) }
   }
 }
 
 export function install(file: string): any {
   try {
+    if (!file || !fs.existsSync(file)) return { ok: false, message: '更新包不存在，请重新下载。' }
+    if (fs.statSync(file).size < 100 * 1024 * 1024) return { ok: false, message: '更新包不完整，请重新下载。' }
     spawn(file, ['/S'], { detached: true, stdio: 'ignore' }).unref()
     setTimeout(() => app.quit(), 1200)
     return { ok: true }

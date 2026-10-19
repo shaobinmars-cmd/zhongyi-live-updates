@@ -8,6 +8,13 @@ interface Window {
   electronAPI: {
     roomFetch: (urls: string[]) => Promise<any[]>
     roomRefreshStats: (rooms: any[]) => Promise<any[]>
+    autoWatchList: () => Promise<any[]>
+    autoWatchAdd: (room: any) => Promise<any>
+    autoWatchRemove: (roomId: string) => Promise<boolean>
+    autoWatchCheckNow: () => Promise<any[]>
+    autoWatchClearFinished: () => Promise<number>
+    onAutoWatchUpdate: (cb: (items: any[]) => void) => void
+    removeAutoWatchListeners: () => void
     danmuConnect: (roomId: string, nickname: string) => Promise<boolean>
     danmuDisconnect: (roomId: string) => Promise<void>
     danmuDisconnectAll: () => Promise<void>
@@ -78,6 +85,24 @@ interface Window {
     incubateDepartStreamer: (name: string, date: string) => Promise<any>
     incubateRestoreStreamer: (name: string) => Promise<any>
     incubateCustomCourseAdd: (opts: any) => Promise<any>
+    musicList: (search?: string, status?: string, folderId?: string) => Promise<any[]>
+    musicFolders: () => Promise<any[]>
+    musicFolderAdd: (name: string) => Promise<any>
+    musicFolderRename: (id: string, name: string) => Promise<any>
+    musicFolderRemove: (id: string) => Promise<any>
+    musicStats: (folderId?: string) => Promise<any>
+    musicAdd: (song: any) => Promise<any>
+    musicUpdate: (id: string, patch: any) => Promise<any>
+    musicRemove: (id: string) => Promise<any>
+    musicImport: (file: string, folderId: string, forceBlocked?: boolean) => Promise<any>
+    musicCheckFile: (file: string) => Promise<any>
+    musicSaveCheck: (results: any[], folderId: string, source: string) => Promise<any>
+    musicPickFile: () => Promise<string>
+    musicPickAudio: () => Promise<string[]>
+    musicUpload: (files: string[], folderId: string) => Promise<any>
+    musicOpenSong: (id: string) => Promise<any>
+    musicOpenFolder: (id: string) => Promise<any>
+    musicOpenData: () => Promise<any>
     envCheck: (model: string) => Promise<any>
   }
 }

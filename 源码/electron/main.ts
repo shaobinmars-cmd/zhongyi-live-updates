@@ -11,7 +11,8 @@ import { registerIpcHandlers, setMainWindow, cleanup, resumeAfterRestart } from 
 
 // 固定数据目录：以后改应用显示名时，授权 / 配置 / 日志都不会跟着搬家。
 // 不钉死的话，产品名一变 userData 就变，每个运营都得重新激活一次。
-app.setPath('userData', path.join(app.getPath('appData'), 'douyin-live-info'))
+const userDataOverride = String(process.env.DOUYIN_USER_DATA_DIR || '').trim()
+app.setPath('userData', userDataOverride || path.join(app.getPath('appData'), 'douyin-live-info'))
 import { setLicenseRevoked } from './ipc-handlers'
 import { checkRevoked } from './services/license'
 import { load as loadTdConfig } from './services/teardown-config'

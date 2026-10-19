@@ -33,11 +33,11 @@ export const useRecordStore = defineStore('record', () => {
     listenersSetup = false
   }
 
-  async function recordAll() {
+  async function recordAll(roomsArg?: any[]) {
 
     const roomList = useRoomListStore()
     // Serialize rooms to plain objects for IPC
-    const rooms = roomList.results.map(r => ({
+    const rooms = (roomsArg || roomList.results).map((r: any) => ({
       url: r.url,
       enterRoomId: r.enterRoomId,
       nickname: r.nickname,

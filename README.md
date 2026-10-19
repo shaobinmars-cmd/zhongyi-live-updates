@@ -1,6 +1,6 @@
 # 众艺传媒运营工具
 
-> 当前版本：**2.9.10**（长期基线与对照标签仍为 `baseline-2.9.9`）
+> 当前版本：**2.9.11**（长期基线与对照标签仍为 `baseline-2.9.9`）
 > 项目根目录：`H:\众艺传媒运营工具`
 
 众艺传媒自用的直播运营工作台，覆盖直播监看、录制、弹幕与礼物记录、视频拆解、AI 复盘、双场对比、主播孵化和运营数据汇总。
@@ -40,13 +40,14 @@ cmd /c "cd /d H:\众艺传媒运营工具\源码 && set ELECTRON_NO_ASAR=1 && no
 
 ## 下载与更新
 
-> 当前 GitHub 线上稳定版仍是 **2.9.9**；本地已构建 **2.9.10**，尚未上传外网。2.9.10 安装包在 `安装包` 目录。
+> 当前正式版本：**2.9.11**。安装包在 `安装包` 目录，线上稳定入口始终取最新版本。
 
-- 2.9.9 安装版（国内首选，已实测）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
-- 备用通道 1：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
-- 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
-- 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-setup-2.9.9.exe>
-- 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.9/zhongyi-portable-2.9.9.exe>
+- 稳定下载页：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/latest>
+- 2.9.11 安装版（国内首选）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
+- 备用通道 1：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
+- 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
+- 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
+- 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-portable-2.9.11.exe>
 - 国内更新清单：<https://fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json>
 
 ## 安全铁律

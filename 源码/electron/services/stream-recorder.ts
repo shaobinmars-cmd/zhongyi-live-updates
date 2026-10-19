@@ -70,23 +70,33 @@ export class StreamRecorder {
   }
 
   private get safeName(): string {
-    return (this.nickname || this.roomId).replace(/[<>:"/\\|?*]/g, '_')
+    return safeRecordingName(this.nickname, this.roomId)
   }
 
   start(pullUrl: string): boolean {
     const cfg = loadConfig()
-    this.outputDir = getEffectiveOutputPath(cfg)
+    const rootDir = getEffectiveOutputPath(cfg)
     try {
-      fs.mkdirSync(this.outputDir, { recursive: true })
+      fs.mkdirSync(rootDir, { recursive: true })
     } catch (ex) {
-      logger.error(LOG_MODULE, `建目录失败 ${this.outputDir}`, ex)
+      logger.error(LOG_MODULE, `建目录失败 ${rootDir}`, ex)
       this.hooks.onStatus('无法创建录制目录')
       return false
     }
 
     // 文件名用本机时间戳（以前用 UTC，运营按文件名找场次会对不上号）
     const stamp = localStamp()
-    this.prefix = `${this.safeName}_${stamp}`
+    const session = recordingSessionPath(rootDir, this.nickname, this.roomId, stamp)
+    this.prefix = session.prefix
+    // 一场直播一个文件夹：同名主播的不同场次按开播时间分开。
+    this.outputDir = session.dir
+    try {
+      fs.mkdirSync(this.outputDir, { recursive: true })
+    } catch (ex) {
+      logger.error(LOG_MODULE, `建场次目录失败 ${this.outputDir}`, ex)
+      this.hooks.onStatus('无法创建本场录制文件夹')
+      return false
+    }
     // 写一份旁注：这场录的是哪个房间、什么时候开始。
     // 拆解时靠它把「弹幕/礼物」按时间段并进素材包（没有它就对不上号）。
     try {
@@ -355,6 +365,16 @@ export class StreamRecorder {
   get filePrefix(): string {
     return this.prefix
   }
+}
+
+export function safeRecordingName(nickname: string, roomId = ''): string {
+  return String(nickname || roomId || '主播').replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim() || '主播'
+}
+
+export function recordingSessionPath(rootDir: string, nickname: string, roomId = '', stamp = ''): { prefix: string; dir: string } {
+  const safe = safeRecordingName(nickname, roomId)
+  const prefix = `${safe}_${stamp || localStamp()}`
+  return { prefix, dir: path.join(rootDir, prefix) }
 }
 
 /** 本机时间戳 YYYYMMDDHHMMSS */

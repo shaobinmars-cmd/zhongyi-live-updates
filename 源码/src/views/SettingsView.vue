@@ -285,6 +285,7 @@
     <div class="form-group" style="margin-top: 18px">
       <h3 class="section-title">联网更新（公网，跨路由/外场地可用）</h3>
       <div class="form-hint" style="margin: 6px 0 10px">填一次公网 latest.json 地址，以后点「检查更新 → 一键升级」就行，不用管局域网。</div>
+      <div class="form-hint" style="margin: 6px 0 10px">升级只替换程序：GPU 运行库、转写模型、授权、孵化数据和录像都会保留。更新包下载后保存在用户目录的 updates 文件夹，下载不完整或磁盘不足不会安装。</div>
       <div class="form-group" style="display: flex; align-items: center; gap: 10px">
         <n-input v-model:value="updUrl" size="small" placeholder="https://.../latest.json" />
         <n-button size="small" :loading="updChecking" @click="doCheckPublic">检查更新</n-button>
@@ -449,7 +450,8 @@ async function doUpgradePublic() {
   const d = await (window as any).electronAPI.updateDownloadManifest(m)
   if (!d?.ok) { updMsg.value = d?.message || '下载失败'; updBusy.value = false; return }
   updMsg.value = '下载完成，正在安装…'
-  await (window as any).electronAPI.updateInstallFile(d.path)
+  const inst = await (window as any).electronAPI.updateInstallFile(d.path)
+  if (!inst?.ok) { updMsg.value = inst?.message || '安装启动失败'; updBusy.value = false }
 }
 const configText = ref('')
 const pendingDelete = ref('')
