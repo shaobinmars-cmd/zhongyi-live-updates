@@ -414,10 +414,10 @@ async function saveVision() {
 }
 loadVision()
 
-const DEFAULT_UPDATE_URL = 'https://fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json'
+const DEFAULT_UPDATE_URL = 'https://ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
 const savedUpdateUrl = localStorage.getItem('upd_url') || ''
 const updUrl = ref(
-  !savedUpdateUrl || savedUpdateUrl.includes('cdn.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates')
+  !savedUpdateUrl || /(?:fastly|cdn|gcore|testingcf)\.jsdelivr\.net\/gh\/shaobinmars-cmd\/zhongyi-live-updates/i.test(savedUpdateUrl)
     ? DEFAULT_UPDATE_URL
     : savedUpdateUrl
 )

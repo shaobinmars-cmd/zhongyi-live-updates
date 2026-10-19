@@ -48,7 +48,9 @@ cmd /c "cd /d H:\众艺传媒运营工具\源码 && set ELECTRON_NO_ASAR=1 && no
 - 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
 - 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe>
 - 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-portable-2.9.11.exe>
-- 国内更新清单：<https://fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json>
+- 国内更新清单（首选）：<https://ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
+- 更新清单备用 1：<https://ghproxy.net/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
+- 更新清单备用 2：<https://gh-proxy.com/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
 
 ## 安全铁律
 

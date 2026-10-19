@@ -60,25 +60,43 @@ function cmp(a: string, b: string): number {
   return 0
 }
 
+function manifestCandidates(source: string): string[] {
+  const url = String(source || '').trim()
+  if (!/zhongyi-live-updates.*latest\.json/i.test(url)) return [url]
+  const raw = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
+  return Array.from(new Set([
+    'https://ghfast.top/' + raw,
+    'https://ghproxy.net/' + raw,
+    'https://gh-proxy.com/' + raw,
+    raw,
+    url
+  ]))
+}
 export async function checkUrl(url: string): Promise<any> {
+
   if (!/^https?:\/\//i.test(String(url || ''))) return { ok: false, message: '更新源必须是 http(s) 地址' }
-  try {
-    const res = await axios.get(url, { timeout: 30000, headers: { 'Cache-Control': 'no-cache' } })
-    const m = res.data as Manifest
-    if (!m || !m.version || (!m.url && !(Array.isArray(m.parts) && m.parts.length))) {
-      return { ok: false, message: '更新清单格式不对（需要 version 和 url 或 parts）' }
+  let lastError = ''
+  for (const candidate of manifestCandidates(url)) {
+    try {
+      const res = await axios.get(candidate, { timeout: 20000, headers: { 'Cache-Control': 'no-cache' } })
+      const m = res.data as Manifest
+      if (!m || !m.version || (!m.url && !(Array.isArray(m.parts) && m.parts.length))) {
+        lastError = '更新清单格式不对（需要 version 和 url 或 parts）'
+        continue
+      }
+      const newer = cmp(m.version, app.getVersion()) > 0
+      logger.info(LOG, `检查更新：当前 ${app.getVersion()}，最新 ${m.version}，来源 ${candidate}`)
+      return {
+        ok: true, current: app.getVersion(), latest: m.version, newer,
+        url: m.url || '', parts: m.parts || [], sha256: m.sha256 || '',
+        notes: m.notes || '', size: m.size || 0,
+        message: newer ? `发现新版本 ${m.version}` : `已是最新版本 ${app.getVersion()}`
+      }
+    } catch (ex: any) {
+      lastError = String(ex?.message || ex || '连接失败')
     }
-    const newer = cmp(m.version, app.getVersion()) > 0
-    logger.info(LOG, `检查更新：当前 ${app.getVersion()}，最新 ${m.version}`)
-    return {
-      ok: true, current: app.getVersion(), latest: m.version, newer,
-      url: m.url || '', parts: m.parts || [], sha256: m.sha256 || '',
-      notes: m.notes || '', size: m.size || 0,
-      message: newer ? `发现新版本 ${m.version}` : `已是最新版本 ${app.getVersion()}`
-    }
-  } catch (ex: any) {
-    return { ok: false, message: '连不上更新源：' + (ex?.message || ex) }
   }
+  return { ok: false, message: '连不上更新源：' + (lastError || '所有入口均失败') }
 }
 
 /** 国内访问 GitHub 经常超时：内置三个加速前缀，直连失败就自动换 */

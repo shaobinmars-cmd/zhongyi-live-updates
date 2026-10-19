@@ -144,7 +144,9 @@ async function main() {
   await evaluate(`location.hash = '#/settings'`)
   await sleep(900)
   const updateUrl = String(await evaluate(`document.querySelector('input[placeholder*="latest.json"]')?.value || ''`) || '')
-  check(updateUrl.includes('fastly.jsdelivr.net/gh/shaobinmars-cmd/zhongyi-live-updates@main/latest.json'), '设置页使用最新自动更新源', updateUrl)
+  check(updateUrl.includes('ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'), '设置页使用最新自动更新源', updateUrl)
+  const updateCheck = await evaluate(`(async () => await window.electronAPI.updateCheckUrl(${JSON.stringify(updateUrl)}))()`)
+  check(updateCheck?.ok === true && String(updateCheck?.latest || '') === '2.9.11', '联网更新清单可读取 2.9.11', JSON.stringify(updateCheck))
 
   const screenshot = await send('Page.captureScreenshot', { format: 'png' })
   if (screenshot.result?.data) {
