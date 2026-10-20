@@ -64,7 +64,8 @@ function manifestCandidates(source: string): string[] {
   const url = String(source || '').trim()
   if (!/zhongyi-live-updates.*latest\.json/i.test(url)) return [url]
   // 主通道 GitCode（国内满速），GitHub 及公益代理做备用
-  const gitcode = 'https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/raw/main/latest.json'
+  // 主通道：GitCode 公开仓 contents API（免登录、国内满速、无缓存问题）
+  const gitcode = 'https://api.gitcode.com/api/v5/repos/gcw_7Nfzwkf5/zhongyi-live-updates/contents/latest.json?ref=main'
   const raw = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
   return Array.from(new Set([
     gitcode,
@@ -82,7 +83,11 @@ export async function checkUrl(url: string): Promise<any> {
   for (const candidate of manifestCandidates(url)) {
     try {
       const res = await axios.get(candidate, { timeout: 20000, headers: { 'Cache-Control': 'no-cache' } })
-      const m = res.data as Manifest
+      let m = res.data as any
+      // GitCode contents API 返回 { content: base64 }，需要拆包
+      if (m && typeof m.content === 'string' && m.encoding === 'base64') {
+        m = JSON.parse(Buffer.from(m.content.replace(/\n/g, ''), 'base64').toString('utf-8'))
+      }
       if (!m || !m.version || (!m.url && !(Array.isArray(m.parts) && m.parts.length))) {
         lastError = '更新清单格式不对（需要 version 和 url 或 parts）'
         continue

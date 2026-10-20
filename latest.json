@@ -1,12 +1,12 @@
 {
-  "version": "2.9.35",
+  "version": "2.9.37",
   "parts": [
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.35/zhongyi-setup-2.9.35.exe.001",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.35/zhongyi-setup-2.9.35.exe.002",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.35/zhongyi-setup-2.9.35.exe.003",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.35/zhongyi-setup-2.9.35.exe.004"
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.001",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.002",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.003",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.004"
   ],
-  "sha256": "421B70B26E5D3FF477B0267DDE1BEAC0F5FD4D8889143A830B9971B451CE75CF",
-  "notes": "数据自动上传切国内 GitCode 私有仓（管理端设置页可复制数据通道串，运营粘贴一键配置）；更新通道 GitCode 主。",
-  "size": 297809437
+  "sha256": "CAD4F48825CF3B3DD0709388C840F2D758F5253222A2E791A93965E733EA6FAB",
+  "notes": "检查更新稳定走 GitCode；数据上传国内通道。",
+  "size": 297810352
 }
