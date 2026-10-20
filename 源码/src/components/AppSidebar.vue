@@ -64,13 +64,16 @@ defineEmits<{ navigate: [path: string] }>()
 
 const isManager = ref(false)
 
-// 角色判断：sync 配置里的 bossMode = 这台是老板汇总电脑。
-// 不额外存第二份角色配置，避免两边不一致。
+// 角色判断：bossMode 开关，或授权文件「运营」字段为 管理员/人事（人事端授权由老板用签发工具签发）。
+// 运营授权写的是运营姓名，不匹配 → 人事菜单自动隐藏。
 onMounted(async () => {
   try {
     const api = (window as any).electronAPI
     const s = await api.syncGet()
-    isManager.value = !!s?.bossMode
+    if (s?.bossMode) { isManager.value = true; return }
+    const st = await api.licenseStatus()
+    const who = String(st?.payload?.运营 || '')
+    isManager.value = who === '管理员' || who === '人事'
   } catch { isManager.value = false }
 })
 

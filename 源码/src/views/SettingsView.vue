@@ -49,6 +49,9 @@
       <div class="form-hint">
         上面点一下服务商和模型就自动填好地址和模型名，密钥去对应平台控制台申请。密钥只存在本机。
       </div>
+      <div class="form-hint">
+        模型更新了怎么办：不用等软件升级。去服务商控制台复制最新模型名（例如千问出了 qwen4-vl-plus），直接粘贴到上面「模型名」框里保存即可；识别不了图片就把模型名换成带 vl / omni / 4v 的，纯文字用 max / plus / chat 结尾的。
+      </div>
 
       <div class="form-actions">
         <n-button :loading="aiTesting" type="primary" @click="testAi">测试并保存</n-button>
@@ -228,7 +231,10 @@ onMounted(async () => {
   } catch { /* ignore */ }
   try {
     const s = await api().syncGet()
-    isManager.value = !!s?.bossMode
+    if (s?.bossMode) { isManager.value = true; return }
+    const st = await api().licenseStatus()
+    const who = String(st?.payload?.运营 || '')
+    isManager.value = who === '管理员' || who === '人事'
   } catch { /* ignore */ }
 })
 
