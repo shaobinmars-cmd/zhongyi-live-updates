@@ -1,6 +1,6 @@
 # 众艺传媒运营工具
 
-> 当前版本：**2.9.12**（长期基线与对照标签仍为 `baseline-2.9.9`）
+> 当前版本：**2.9.30**（长期基线与对照标签仍为 `baseline-2.9.9`）
 > 项目根目录：`H:\众艺传媒运营工具`
 
 众艺传媒自用的直播运营工作台，覆盖直播监看、录制、弹幕与礼物记录、视频拆解、AI 复盘、双场对比、主播孵化和运营数据汇总。
@@ -40,14 +40,14 @@ cmd /c "cd /d H:\众艺传媒运营工具\源码 && set ELECTRON_NO_ASAR=1 && no
 
 ## 下载与更新
 
-> 当前正式版本：**2.9.12**。安装包在 `安装包` 目录，线上稳定入口始终取最新版本。
+> 当前正式版本：**2.9.30**。安装包在 `安装包` 目录，线上稳定入口始终取最新版本。
 
 - 稳定下载页：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/latest>
-- 2.9.12 安装版（国内首选）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe>
-- 备用通道 1（本次检测不稳定）：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe>
-- 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe>
-- 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe>
-- 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-portable-2.9.12.exe>
+- 2.9.30 安装版（国内首选）：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.30/zhongyi-setup-2.9.30.exe>
+- 备用通道 1：<https://ghproxy.net/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.30/zhongyi-setup-2.9.30.exe>
+- 备用通道 2：<https://gh-proxy.com/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.30/zhongyi-setup-2.9.30.exe>
+- 官方原链接：<https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.30/zhongyi-setup-2.9.30.exe>
+- 便携版国内首选：<https://ghfast.top/https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.30/zhongyi-portable-2.9.30.exe>
 - 国内更新清单（首选）：<https://ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
 - 更新清单备用 1：<https://ghproxy.net/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
 - 更新清单备用 2：<https://gh-proxy.com/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json>
