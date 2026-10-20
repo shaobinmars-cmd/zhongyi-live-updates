@@ -1,7 +1,7 @@
 {
-  "version": "2.9.12",
-  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe",
-  "sha256": "61A4E74C55A3E877A1868560468709FBE7D968449E0DAE80AFEA5846074163C4",
-  "notes": "修复更新下载一直 0%；孵化页按三大板块重排并提升字号层级；支持主播改名和误建删除；运营计划可修改删除；AI 报告拖入、每日上传自检、曲库格式与未开播自动等待等修复同步上线。",
-  "size": 297699440
+  "version": "2.9.31",
+  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.31/zhongyi-setup-2.9.31.exe",
+  "sha256": "DD2A0C5A004AEC11E4F2EC343A0E57298057135D579BDFF91AD64BB977C0494E",
+  "notes": "AI接口修正：阿里通义默认地址改为百炼专属通道，qwen-max/qwen-plus 实测可用；话术库1639条+PK玩法库200条；知识库一键导入资料；人事模块；监播常用链接；主播跟踪排版与卡顿修复。",
+  "size": 297807442
 }

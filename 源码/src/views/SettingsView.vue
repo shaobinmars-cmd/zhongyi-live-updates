@@ -35,7 +35,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label class="form-label">接口地址</label>
-          <n-input v-model:value="ai.baseUrl" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+          <n-input v-model:value="ai.baseUrl" placeholder="https://ws-r9vynbc12ax2fjvf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" />
         </div>
         <div class="form-group">
           <label class="form-label">API 密钥</label>
@@ -43,7 +43,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">模型名</label>
-          <n-input v-model:value="ai.model" placeholder="qwen-vl-max" />
+          <n-input v-model:value="ai.model" placeholder="qwen-max" />
         </div>
       </div>
       <div class="form-hint">
@@ -242,14 +242,14 @@ const aiOk = ref(true)
 const aiPresets = [
   {
     name: '阿里通义',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    note: '多模态：文字和图片用同一个模型，推荐 qwen-vl-max。控制台：bailian.console.aliyun.com',
-    models: ['qwen-vl-max', 'qwen-vl-plus', 'qwen-max', 'qwen-plus']
+    baseUrl: 'https://ws-r9vynbc12ax2fjvf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
+    note: '百炼专属通道（官网控制台复制）：qwen-max / qwen-plus 实测可用（纯文字，图片张数请设 0）；vl 视觉模型未部署。',
+    models: ['qwen-max', 'qwen-plus']
   },
   {
     name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/v1',
-    note: '便宜稳定，纯文字（看图场景请用通义）。控制台：platform.deepseek.com',
+    note: '便宜稳定，纯文字（看图场景请用智谱 glm-4v）。控制台：platform.deepseek.com',
     models: ['deepseek-chat', 'deepseek-reasoner']
   },
   {
