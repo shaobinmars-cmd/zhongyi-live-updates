@@ -1,12 +1,12 @@
 {
-  "version": "2.9.37",
+  "version": "2.9.38",
   "parts": [
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.001",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.002",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.003",
-    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.37/zhongyi-setup-2.9.37.exe.004"
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.38/zhongyi-setup-2.9.38.exe.001",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.38/zhongyi-setup-2.9.38.exe.002",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.38/zhongyi-setup-2.9.38.exe.003",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.38/zhongyi-setup-2.9.38.exe.004"
   ],
-  "sha256": "CAD4F48825CF3B3DD0709388C840F2D758F5253222A2E791A93965E733EA6FAB",
-  "notes": "检查更新稳定走 GitCode；数据上传国内通道。",
-  "size": 297810352
+  "sha256": "DC40B33C0F7802CD079D6577379FAD27A2434523FEADCA8AB1357B0B2059A213",
+  "notes": "修复数据上传SSL证书问题。",
+  "size": 297811846
 }
