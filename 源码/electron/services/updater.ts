@@ -63,12 +63,15 @@ function cmp(a: string, b: string): number {
 function manifestCandidates(source: string): string[] {
   const url = String(source || '').trim()
   if (!/zhongyi-live-updates.*latest\.json/i.test(url)) return [url]
+  // 主通道 GitCode（国内满速），GitHub 及公益代理做备用
+  const gitcode = 'https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/raw/main/latest.json'
   const raw = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
   return Array.from(new Set([
-    'https://ghfast.top/' + raw,
-    'https://ghproxy.net/' + raw,
-    'https://gh-proxy.com/' + raw,
+    gitcode,
     raw,
+    'https://ghfast.top/' + raw,
+    'https://gh-proxy.com/' + raw,
+    'https://ghproxy.net/' + raw,
     url
   ]))
 }

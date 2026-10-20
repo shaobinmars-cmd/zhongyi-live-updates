@@ -1,7 +1,12 @@
 {
-  "version": "2.9.33",
-  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.33/zhongyi-setup-2.9.33.exe",
-  "sha256": "BFF56F4491C9DCAD0BDA754370B92FB0B4CD90C090E718FE58BA268EA071B51B",
-  "notes": "人事权限按授权角色区分（运营自动隐藏人事页）；设置页加模型更新自助填写提示；qwen3-vl-plus 视觉模型；话术库1639条+PK玩法库200条；一键导入资料；监播常用链接。",
-  "size": 297807541
+  "version": "2.9.34",
+  "parts": [
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.34/zhongyi-setup-2.9.34.exe.001",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.34/zhongyi-setup-2.9.34.exe.002",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.34/zhongyi-setup-2.9.34.exe.003",
+    "https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/releases/download/v2.9.34/zhongyi-setup-2.9.34.exe.004"
+  ],
+  "sha256": "02F25B2B8A5629FAD9DDABFDEC21C29334530C827164D79FF8B8597C747AA262",
+  "notes": "更新通道国内化：GitCode 主通道满速，GitHub 转备用；人事按授权角色区分；模型更新自助填写提示。",
+  "size": 297807576
 }

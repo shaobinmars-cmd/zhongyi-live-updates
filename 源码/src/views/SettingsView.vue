@@ -437,12 +437,11 @@ async function makeReports() {
 }
 
 // ---- 联网更新 ----
-const RAW_UPDATE_URL = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
+const RAW_GITCODE = 'https://gitcode.com/gcw_7Nfzwkf5/zhongyi-live-updates/raw/main/latest.json'
+const RAW_GITHUB = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
 const updateSources = [
-  { label: 'ghfast', url: 'https://ghfast.top/' + RAW_UPDATE_URL },
-  { label: 'ghproxy', url: 'https://ghproxy.net/' + RAW_UPDATE_URL },
-  { label: 'gh-proxy', url: 'https://gh-proxy.com/' + RAW_UPDATE_URL },
-  { label: 'GitHub 原文件', url: RAW_UPDATE_URL }
+  { label: 'GitCode（国内推荐）', url: RAW_GITCODE },
+  { label: 'GitHub 备用', url: RAW_GITHUB }
 ]
 const DEFAULT_UPDATE_URL = updateSources[0].url
 const savedUpdateUrl = localStorage.getItem('upd_url') || ''
