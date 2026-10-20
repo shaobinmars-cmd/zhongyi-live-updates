@@ -22,8 +22,8 @@
     <div class="card list-header">
       <span class="list-title">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align: middle; margin-right: 6px;">
-          <rect x="2" y="4" width="20" height="13" rx="3" stroke="#6b7280" stroke-width="1.8"/>
-          <path d="M8 21h8M12 17v4" stroke="#6b7280" stroke-width="1.8" stroke-linecap="round"/>
+          <rect x="2" y="4" width="20" height="13" rx="3" stroke="var(--ink-3)" stroke-width="1.8"/>
+          <path d="M8 21h8M12 17v4" stroke="var(--ink-3)" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
         直播间列表
       </span>
@@ -48,8 +48,8 @@
     <div class="empty-state" v-else>
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-          <rect x="2" y="4" width="20" height="13" rx="3" stroke="#d8dbe0" stroke-width="1.5"/>
-          <path d="M8 21h8M12 17v4" stroke="#d8dbe0" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="2" y="4" width="20" height="13" rx="3" stroke="var(--line-2)" stroke-width="1.5"/>
+          <path d="M8 21h8M12 17v4" stroke="var(--line-2)" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </div>
       <div class="empty-title">在上方输入直播间链接，点击「获取信息」</div>
@@ -145,7 +145,7 @@ function exportLinks() {
 
 .input-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ink-3);
   margin-bottom: 8px;
   font-weight: 500;
 }
@@ -167,7 +167,7 @@ function exportLinks() {
 .list-title {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--ink-3);
   display: flex;
   align-items: center;
 }
@@ -188,7 +188,7 @@ function exportLinks() {
 
 .status-text {
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   margin-left: auto;
 }
 
@@ -198,6 +198,6 @@ function exportLinks() {
 
 .empty-title {
   font-size: 13px;
-  color: #9aa1ab;
+  color: var(--ink-4);
 }
 </style>

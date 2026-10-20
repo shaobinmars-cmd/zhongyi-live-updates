@@ -26,6 +26,19 @@
         <n-button type="primary" :loading="roomList.isLoading" @click="roomList.fetchRooms()">识别并加入</n-button>
         <n-button :disabled="roomList.isLoading" @click="importLinks">导入 TXT</n-button>
       </div>
+      <div class="common-links">
+        <n-select
+          size="tiny"
+          style="width: 260px"
+          placeholder="常用链接（选一个自动填入）"
+          :options="commonOptions"
+          :value="null"
+          @update:value="pickCommon"
+        />
+        <n-button size="tiny" :disabled="!roomList.urlText.trim()" @click="saveCommon">存为常用</n-button>
+        <n-button size="tiny" tertiary :disabled="!commonLinks.length" @click="clearCommon">清空常用</n-button>
+        <span class="hint" v-if="commonLinks.length">已存 {{ commonLinks.length }}/20 个</span>
+      </div>
       <div class="add-tools">
         <div class="platform-chips">
           <button v-for="p in filterOptions" :key="p.value" :class="['platform-chip', { active: roomList.platformFilter === p.value }]" @click="roomList.platformFilter = p.value">
@@ -178,6 +191,26 @@ const filterOptions = computed(() => {
 })
 
 const selected = computed(() => roomList.selectedRoom)
+
+// ---------------------------------------------------------------- 常用链接（最多 20 个，localStorage 持久）
+const COMMON_KEY = 'live-common-links'
+const commonLinks = ref<string[]>([])
+try { commonLinks.value = JSON.parse(localStorage.getItem(COMMON_KEY) || '[]') } catch { commonLinks.value = [] }
+const commonOptions = computed(() => commonLinks.value.map((u) => ({ label: u.length > 42 ? u.slice(0, 42) + '…' : u, value: u })))
+function persistCommon() { localStorage.setItem(COMMON_KEY, JSON.stringify(commonLinks.value.slice(0, 20))) }
+function saveCommon() {
+  const first = roomList.urlText.split(/\r?\n/).map((s: string) => s.trim()).filter(Boolean)[0]
+  if (!first) return
+  if (!commonLinks.value.includes(first)) {
+    commonLinks.value.unshift(first)
+    if (commonLinks.value.length > 20) commonLinks.value = commonLinks.value.slice(0, 20)
+    persistCommon()
+    message.success('已存为常用链接')
+  } else message.info('这个链接已经在常用里了')
+}
+function pickCommon(v: string) { if (v) roomList.urlText = v }
+function clearCommon() { commonLinks.value = []; persistCommon() }
+
 const overallRooms = computed(() => roomList.results.map((room: any) => ({ room, rec: recordStore.recordingItems.find((i: any) => i.roomId === room.enterRoomId) })))
 const onlineCount = computed(() => roomList.results.filter((r: any) => !r.error && r.roomStatus !== 2).length)
 const abnormalCount = computed(() => roomList.results.filter((r: any) => !!r.error || String(recordStore.recordingItems.find((i: any) => i.roomId === r.enterRoomId)?.statusText || '').includes('失败')).length)
@@ -398,23 +431,25 @@ function importLinks() {
 .live-title { margin:0 0 4px; font-size:var(--fs-h1); color:var(--ink); letter-spacing:-.2px; }
 .live-sub { color:var(--ink-3); font-size:12px; line-height:1.6; max-width:760px; }
 .live-pills { display:flex; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
-.pill { border:1px solid var(--line-2); background:#fff; border-radius:999px; padding:6px 10px; color:var(--ink-3); font-size:11px; }
+.pill { border:1px solid var(--line-2); background:var(--surface); border-radius:999px; padding:6px 10px; color:var(--ink-3); font-size:11px; }
 .pill b { color:var(--pulse-accent); font-size:14px; margin-right:2px; }
-.pill.connected b { color:var(--ok); } .pill.recording b { color:#ef6c4d; }
+.pill.connected b { color:var(--ok); } .pill.recording b { color:var(--bad); }
 .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-panel); }
 .add-card { padding:12px 14px; margin-bottom:12px; }
 .add-row { display:flex; gap:8px; align-items:stretch; }
 .add-row :deep(.n-input) { flex:1; }
+.common-links { display:flex; gap:8px; align-items:center; margin-top:8px; }
+.common-links .hint { font-size:12px; color:var(--ink-3); }
 .add-tools { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap; }
 .platform-chips, .all-actions { display:flex; gap:5px; flex-wrap:wrap; }
-.platform-chip { border:1px solid var(--line-2); background:#fff; color:var(--ink-3); border-radius:999px; padding:4px 9px; cursor:pointer; font:11px var(--font); }
+.platform-chip { border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); border-radius:999px; padding:4px 9px; cursor:pointer; font:11px var(--font); }
 .platform-chip b { color:var(--ink-4); margin-left:2px; }
 .platform-chip.active { border-color:var(--pulse-accent); color:var(--pulse-accent); background:var(--pulse-soft); }
 .live-main { display:grid; grid-template-columns:minmax(520px,1.5fr) minmax(310px,.9fr); gap:12px; align-items:start; }
 .overall-board { padding:11px 14px; margin-bottom:12px; }
 .overall-head { display:flex; align-items:baseline; gap:9px; margin-bottom:8px; } .overall-head b { color:var(--ink); font-size:13px; } .overall-head span { color:var(--ink-4); font-size:11px; }
-.overall-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:9px; } .overall-kpis div { display:flex; align-items:baseline; justify-content:space-between; border-radius:8px; background:#f7fbfd; border:1px solid #e5eef4; padding:7px 9px; } .overall-kpis span { color:var(--ink-4); font-size:10px; } .overall-kpis b { color:var(--pulse-accent); font-size:18px; line-height:1; } .overall-kpis b.bad { color:var(--bad); }
-.overall-rooms { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; } .overall-room { min-width:185px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:#fff; } .overall-room.active { border-color:#f5b69f; background:#fff8f5; } .overall-room b { min-width:0; max-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--ink-2); } .overall-rec { font-size:9px; color:var(--ink-4); } .overall-rec.on { color:#d4542c; font-weight:700; } .overall-meta { flex-basis:100%; width:100%; font-size:9px; color:var(--ink-4); } .overall-empty { color:var(--ink-4); font-size:11px; padding:4px 0 2px; }
+.overall-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:9px; } .overall-kpis div { display:flex; align-items:baseline; justify-content:space-between; border-radius:8px; background:var(--pulse-soft); border:1px solid var(--pulse-soft); padding:7px 9px; } .overall-kpis span { color:var(--ink-4); font-size:10px; } .overall-kpis b { color:var(--pulse-accent); font-size:18px; line-height:1; } .overall-kpis b.bad { color:var(--bad); }
+.overall-rooms { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; } .overall-room { min-width:185px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; border:1px solid var(--line); border-radius:8px; padding:7px 9px; background:var(--surface); } .overall-room.active { border-color:var(--line-2); background:var(--bad-soft); } .overall-room b { min-width:0; max-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--ink-2); } .overall-rec { font-size:9px; color:var(--ink-4); } .overall-rec.on { color:var(--bad); font-weight:700; } .overall-meta { flex-basis:100%; width:100%; font-size:9px; color:var(--ink-4); } .overall-empty { color:var(--ink-4); font-size:11px; padding:4px 0 2px; }
 .room-panel { padding:12px 14px; min-height:420px; }
 .panel-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:9px; }
 .panel-head > div { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
@@ -426,34 +461,34 @@ function importLinks() {
 .name-copy span { color:var(--ink-4); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .name-copy em { font-style:normal; font-weight:600; } .name-copy i { font-style:normal; color:var(--ink-4); }
 .row-actions { display:flex; align-items:center; gap:1px; flex-wrap:wrap; }
-.platform-badge { border-radius:5px; padding:2px 5px; font-size:10px; flex-shrink:0; background:#eef5fb; color:#0b76be; }
-.platform-badge.bilibili { background:#fff0f4; color:#e84a72; } .platform-badge.tiktok { background:#f2f2f2; color:#303030; } .platform-badge.kuaishou { background:#fff2e8; color:#ef6c00; } .platform-badge.xiaohongshu { background:#fff0f2; color:#df3355; } .platform-badge.other { background:#f2f4f7; color:#657384; }
+.platform-badge { border-radius:5px; padding:2px 5px; font-size:10px; flex-shrink:0; background:var(--pulse-soft); color:var(--pulse-accent); }
+.platform-badge.bilibili { background:var(--bad-soft); color:var(--bad); } .platform-badge.tiktok { background:var(--surface-2); color:var(--ink); } .platform-badge.kuaishou { background:var(--brand-soft); color:var(--brand); } .platform-badge.xiaohongshu { background:var(--bad-soft); color:var(--bad); } .platform-badge.other { background:var(--pulse-soft); color:var(--ink-3); }
 .table-status { font-size:11px; font-weight:600; }
 .table-status.live { color:var(--ok); } .table-status.idle { color:var(--ink-4); } .table-status.bad { color:var(--bad); }
 .right-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
 .selected-card { padding:14px; }
 .selected-head { display:flex; gap:9px; align-items:center; }
-.avatar { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; }
+.avatar { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; color:var(--surface); font-weight:800; }
 .selected-name-wrap { min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
 .selected-name-wrap b { color:var(--ink); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .selected-name-wrap span { color:var(--ink-4); font-size:10px; }
 .state-chip { padding:3px 7px; border-radius:999px; font-size:10px; }
 .state-chip.live { color:var(--ok); background:rgba(18,183,106,.09); } .state-chip.idle { color:var(--ink-4); background:var(--surface-2); } .state-chip.bad { color:var(--bad); background:rgba(240,68,56,.08); }
 .selected-actions { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
-.record-strip { display:flex; align-items:center; gap:7px; margin-top:11px; padding:7px 9px; border-radius:8px; background:#fff5f0; color:#b24d2c; font-size:11px; }
-.record-dot { width:6px; height:6px; border-radius:50%; background:#ef6c4d; }
+.record-strip { display:flex; align-items:center; gap:7px; margin-top:11px; padding:7px 9px; border-radius:8px; background:var(--brand-soft); color:var(--bad); font-size:11px; }
+.record-dot { width:6px; height:6px; border-radius:50%; background:var(--bad); }
 .selected-note { margin-top:10px; color:var(--ink-4); font-size:10px; line-height:1.6; }
 .message-card { padding:12px 14px; min-height:220px; }
 .message-count { color:var(--pulse-accent)!important; }
 .empty-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:320px; color:var(--ink-4); font-size:12px; }
 .empty-panel.small { min-height:120px; }
 .empty-panel b { color:var(--ink-3); font-size:13px; }
-.empty-icon { font-size:30px; color:#b8cbd9; }
+.empty-icon { font-size:30px; color:var(--line-2); }
 @media (max-width:980px) { .live-main { grid-template-columns:1fr; } .live-head { flex-direction:column; } .live-pills { justify-content:flex-start; } }
-.pill.waiting b { color:#c27c0e; }
+.pill.waiting b { color:var(--brand); }
 .overall-kpis { grid-template-columns:repeat(5,1fr); }
-.table-status.waiting { color:#b7791f; }
-.state-chip.waiting { color:#b7791f; background:rgba(245,158,11,.12); }
-.auto-watch-note { margin-bottom:5px; padding:6px 8px; border-radius:7px; background:#fff8e8; color:#9a6700; font-size:10px; line-height:1.5; }
+.table-status.waiting { color:var(--brand); }
+.state-chip.waiting { color:var(--brand); background:rgba(245,158,11,.12); }
+.auto-watch-note { margin-bottom:5px; padding:6px 8px; border-radius:7px; background:var(--brand-soft); color:var(--brand); font-size:10px; line-height:1.5; }
 @media (max-width:760px) { .overall-kpis { grid-template-columns:repeat(2,1fr); } }
 </style>

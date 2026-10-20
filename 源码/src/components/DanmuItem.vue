@@ -86,7 +86,7 @@ function onAvatarError(e: Event) {
 .danmu-time {
 .danmu-room {
   font-size: 10px;
-  color: #0f766e;
+  color: var(--ok);
   background: rgba(13, 148, 136, 0.1);
   border: 1px solid rgba(13, 148, 136, 0.25);
   padding: 1px 6px;
@@ -99,7 +99,7 @@ function onAvatarError(e: Event) {
 }
 
   font-size: 10px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -113,16 +113,16 @@ function onAvatarError(e: Event) {
   font-weight: 500;
 }
 
-.danmu-tag-chat { background: #9aa1ab; }
-.danmu-tag-gift { background: linear-gradient(135deg, #f97316, #ea580c); }
-.danmu-tag-member { background: #10b981; }
-.danmu-tag-like { background: #ef4444; }
-.danmu-tag-social { background: #3b82f6; }
-.danmu-tag-stats { background: #6b7280; }
+.danmu-tag-chat { background: var(--ink-4); }
+.danmu-tag-gift { background: linear-gradient(135deg, var(--pulse-accent), var(--brand)); }
+.danmu-tag-member { background: var(--ok); }
+.danmu-tag-like { background: var(--bad); }
+.danmu-tag-social { background: var(--pulse-accent); }
+.danmu-tag-stats { background: var(--ink-3); }
 
 .danmu-text {
   font-size: 12px;
-  color: #c0c2c8;
+  color: var(--line-2);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -142,18 +142,18 @@ function onAvatarError(e: Event) {
   height: 22px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #d8dbe0;
+  border: 1px solid var(--line-2);
 }
 
 .danmu-username {
-  color: #f97316;
+  color: var(--pulse-accent);
   text-decoration: none;
   font-weight: 500;
   cursor: pointer;
 }
 
 .danmu-username:hover {
-  color: #fb923c;
+  color: var(--pulse-accent);
   text-decoration: underline;
 }
 </style>

@@ -1,28 +1,18 @@
 <template>
   <div class="titlebar">
     <div class="rail-brand">
-      <div class="rail-mark">众</div>
+      <div class="rail-mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+          <rect x="3" y="3" width="26" height="26" rx="5" stroke="currentColor" stroke-width="2.4" fill="none"/>
+          <path d="M10 21 L16 10 L22 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+        </svg>
+      </div>
       <div class="rail-name">
         <span class="rail-org">众艺传媒</span>
         <span class="rail-sep"></span>
-        <span class="rail-app">抖音直播运营工具</span>
+        <span class="rail-app">直播运营系统</span>
       </div>
-    </div>
-    <div class="rail-pulse" aria-hidden="true">
-      <span style="height: 9px"></span>
-      <span style="height: 15px"></span>
-      <span style="height: 22px"></span>
-      <span style="height: 12px"></span>
-      <span style="height: 18px"></span>
-      <span style="height: 10px"></span>
-      <span style="height: 24px"></span>
-      <span style="height: 14px"></span>
-      <span style="height: 20px"></span>
-      <span style="height: 11px"></span>
-      <span style="height: 17px"></span>
-      <span style="height: 8px"></span>
-      <span style="height: 19px"></span>
-      <span style="height: 13px"></span>
     </div>
     <div class="titlebar-controls">
       <button class="titlebar-btn" @click="minimize">&#xE921;</button>
@@ -41,42 +31,27 @@ function close() { api().windowClose?.() }
 </script>
 
 <style scoped>
-/* 顶部品牌栏：全站唯一的“大胆之处” —— 深青蓝→亮青的律动带 */
+/* 顶部品牌栏：商务稳重 —— 深靛蓝 + 克制的 Logo + 白字 */
 .titlebar {
   height: var(--rail-h);
   display: flex;
   align-items: center;
   gap: 16px;
-  padding-left: 14px;
-  background: linear-gradient(104deg, #0a4f8f 0%, #0e7dc0 22%, #12a6d6 50%, #00c2d1 76%, #0e9fb5 100%);
+  padding-left: 18px;
+  background: linear-gradient(180deg, var(--rail-top) 0%, var(--rail) 100%);
   -webkit-app-region: drag;
   user-select: none;
   position: relative;
-  overflow: hidden;
-  box-shadow: 0 2px 10px rgba(12, 70, 110, 0.16);
+  box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 2px 8px rgba(12, 31, 46, 0.1);
 }
 
-/* 右上方一团柔光：让律动带有光感，但不压在文字上 */
+/* 底部一条极淡的分割线，和内容区分开 */
 .titlebar::after {
   content: '';
   position: absolute;
-  right: 150px;
-  top: -110px;
-  width: 340px;
-  height: 220px;
-  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3), transparent 68%);
-  pointer-events: none;
-}
-
-/* 右端压一层很淡的暗色，保证最小/最大化/关闭三个白图标看得清 */
-.titlebar::before {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 260px;
-  background: linear-gradient(90deg, rgba(6, 46, 72, 0), rgba(6, 46, 72, 0.22));
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
   pointer-events: none;
 }
 
@@ -85,108 +60,66 @@ function close() { api().windowClose?.() }
   align-items: center;
   gap: 12px;
   min-width: 0;
-  z-index: 1;
 }
 
-/* 众艺标志：暖橙→玫红，压在冷色律动带上，是唯一的暖色重音 */
+/* Logo：简洁方印 + 三角 + 圆点，去掉跳动感的"众"字 */
 .rail-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #ffa63d 0%, #ff6a1a 46%, #ff2d6f 100%);
-  color: #fff;
-  font-size: 25px;
-  font-weight: 700;
-  line-height: 1;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.22);
+  color: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 5px 14px rgba(200, 50, 40, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(4px);
 }
 
 .rail-name {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .rail-org {
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.5px;
+  color: var(--surface);
+  letter-spacing: 0.8px;
   white-space: nowrap;
 }
 
 .rail-sep {
   width: 1px;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.38);
+  height: 14px;
+  background: rgba(255, 255, 255, 0.3);
   flex-shrink: 0;
 }
 
 .rail-app {
-  font-size: 16.5px;
+  font-size: 13px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.93);
-  letter-spacing: 0.35px;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.3px;
   white-space: nowrap;
-}
-
-/* 律动条：14 根白柱，进页面时从低到高地立起来一次（只这一次，不循环） */
-.rail-pulse {
-  margin-left: auto;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  opacity: 0.58;
-  z-index: 1;
-}
-
-.rail-pulse span {
-  width: 2px;
-  border-radius: 2px;
-  background: #ffffff;
-  transform-origin: center;
-  animation: rail-rise 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.rail-pulse span:nth-child(1) { animation-delay: 0ms; }
-.rail-pulse span:nth-child(2) { animation-delay: 35ms; }
-.rail-pulse span:nth-child(3) { animation-delay: 70ms; }
-.rail-pulse span:nth-child(4) { animation-delay: 105ms; }
-.rail-pulse span:nth-child(5) { animation-delay: 140ms; }
-.rail-pulse span:nth-child(6) { animation-delay: 175ms; }
-.rail-pulse span:nth-child(7) { animation-delay: 210ms; }
-.rail-pulse span:nth-child(8) { animation-delay: 245ms; }
-.rail-pulse span:nth-child(9) { animation-delay: 280ms; }
-.rail-pulse span:nth-child(10) { animation-delay: 315ms; }
-.rail-pulse span:nth-child(11) { animation-delay: 350ms; }
-.rail-pulse span:nth-child(12) { animation-delay: 385ms; }
-.rail-pulse span:nth-child(13) { animation-delay: 420ms; }
-.rail-pulse span:nth-child(14) { animation-delay: 455ms; }
-
-@keyframes rail-rise {
-  from { transform: scaleY(0.12); opacity: 0; }
-  to { transform: scaleY(1); opacity: 1; }
 }
 
 .titlebar-controls {
   display: flex;
   height: 100%;
+  margin-left: auto;
   -webkit-app-region: no-drag;
-  z-index: 2;
 }
 
 .titlebar-btn {
-  width: 46px;
+  width: 44px;
   height: 100%;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.94);
+  color: rgba(255, 255, 255, 0.88);
   font-family: 'Segoe MDL2 Assets';
   font-size: 10px;
   cursor: pointer;
@@ -197,21 +130,17 @@ function close() { api().windowClose?.() }
 }
 
 .titlebar-btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--surface);
 }
 
 .titlebar-btn-close:hover {
-  background: #ff4d6e;
-  color: #ffffff;
+  background: var(--close-hover);
+  color: var(--surface);
 }
 
-/* 窗口变窄时先收起律动条，标题不能被挤掉 */
-@media (max-width: 940px) {
-  .rail-pulse { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rail-pulse span { animation: none; }
+@media (max-width: 880px) {
+  .rail-app { display: none; }
+  .rail-sep { display: none; }
 }
 </style>

@@ -2,9 +2,9 @@
   <div class="dashboard">
     <div class="dash-header">
       <div>
-        <h2 class="dash-title">实时监控大屏</h2>
+        <h2 class="dash-title">运营总览</h2>
         <div class="dash-subtitle">
-          <span class="subtitle-text">直播间数据实时聚合</span>
+          <span class="subtitle-text">全公司直播间实时聚合</span>
           <span v-if="store.roomStats.length > 0" class="subtitle-highlight">监控 {{ store.roomStats.length }} 个直播间</span>
         </div>
       </div>
@@ -62,10 +62,10 @@
     <div v-else class="empty-state">
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="7" height="7" rx="2" stroke="#d8dbe0" stroke-width="1.5"/>
-          <rect x="14" y="3" width="7" height="7" rx="2" stroke="#d8dbe0" stroke-width="1.5"/>
-          <rect x="3" y="14" width="7" height="7" rx="2" stroke="#d8dbe0" stroke-width="1.5"/>
-          <rect x="14" y="14" width="7" height="7" rx="2" stroke="#d8dbe0" stroke-width="1.5"/>
+          <rect x="3" y="3" width="7" height="7" rx="2" stroke="var(--line-2)" stroke-width="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="2" stroke="var(--line-2)" stroke-width="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="2" stroke="var(--line-2)" stroke-width="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="2" stroke="var(--line-2)" stroke-width="1.5"/>
         </svg>
       </div>
       <div class="empty-title">暂无监控中的直播间</div>
@@ -165,8 +165,8 @@ onUnmounted(() => {
 .subtitle-highlight { font-size: var(--fs-meta); color: var(--pulse-accent); }
 
 .monitor-badge {
-  background: #ffffff;
-  border: 1px solid #d8dbe0;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
   border-radius: 8px;
   padding: 8px 16px;
   display: flex;
@@ -178,18 +178,18 @@ onUnmounted(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #9aa1ab;
+  background: var(--ink-4);
 }
 
 .monitor-dot.active {
-  background: #10b981;
+  background: var(--ok);
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
 }
 
 .monitor-text {
   font-size: 12px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--ink-3);
 }
 
 .stats-row {
@@ -204,8 +204,8 @@ onUnmounted(() => {
 }
 
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e6e8ec;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 20px 16px;
   text-align: center;
@@ -248,7 +248,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   margin-top: 4px;
   font-weight: 500;
 }
@@ -261,9 +261,9 @@ onUnmounted(() => {
 
 .room-card {
   display: flex;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 10px;
-  border: 1px solid #e6e8ec;
+  border: 1px solid var(--line);
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -275,12 +275,12 @@ onUnmounted(() => {
 
 .room-stripe {
   width: 3px;
-  background: #d8dbe0;
+  background: var(--line-2);
   flex-shrink: 0;
 }
 
 .room-stripe.connected {
-  background: linear-gradient(180deg, #10b981, #059669);
+  background: linear-gradient(180deg, var(--ok), var(--ok));
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
 }
 
@@ -303,12 +303,12 @@ onUnmounted(() => {
 .room-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1f2328;
+  color: var(--ink);
 }
-.platform-chip { border:1px solid #d9e7f2; background:#f2f8fc; color:#38627b; border-radius:999px; padding:2px 7px; font-size:10px; }
-.conn-badge { border-radius:999px; padding:2px 7px; font-size:10px; background:#f3f5f7; color:#6b7280; } .conn-badge.on { background:#ecfdf5; color:#0f9d82; }
+.platform-chip { border:1px solid var(--pulse-soft); background:var(--pulse-soft); color:var(--pulse-deep); border-radius:999px; padding:2px 7px; font-size:10px; }
+.conn-badge { border-radius:999px; padding:2px 7px; font-size:10px; background:var(--pulse-soft); color:var(--ink-3); } .conn-badge.on { background:var(--ok-soft); color:var(--ok); }
 .room-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:10px; }
-.room-kpis div { border-radius:8px; background:#f8fbfd; padding:7px 6px; display:flex; flex-direction:column; align-items:center; gap:1px; } .room-kpis span { font-size:9px; color:#708797; } .room-kpis b { font-size:15px; color:#1f516d; font-weight:800; }
+.room-kpis div { border-radius:8px; background:var(--surface-2); padding:7px 6px; display:flex; flex-direction:column; align-items:center; gap:1px; } .room-kpis span { font-size:9px; color:var(--pulse-accent); } .room-kpis b { font-size:15px; color:var(--pulse-deep); font-weight:800; }
 
 .rec-badge {
   margin-left: auto;
@@ -317,7 +317,7 @@ onUnmounted(() => {
   border-radius: 6px;
   padding: 3px 10px;
   font-size: 10px;
-  color: #fbbf24;
+  color: var(--warn);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -328,7 +328,7 @@ onUnmounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #fbbf24;
+  background: var(--warn);
   animation: rec-pulse 1.5s ease-in-out infinite;
 }
 
@@ -351,18 +351,18 @@ onUnmounted(() => {
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 600;
-  color: #10b981;
+  color: var(--ok);
 }
 
 .live-badge.offline {
   background: rgba(107, 112, 128, 0.1);
   border-color: rgba(107, 112, 128, 0.2);
-  color: #6b7280;
+  color: var(--ink-3);
 }
 
 .room-stats-text {
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
 }
 
 .bars { display: flex; flex-direction: column; gap: 6px; }
@@ -380,14 +380,14 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 10px;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--ink-3);
 }
 
 .bar-dot { width: 5px; height: 5px; border-radius: 50%; }
 
 .bar-track {
   height: 5px;
-  background: #f4f5f7;
+  background: var(--surface-2);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -401,7 +401,7 @@ onUnmounted(() => {
 .bar-value {
   font-size: 11px;
   font-weight: 600;
-  color: #c0c2c8;
+  color: var(--line-2);
   text-align: right;
 }
 
@@ -416,13 +416,13 @@ onUnmounted(() => {
 
 .empty-title {
   font-size: 14px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   font-weight: 500;
 }
 
 .empty-hint {
   font-size: 12px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   margin-top: 4px;
 }
 </style>

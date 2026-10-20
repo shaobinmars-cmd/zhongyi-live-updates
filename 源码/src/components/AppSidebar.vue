@@ -1,38 +1,84 @@
 <template>
   <div class="sidebar">
     <div class="nav-items">
-    <!-- 品牌标志已移到顶部律动带（AppTitlebar），侧边栏只留导航，避免一页两个 Logo -->
-      <button
-        v-for="item in navItems"
-        :key="item.path"
-        :class="['nav-item', { active: current === item.path }]"
-        @click="$emit('navigate', item.path)"
-      >
-        <div :class="['nav-indicator', { visible: current === item.path }]"></div>
-        <span class="nav-icon" v-html="item.icon"></span>
-        <span class="nav-label">{{ item.label }}</span>
-      </button>
+      <!-- 工作区：每天打开就该看到的几个 -->
+      <div class="nav-group">
+        <div class="nav-group-title">工作</div>
+        <button
+          v-for="item in workItems"
+          :key="item.path"
+          :class="['nav-item', { active: current === item.path }]"
+          @click="$emit('navigate', item.path)"
+        >
+          <div :class="['nav-indicator', { visible: current === item.path }]"></div>
+          <span class="nav-icon" v-html="item.icon"></span>
+          <span class="nav-label">{{ item.label }}</span>
+        </button>
+      </div>
+
+      <!-- 人事（只有老板机出现；运营机自动隐藏，省得看着乱） -->
+      <div class="nav-group" v-if="isManager">
+        <div class="nav-group-title">管理</div>
+        <button
+          v-for="item in mgmtItems"
+          :key="item.path"
+          :class="['nav-item', { active: current === item.path }]"
+          @click="$emit('navigate', item.path)"
+        >
+          <div :class="['nav-indicator', { visible: current === item.path }]"></div>
+          <span class="nav-icon" v-html="item.icon"></span>
+          <span class="nav-label">{{ item.label }}</span>
+        </button>
+      </div>
+
+      <!-- 工具 -->
+      <div class="nav-group">
+        <div class="nav-group-title">工具</div>
+        <button
+          v-for="item in utilItems"
+          :key="item.path"
+          :class="['nav-item', { active: current === item.path }]"
+          @click="$emit('navigate', item.path)"
+        >
+          <div :class="['nav-indicator', { visible: current === item.path }]"></div>
+          <span class="nav-icon" v-html="item.icon"></span>
+          <span class="nav-label">{{ item.label }}</span>
+        </button>
+      </div>
     </div>
     <div class="sidebar-footer">
       <div class="org-name">太原烁金迪电子科技有限公司</div>
-      <div class="version-tag">V {{ appVersion }}</div>
+      <div class="version-tag">V {{ appVersion }}<span v-if="isManager" class="role-badge"> 管理端</span></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 defineProps<{ current: string }>()
 
-// 版本号直接读 package.json，以后改版本不用再找这里（之前写死过 2.3.0，差点让运营装错版本）
+// 版本号直接读 package.json，以后改版本不用再找这里
 import pkg from '../../package.json'
 const appVersion = pkg.version
 defineEmits<{ navigate: [path: string] }>()
 
-const navItems = [
+const isManager = ref(false)
+
+// 角色判断：sync 配置里的 bossMode = 这台是老板汇总电脑。
+// 不额外存第二份角色配置，避免两边不一致。
+onMounted(async () => {
+  try {
+    const api = (window as any).electronAPI
+    const s = await api.syncGet()
+    isManager.value = !!s?.bossMode
+  } catch { isManager.value = false }
+})
+
+const workItems = [
   {
     path: '/dashboard',
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>',
-    label: '仪表盘'
+    label: '运营总览'
   },
   {
     path: '/live',
@@ -42,13 +88,24 @@ const navItems = [
   {
     path: '/teardown',
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v12H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 20h8M12 16v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9.5 8.5l4 2-4 2z" fill="currentColor"/></svg>',
-    label: '拆解'
+    label: '复盘'
   },
   {
     path: '/incubate',
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
-    label: '孵化'
-  },
+    label: '主播'
+  }
+]
+
+const mgmtItems = [
+  {
+    path: '/hr',
+    icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="7" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M17.5 11.5h4M19.5 9.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    label: '人事'
+  }
+]
+
+const utilItems = [
   {
     path: '/music',
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l10-2v13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="1.8"/><circle cx="16.5" cy="16" r="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M9 9l10-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -69,16 +126,29 @@ const navItems = [
 
 <style scoped>
 .sidebar {
-  background: #fbfdff;
+  background: var(--surface-2);
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--line);
   padding: 14px 10px 12px;
 }
 
-
-
 .nav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nav-group-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  padding: 2px 12px 4px;
+}
+
+.nav-group {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -119,7 +189,7 @@ const navItems = [
   transform: translateY(-50%);
   width: 3px;
   height: 0;
-  background: linear-gradient(180deg, #0a5fa8, #00c2d1);
+  background: linear-gradient(180deg, var(--pulse-deep), var(--pulse-cyan));
   border-radius: 0 3px 3px 0;
   transition: height 0.2s ease;
 }
@@ -159,5 +229,18 @@ const navItems = [
   color: var(--ink-3);
   letter-spacing: 1px;
   font-weight: 500;
+}
+
+.role-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--pulse-soft);
+  color: var(--pulse-deep);
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  font-family: inherit;
+  font-weight: 600;
 }
 </style>

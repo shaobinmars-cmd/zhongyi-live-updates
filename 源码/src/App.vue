@@ -1,6 +1,7 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides">
     <n-message-provider>
+      <n-dialog-provider>
       <div v-if="!checked" class="boot">正在校验授权…</div>
       <LicenseGate v-else-if="!licensed" @activated="onActivated" />
       <div v-else class="app-frame">
@@ -16,6 +17,7 @@
           </div>
         </div>
       </div>
+      </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -23,7 +25,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NConfigProvider, NMessageProvider, type GlobalThemeOverrides } from 'naive-ui'
+import { NConfigProvider, NDialogProvider, NMessageProvider, type GlobalThemeOverrides } from 'naive-ui'
 import AppTitlebar from './components/AppTitlebar.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import LicenseGate from './components/LicenseGate.vue'
@@ -71,32 +73,32 @@ function navigate(path: string) {
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#0B76BE',
-    primaryColorHover: '#138FDB',
-    primaryColorPressed: '#0A5FA8',
-    primaryColorSuppl: '#00C2D1',
+    primaryColor: '#1f4e8a',
+    primaryColorHover: '#265f9f',
+    primaryColorPressed: '#173d6d',
+    primaryColorSuppl: '#3a6fb5',
     borderRadius: '10px',
     fontFamily:
       "'ZY Sans SC', 'Noto Sans SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'PingFang SC', system-ui, sans-serif",
-    borderColor: '#e2ebf4',
-    dividerColor: '#e2ebf4'
+    borderColor: '#e4eaf1',
+    dividerColor: '#e4eaf1'
   },
   DataTable: {
     tdColor: '#ffffff',
-    thColor: '#f7fbff',
-    borderColor: '#e2ebf4',
-    thTextColor: '#56748a',
-    tdTextColor: '#2c4658'
+    thColor: '#f4f7fb',
+    borderColor: '#e4eaf1',
+    thTextColor: '#4a5d73',
+    tdTextColor: '#1e2d3d'
   },
   Input: {
     color: '#ffffff',
-    borderColor: '#cfddea',
+    borderColor: '#d6dde6',
     colorFocus: '#ffffff'
   },
   Tabs: {
-    tabTextColorLine: '#56748a',
-    tabTextColorActiveLine: '#0B76BE',
-    barColor: '#0B76BE'
+    tabTextColorLine: '#4a5d73',
+    tabTextColorActiveLine: '#1f4e8a',
+    barColor: '#1f4e8a'
   },
   Button: {
     borderRadiusMedium: '8px',
@@ -104,7 +106,7 @@ const themeOverrides: GlobalThemeOverrides = {
   },
   InternalSelection: {
     color: '#ffffff',
-    borderColor: '#cfddea'
+    borderColor: '#d6dde6'
   }
 }
 </script>
@@ -127,42 +129,45 @@ const themeOverrides: GlobalThemeOverrides = {
 }
 
 :root {
-  --rail-h: 60px;
+  --rail-h: 50px;
   --side-w: 212px;
 
-  /* 冷墨四级：正文 / 次要 / 提示 / 极淡 */
-  --ink: #0c1f2e;
-  --ink-2: #2c4658;
-  --ink-3: #56748a;
-  --ink-4: #647f92;
+  /* 商务稳重的靛蓝品牌栏：顶部渐浅 → 底部稳重 */
+  --rail-top: #2a4f7a;
+  --rail: #1c3d62;
+  --close-hover: #c0392b;
 
-  /* 冰蓝白的面与线 */
-  --bg: #f2f7fb;
+  /* 墨色（商务克制）：正文 / 次要 / 提示 / 极淡 */
+  --ink: #10233a;
+  --ink-2: #263b54;
+  --ink-3: #4a5d73;
+  --ink-4: #6b7d90;
+
+  /* 冷蓝灰的面与线 */
+  --bg: #f4f6f9;
   --surface: #ffffff;
-  --surface-2: #f7fbff;
-  --line: #e2ebf4;
-  --line-2: #cfddea;
+  --surface-2: #f6f8fb;
+  --line: #e4eaf1;
+  --line-2: #d6dde6;
 
-  /* 冷色主调：深青蓝 → 电光青 → 薄荷 */
-  --pulse-accent: #0b76be;
-  --pulse-deep: #0a5fa8;
-  --pulse-blue: #1e8fe0;
-  --pulse-cyan: #00c2d1;
-  --pulse-mint: #2bd8c0;
-  --pulse-line: linear-gradient(100deg, #0a5fa8 0%, #1e8fe0 34%, #00c2d1 74%, #2bd8c0 100%);
-  --pulse-soft: rgba(11, 118, 190, 0.1);
-  --pulse-violet: var(--pulse-accent); /* 旧名保留，指向冷色主调 */
+  /* 主色：靛蓝（商务） */
+  --pulse-accent: #1f4e8a;
+  --pulse-deep: #173d6d;
+  --pulse-blue: #265f9f;
+  --pulse-cyan: #3a87c4;
+  --pulse-mint: #2a9d8f;
+  --pulse-line: linear-gradient(100deg, #173d6d 0%, #1f4e8a 34%, #265f9f 74%, #3a87c4 100%);
+  --pulse-soft: rgba(31, 78, 138, 0.08);
+  --pulse-violet: var(--pulse-accent);
 
-  /* 品牌暖色：只给 Logo 与「直播中」，是全站唯一的暖 */
-  --brand: #ff6a1a;
-  --brand-2: #ff3d77;
-  --brand-soft: rgba(255, 106, 26, 0.1);
-
-  /* 语义四色：固定不混用 */
-  --signal: #00b8d4;
-  --ok: #0fa97a;
-  --warn: #f5a524;
-  --bad: #ef4e4e;
+  /* 语义四色：固定不混用（软色给浅底标签/提示条） */
+  --signal: #2a9d8f;
+  --ok: #167a4a;
+  --warn: #b4830c;
+  --bad: #c0392b;
+  --ok-soft: rgba(22, 122, 74, 0.12);
+  --warn-soft: rgba(180, 131, 12, 0.14);
+  --bad-soft: rgba(192, 57, 43, 0.12);
 
   /* 字阶（中文界面）：正文 13.5 / 小字 12 / 极小 11 / 小标题 14 / 面板 16 / 页面标题 20 */
   --fs-body: 13.5px;

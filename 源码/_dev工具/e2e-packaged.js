@@ -91,13 +91,13 @@ async function main() {
   const score = String(await ev(`(async()=>{const r=await window.electronAPI.incubateScore('${new Date().toISOString().slice(0, 7)}');return JSON.stringify(r.map(x=>x['运营']+':'+x['得分']+x['结论']+'/'+x['进步率']))})()`) || '')
   ok('IPC 运营考核', score.includes('小A'), score)
 
-  // 不假设默认值（真实电脑上可能本来就是开着的）：能开、并且能恢复原值就行
-  const v5 = String(await ev(`(async()=>{const c=await window.electronAPI.teardownConfigGet();const before=!!c.useV5;await window.electronAPI.teardownConfigSet({useV5:true});const a=(await window.electronAPI.teardownConfigGet()).useV5;await window.electronAPI.teardownConfigSet({useV5:before});const back=(await window.electronAPI.teardownConfigGet()).useV5;return String(before)+'/'+String(a)+'/'+String(back)})()`) || '')
-  const v5p = v5.split('/')
-  ok('v5 开关（能开 → 并恢复原值）', v5p[1] === 'true' && v5p[0] === v5p[2], v5)
   const rc = String(await ev(`(async()=>JSON.stringify(await window.electronAPI.danmuReconnect()))()`) || '')
   ok('IPC 弹幕手动重连（掉线时不用等自动重连）', rc.includes('"ok":true'), rc)
-  ok('v5 指令可取', Number(await ev(`(async()=>String(await window.electronAPI.incubateInstruction()).length)()`)) > 500)
+  // AI 报告固定用 v5 详细指令，不再有开关；这里确认指令内容确实够细
+  const instr = String(await ev(`(async()=>String(await window.electronAPI.incubateInstruction()))()`))
+  ok('AI 报告指令为详细版（框架·可复制资产·30 天清单·可落地执行方案齐备）',
+    instr.length > 2000 && instr.includes('可复制资产') && instr.includes('30 天') && instr.includes('可落地执行方案'),
+    instr.length + ' 字')
 
   // 重新进入页面（名单非空 → 应自动选中第一个主播，表格出行）
   await ev(`location.hash = '#/dashboard'`); await sleep(600)

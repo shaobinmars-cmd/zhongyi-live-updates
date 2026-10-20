@@ -6,9 +6,9 @@
       <div class="app-info">
         <div class="app-logo">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-            <rect x="2" y="3" width="20" height="14" rx="3" stroke="#f97316" stroke-width="2"/>
-            <path d="M8 21h8M12 17v4" stroke="#f97316" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="12" cy="10" r="3" fill="#f97316" opacity="0.3"/>
+            <rect x="2" y="3" width="20" height="14" rx="3" stroke="var(--pulse-accent)" stroke-width="2"/>
+            <path d="M8 21h8M12 17v4" stroke="var(--pulse-accent)" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="10" r="3" fill="var(--pulse-accent)" opacity="0.3"/>
           </svg>
         </div>
         <div>
@@ -21,8 +21,8 @@
 
       <div class="section-header">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#f97316" stroke-width="1.8"/>
-          <polyline points="22,6 12,13 2,6" stroke="#f97316" stroke-width="1.8" fill="none"/>
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="var(--pulse-accent)" stroke-width="1.8"/>
+          <polyline points="22,6 12,13 2,6" stroke="var(--pulse-accent)" stroke-width="1.8" fill="none"/>
         </svg>
         <h3 class="section-title">联系方式</h3>
       </div>
@@ -36,9 +36,9 @@
 
       <div class="section-header">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="3" width="18" height="18" rx="3" stroke="#f97316" stroke-width="1.8"/>
-          <circle cx="12" cy="12" r="4" stroke="#f97316" stroke-width="1.8"/>
-          <rect x="11" y="4" width="2" height="2" fill="#f97316" rx="1"/>
+          <rect x="3" y="3" width="18" height="18" rx="3" stroke="var(--pulse-accent)" stroke-width="1.8"/>
+          <circle cx="12" cy="12" r="4" stroke="var(--pulse-accent)" stroke-width="1.8"/>
+          <rect x="11" y="4" width="2" height="2" fill="var(--pulse-accent)" rx="1"/>
         </svg>
         <h3 class="section-title">扫码关注</h3>
         <span class="section-tip">扫不出来就点一下放大</span>
@@ -63,7 +63,7 @@
 
       <div class="section-header">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#f97316" stroke-width="1.8" fill="none"/>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="var(--pulse-accent)" stroke-width="1.8" fill="none"/>
         </svg>
         <h3 class="section-title">免责声明</h3>
       </div>
@@ -120,12 +120,12 @@ function zoom(src: string) {
   justify-content: center;
 }
 
-.app-name { font-size: 18px; font-weight: 700; color: #1f2328; }
-.app-version { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.app-name { font-size: 18px; font-weight: 700; color: var(--ink); }
+.app-version { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
 
 .section-divider {
   height: 1px;
-  background: #e6e8ec;
+  background: var(--line);
   margin: 20px 0;
 }
 
@@ -136,8 +136,8 @@ function zoom(src: string) {
   margin-bottom: 16px;
 }
 
-.section-title { font-size: 15px; font-weight: 700; color: #1f2328; }
-.section-tip { font-size: 11px; color: #9aa1ab; margin-left: auto; }
+.section-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.section-tip { font-size: 11px; color: var(--ink-4); margin-left: auto; }
 
 .contact-row {
   display: flex;
@@ -148,13 +148,13 @@ function zoom(src: string) {
 
 .contact-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ink-3);
   min-width: 48px;
 }
 
 .contact-value {
   font-size: 13px;
-  color: #f97316;
+  color: var(--pulse-accent);
   font-weight: 500;
 }
 
@@ -182,15 +182,15 @@ function zoom(src: string) {
   aspect-ratio: 1;
   object-fit: contain;
   border-radius: 8px;
-  border: 1px solid #d8dbe0;
-  background: #fff;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
   padding: 6px;
   display: block;
 }
 
 .qr-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ink-3);
   font-weight: 500;
 }
 
@@ -212,17 +212,17 @@ function zoom(src: string) {
   height: auto;
   max-width: min(72vw, 560px);
   max-height: 72vh;
-  background: #fff;
+  background: var(--surface);
   padding: 12px;
   border-radius: 12px;
   image-rendering: -webkit-optimize-contrast;
 }
 
-.qr-zoom-tip { font-size: 12px; color: #6b7280; }
+.qr-zoom-tip { font-size: 12px; color: var(--ink-3); }
 
 .disclaimer-text {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ink-3);
   line-height: 1.8;
 }
 

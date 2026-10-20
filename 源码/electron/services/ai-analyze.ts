@@ -15,8 +15,7 @@ import * as path from 'path'
 import { app } from 'electron'
 import axios from 'axios'
 import { splitPacket } from './packet-split'
-import * as tdConfig from './teardown-config'
-import { EXECUTION_ADDENDUM, V5_FULL_INSTRUCTION } from './teardown-instruction'
+import { V5_FULL_INSTRUCTION } from './teardown-instruction'
 import { readPacket, stampPacketIdentity } from './teardown'
 import { load as loadTdConfig } from './teardown-config'
 import * as logger from './logger'
@@ -44,10 +43,8 @@ export interface AiConfig {
   model: string
   maxOutputTokens: number
   temperature: number
-  visionBaseUrl: string
-  visionApiKey: string
-  visionModel: string
-  visionMaxImages: number
+  /** 图片分析时最多带几张网格图给模型；0 = 只分析文字。默认 4，上限 8。 */
+  maxImages: number
 }
 
 const DEFAULT_CONFIG: AiConfig = {
@@ -58,11 +55,8 @@ const DEFAULT_CONFIG: AiConfig = {
   // 推理型模型（如 deepseek-reasoner / 各类 flash 版）会先想一大段再写正文，
   // 上限给小了正文会被截断，默认给宽松一点。
   maxOutputTokens: 8000,
-  temperature: 0.3
-  ,visionBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-  ,visionApiKey: ''
-  ,visionModel: 'qwen-vl-plus'
-  ,visionMaxImages: 4
+  temperature: 0.3,
+  maxImages: 4
 }
 
 /**
@@ -157,12 +151,6 @@ function describeError(ex: any): string {
   return String(ex?.message || ex)
 }
 
-const SYSTEM_PROMPT =
-  '你是资深抖音娱乐直播运营分析师。下面给你一份「直播拆解素材包」（含技术索引、逐句话术稿、画面网格图路径清单）。\n' +
-  '请严格按素材包最后一节「给分析 AI 的指令」里列的结构输出 Markdown 报告：\n' +
-  '每条结论必须带时间戳；话术必须是素材包里的原句，不要自己编；不要给无法执行的空话建议。\n' +
-  '如果这是分片，请只分析本片内容，并在开头注明「本片覆盖时间段」。'
-
 export interface AiProgress {
   stage: string
   part?: number
@@ -171,6 +159,18 @@ export interface AiProgress {
 }
 export type AiProgressFn = (p: AiProgress) => void
 
+/**
+ * 轻量文本生成：给「标准孵化手册」这类非拆解场景用。
+ * 与 analyzePacket 不同：不带拆解系统指令、不分片，一问一答。
+ */
+export async function chatText(system: string, user: string): Promise<string> {
+  const cfg = loadAiConfig()
+  if (!cfg.baseUrl) throw new Error('AI 还没配置：去「设置」页选好服务商并填好密钥')
+  if (!cfg.apiKey) throw new Error('AI 密钥还没填：去「设置」页填 API 密钥')
+  if (!cfg.model) throw new Error('AI 模型还没选：去「设置」页点一个模型名')
+  return chatOnce(cfg, user, [], system)
+}
+
 export interface AiAnalyzeResult {
   ok: boolean
   note: string
@@ -178,22 +178,21 @@ export interface AiAnalyzeResult {
   parts?: number
 }
 
-/** 系统提示词：默认维持原有行为；只有配置里打开 useV5 才用孵化版结构（可在「孵化 → 知识库」里开关） */
+/**
+ * 系统提示词：默认就用「孵化版」详细结构（框架 → 可复制资产 → 视觉整改 → 对标模仿 → 60 天逐日执行表 + 可落地执行方案）。
+ * 这段优先级最高，与素材包自带的那段短指令冲突时以它为准。
+ * 以前这里是「配置开关、默认关」，AI 只能跟着素材包里的短指令走，报告才那么浅。
+ */
 function systemPrompt(): string {
-  try {
-    if (tdConfig.load().useV5) {
-      return (
-        '你是资深抖音娱乐直播运营分析师，同时是带主播的直播运营。下面给你一份「直播拆解素材包」。\n' +
-        '请严格按下面这段指令输出 Markdown 报告（它优先级最高，与素材包里的旧指令冲突时以它为准）：\n\n' +
-        V5_FULL_INSTRUCTION +
-        '\n\n如果这是分片，请只分析本片内容，并在开头注明「本片覆盖时间段」。'
-      )
-    }
-  } catch { /* 配置读不到就按老逻辑 */ }
-  return SYSTEM_PROMPT + '\n\n' + EXECUTION_ADDENDUM
+  return (
+    '你是资深抖音娱乐直播运营分析师，同时是带主播的直播运营。下面给你一份「直播拆解素材包」。\n' +
+    '请严格按下面这段指令输出 Markdown 报告（它优先级最高，与素材包里的旧指令冲突时以它为准）：\n\n' +
+    V5_FULL_INSTRUCTION +
+    '\n\n如果这是分片，请只分析本片内容，并在开头注明「本片覆盖时间段」。'
+  )
 }
 
-async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = []): Promise<string> {
+async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = [], sys?: string): Promise<string> {
   const url = endpoint(cfg)
   const imageParts = images.map((u) => {
     // 把原始 base64 包成视觉接口要求的完整图片地址。
@@ -206,7 +205,7 @@ async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = [
   const body = {
     model: cfg.model,
     messages: [
-      { role: 'system', content: systemPrompt() },
+      { role: 'system', content: sys || systemPrompt() },
       { role: 'user', content: userContentParts }
     ],
     max_tokens: cfg.maxOutputTokens || 8000,
@@ -280,16 +279,16 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
   onProgress?.({ stage: '开始分析', part: 0, total })
 
   const outputs: string[] = []
-  // 图片分析（可选）：每场挑最多 N 张网格图，随第一片一起发给视觉模型
-  const visionCfg: AiConfig = { ...cfg, baseUrl: cfg.visionBaseUrl, apiKey: cfg.visionApiKey, model: cfg.visionModel }
-  const canVision = !!(cfg.visionApiKey && cfg.visionModel && cfg.visionBaseUrl)
-  const maxImg = Math.max(0, Math.min(8, Number(cfg.visionMaxImages) || 4))
+  // 图片（可选）：单模型，不再拆成"文字模型"和"图片模型"两路。
+  // 现代多模态模型（qwen-vl-max / doubao-15-pro-32k / deepseek-vl2 等）
+  // 能在同一次 /chat/completions 调用里同时处理文字和图片，省掉第二套密钥。
+  const maxImg = Math.max(0, Math.min(8, Number(cfg.maxImages) || 4))
   const grids = (info.grids || []).filter((p) => { try { return fs.existsSync(p) } catch { return false } })
   const wantCount = opts.imageCount !== undefined ? Math.max(0, Math.min(8, Number(opts.imageCount) || 0)) : maxImg
   const step = Math.max(1, Math.ceil(grids.length / Math.max(1, wantCount)))
   const picked = (opts.images && opts.images.length ? opts.images.filter((p) => { try { return fs.existsSync(p) } catch { return false } }) : (wantCount ? grids.filter((_, i) => i % step === 0).slice(0, wantCount) : []))
-  const images = canVision ? picked.map((p) => fs.readFileSync(p).toString('base64')) : []
-  if (canVision) logger.info(LOG_MODULE, `图片分析：${images.length} 张（${cfg.visionModel}）`)
+  const images = picked.map((p) => fs.readFileSync(p).toString('base64'))
+  if (images.length) logger.info(LOG_MODULE, `图片分析：${images.length} 张（${cfg.model}）`)
   cancelRequested = false
 
   const reportPath = path.join(info.workDir, 'AI分析报告.md')
@@ -328,7 +327,8 @@ export async function analyzePacket(input: string, onProgress?: AiProgressFn, op
       : part.content
     let answer = ''
     try {
-      answer = await chatOnce(i === 0 && images.length ? visionCfg : cfg, body, i === 0 ? images : [])
+      // 单模型：同一份 cfg 处理文字和图片；第一片带图片、后续分片只带文字
+      answer = await chatOnce(cfg, body, i === 0 ? images : [])
     } catch (ex) {
       if (cancelRequested) { cancelled = true; break }
       writeReport(true)

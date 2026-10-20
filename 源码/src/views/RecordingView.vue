@@ -18,25 +18,25 @@
       <div class="stat-card">
         <div class="stat-glow" style="background: radial-gradient(circle at 50% 0%, rgba(249,115,22,0.12), transparent 70%)"></div>
         <div class="stat-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#f97316" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="#f97316"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--pulse-accent)" stroke-width="1.8"/><circle cx="12" cy="12" r="4" fill="var(--pulse-accent)"/></svg>
         </div>
-        <div class="stat-value" style="color: #f97316">{{ recordStore.recordingCount }}</div>
+        <div class="stat-value" style="color: var(--pulse-accent)">{{ recordStore.recordingCount }}</div>
         <div class="stat-label">活跃任务</div>
       </div>
       <div class="stat-card">
         <div class="stat-glow" style="background: radial-gradient(circle at 50% 0%, rgba(34,211,238,0.12), transparent 70%)"></div>
         <div class="stat-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#22d3ee" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="var(--pulse-cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
-        <div class="stat-value" style="color: #22d3ee">{{ totalSize }}</div>
+        <div class="stat-value" style="color: var(--pulse-cyan)">{{ totalSize }}</div>
         <div class="stat-label">总文件大小</div>
       </div>
       <div class="stat-card">
         <div class="stat-glow" style="background: radial-gradient(circle at 50% 0%, rgba(16,185,129,0.12), transparent 70%)"></div>
         <div class="stat-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#10b981" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="#10b981" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--ok)" stroke-width="1.8"/><path d="M12 6v6l4 2" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round"/></svg>
         </div>
-        <div class="stat-value" style="color: #10b981">{{ activeCount }} / {{ recordStore.recordingItems.length }}</div>
+        <div class="stat-value" style="color: var(--ok)">{{ activeCount }} / {{ recordStore.recordingItems.length }}</div>
         <div class="stat-label">进行 / 总计</div>
       </div>
     </div>
@@ -137,8 +137,8 @@
     <div v-else class="empty-state">
       <div class="empty-icon">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="10" stroke="#d8dbe0" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="4" fill="#d8dbe0"/>
+          <circle cx="12" cy="12" r="10" stroke="var(--line-2)" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="4" fill="var(--line-2)"/>
         </svg>
       </div>
       <div class="empty-title">暂无录制任务</div>
@@ -242,8 +242,8 @@ function avatarGradient(roomId: string): string {
 .subtitle-highlight { font-size: var(--fs-meta); color: var(--pulse-accent); }
 
 .rec-badge {
-  background: #ffffff;
-  border: 1px solid #d8dbe0;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
   border-radius: 8px;
   padding: 8px 16px;
   display: flex;
@@ -255,11 +255,11 @@ function avatarGradient(roomId: string): string {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #9aa1ab;
+  background: var(--ink-4);
 }
 
 .rec-badge-dot.active {
-  background: #ef4444;
+  background: var(--bad);
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
   animation: badge-pulse 2s ease-in-out infinite;
 }
@@ -269,7 +269,7 @@ function avatarGradient(roomId: string): string {
   50% { opacity: 0.5; }
 }
 
-.rec-badge-text { font-size: 12px; font-weight: 500; color: #6b7280; }
+.rec-badge-text { font-size: 12px; font-weight: 500; color: var(--ink-3); }
 
 .stats-row {
   display: grid;
@@ -279,8 +279,8 @@ function avatarGradient(roomId: string): string {
 }
 
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e6e8ec;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 20px 16px;
   text-align: center;
@@ -323,7 +323,7 @@ function avatarGradient(roomId: string): string {
   position: relative;
   z-index: 1;
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   margin-top: 4px;
   font-weight: 500;
 }
@@ -336,7 +336,7 @@ function avatarGradient(roomId: string): string {
   margin-bottom: 12px;
 }
 
-.status-text { font-size: 11px; color: #9aa1ab; }
+.status-text { font-size: 11px; color: var(--ink-4); }
 
 .recording-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -365,16 +365,16 @@ function avatarGradient(roomId: string): string {
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #d8dbe0;
+  background: var(--line-2);
 }
 
 .rec-stripe.active {
-  background: linear-gradient(180deg, #f97316, #ef4444);
+  background: linear-gradient(180deg, var(--pulse-accent), var(--bad));
   box-shadow: 0 0 8px rgba(249, 115, 22, 0.3);
 }
 
 .rec-stripe.stopped {
-  background: #d8dbe0;
+  background: var(--line-2);
 }
 
 .rec-avatar {
@@ -395,7 +395,7 @@ function avatarGradient(roomId: string): string {
 .rec-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1f2328;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -403,15 +403,15 @@ function avatarGradient(roomId: string): string {
 
 .rec-room-id {
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   margin-top: 2px;
 }
 
 .rec-stat-group { display: flex; gap: 8px; }
 
 .rec-stat {
-  background: #f4f5f7;
-  border: 1px solid #e6e8ec;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 14px;
   text-align: center;
@@ -420,15 +420,15 @@ function avatarGradient(roomId: string): string {
 
 .stat-label {
   font-size: 9px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 500;
 }
 
 .stat-value { font-size: 15px; font-weight: 700; margin-top: 2px; }
-.stat-accent { color: #f97316; }
-.stat-info { color: #22d3ee; }
+.stat-accent { color: var(--pulse-accent); }
+.stat-info { color: var(--pulse-cyan); }
 
 .rec-status-area {
   display: flex;
@@ -441,7 +441,7 @@ function avatarGradient(roomId: string): string {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--ok);
   animation: rec-pulse 1.5s ease-in-out infinite;
 }
 
@@ -450,34 +450,34 @@ function avatarGradient(roomId: string): string {
   50% { opacity: 0.3; box-shadow: none; }
 }
 
-.rec-status-text { font-size: 11px; font-weight: 500; color: #6b7280; }
-.rec-status-text.active { color: #10b981; }
-.rec-status-text.error { color: #ef4444; }
+.rec-status-text { font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.rec-status-text.active { color: var(--ok); }
+.rec-status-text.error { color: var(--bad); }
 
 .empty-state { padding: 60px 0; }
 
 .room-pick-card { padding: 14px 18px; margin-bottom: 12px; }
 .pick-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-.pick-title { font-size: 13px; font-weight: 700; color: #1f2328; }
-.pick-hint { font-size: 11px; color: #9aa1ab; }
+.pick-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.pick-hint { font-size: 11px; color: var(--ink-4); }
 .pick-list { display: flex; flex-direction: column; gap: 6px; }
 .pick-item {
   display: flex; align-items: center; gap: 12px;
-  background: #f9fafb; border: 1px solid #e6e8ec; border-radius: 8px; padding: 10px 12px;
+  background: var(--pulse-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
 }
 .pick-info { flex: 1; min-width: 0; }
-.pick-name { font-size: 13px; font-weight: 600; color: #1f2328; }
+.pick-name { font-size: 13px; font-weight: 600; color: var(--ink); }
 .pick-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
-.pick-rid { font-size: 10px; color: #9aa1ab; }
+.pick-rid { font-size: 10px; color: var(--ink-4); }
 .pick-state { font-size: 10px; padding: 1px 7px; border-radius: 8px; }
-.pick-state.live { background: rgba(16, 185, 129, 0.12); color: #10b981; }
-.pick-state.idle { background: rgba(154, 161, 171, 0.15); color: #6b7280; }
-.pick-state.bad { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
-.pick-live-status { font-size: 10px; color: #f97316; }
-.pick-empty { font-size: 12px; color: #9aa1ab; padding: 10px 0 4px; }
+.pick-state.live { background: rgba(16, 185, 129, 0.12); color: var(--ok); }
+.pick-state.idle { background: rgba(154, 161, 171, 0.15); color: var(--ink-3); }
+.pick-state.bad { background: rgba(239, 68, 68, 0.12); color: var(--bad); }
+.pick-live-status { font-size: 10px; color: var(--pulse-accent); }
+.pick-empty { font-size: 12px; color: var(--ink-4); padding: 10px 0 4px; }
 
 .empty-icon { margin-bottom: 8px; }
 
-.empty-title { font-size: 14px; color: #9aa1ab; font-weight: 500; }
-.empty-hint { font-size: 12px; color: #9aa1ab; margin-top: 4px; }
+.empty-title { font-size: 14px; color: var(--ink-4); font-weight: 500; }
+.empty-hint { font-size: 12px; color: var(--ink-4); margin-top: 4px; }
 </style>

@@ -30,7 +30,7 @@ const listRef = ref<HTMLElement | null>(null)
 
 .danmu-empty {
   text-align: center;
-  color: #5A5A5A;
+  color: var(--ink-2);
   font-size: 13px;
   padding: 40px 0;
 }

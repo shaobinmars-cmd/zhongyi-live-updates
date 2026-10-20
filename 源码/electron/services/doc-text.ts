@@ -6,8 +6,8 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as zlib from 'zlib'
 
-/** 从 zip 里取一个文件（只支持 store/deflate，docx 就这两种） */
-function readZipEntry(buf: Buffer, entryName: string): Buffer | null {
+/** 从 zip 里取一个文件（只支持 store/deflate，docx/xlsx 就这两种） */
+export function readZipEntry(buf: Buffer, entryName: string): Buffer | null {
   let eocd = -1
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
     if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break }

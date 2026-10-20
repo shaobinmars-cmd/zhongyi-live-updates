@@ -37,12 +37,12 @@ function dotColor(roomId: string): string {
 
 <style scoped>
 .room-sections { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
-.room-sections-empty { text-align: center; color: #5a5a5a; font-size: 13px; padding: 40px 0; }
+.room-sections-empty { text-align: center; color: var(--ink-2); font-size: 13px; padding: 40px 0; }
 
 .room-section {
-  border: 1px solid #e6e8ec;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -51,17 +51,17 @@ function dotColor(roomId: string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f9fafb;
-  border-bottom: 1px solid #e6e8ec;
+  background: var(--pulse-soft);
+  border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .room-section-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.room-section-name { font-size: 12px; font-weight: 700; color: #1f2328; }
-.room-section-rid { font-size: 10px; color: #9aa1ab; }
-.room-section-count { font-size: 10px; color: #f97316; margin-left: auto; }
+.room-section-name { font-size: 12px; font-weight: 700; color: var(--ink); }
+.room-section-rid { font-size: 10px; color: var(--ink-4); }
+.room-section-count { font-size: 10px; color: var(--pulse-accent); margin-left: auto; }
 
 .room-section-body { padding: 2px 4px 6px; }
 

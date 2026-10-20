@@ -15,12 +15,15 @@ import {
 
 const LOG_MODULE = 'IncubatePlan'
 
-/** 四个阶段（界面直接展示，口径写死在这儿） */
+/** 五个阶段 + 60 天后跟踪（界面直接展示；音浪是判断标准不是阶段任务：20万基础/30万成熟/60万进阶/100万+优秀，第 40 天达 20 万即孵化成功）
+ *  复盘节奏（运营标准工作）：1-30 天每天下播后当日复盘；31-60 天每三天复盘一次；60 天以后每周复盘 + 学习 */
 export const PLAN_PHASES = [
-  { key: 'p1', label: '0-7 天 · 起号基础', from: 1, to: 7, goal: '定位、搭建、开场收尾成型，能完整播 30 分钟' },
-  { key: 'p2', label: '8-30 天 · 能力成型', from: 8, to: 30, goal: '话术/动作/互动形成肌肉记忆，五项指标稳定达标' },
-  { key: 'p3', label: '31-60 天 · 实战冲刺', from: 31, to: 60, goal: '拉时长、连麦 PK、活动转化，数据持续提升' },
-  { key: 'p4', label: '60 天以后 · 持续跟踪', from: 61, to: 999, goal: '每周一次周复盘 + 每月一次运营考核，保持节奏' }
+  { key: 'p1', label: '1-3 天 · 互相了解', from: 1, to: 3, goal: '找 3 个对标直播间并拆解；运营摸清主播特点，定赛道与人设' },
+  { key: 'p2', label: '4-7 天 · 基础学习', from: 4, to: 7, goal: '搭建直播间、开场收尾、互动四件套成型，能完整播 30 分钟' },
+  { key: 'p3', label: '8-15 天 · 上播学习', from: 8, to: 15, goal: '每天上播实操，互动与谢礼形成肌肉记忆，五项指标稳定' },
+  { key: 'p4', label: '16-30 天 · 提升', from: 16, to: 30, goal: '节奏与留人稳定，数据不再大起大落' },
+  { key: 'p5', label: '31-60 天 · 巩固提升', from: 31, to: 60, goal: '活动、转化、控场跑通；预期线：第 40 天音浪达 20 万即孵化成功' },
+  { key: 'p6', label: '60 天以后 · 持续跟踪', from: 61, to: 999, goal: '每周复盘 + 学习；每月运营考核；判断标准：30 万成熟 / 60 万进阶 / 100 万以上优秀' }
 ]
 
 /** 每日训练用的赛道动作库（报告里没有资产时用它兜底） */
@@ -38,6 +41,57 @@ const TRACK_DRILLS: Record<string, string[]> = {
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
+}
+
+/**
+ * AI 报告里「60 天逐日执行表」的一天。
+ * 列顺序与 v5 指令写死的一致：天数｜资产编号｜话术｜视觉整改｜动作与表情｜BGM 节点｜对标模仿点｜问题编号｜验收数字
+ */
+export interface DailyRow {
+  day: number
+  code: string
+  script: string
+  visual: string
+  action: string
+  bgm: string
+  benchmark: string
+  problem: string
+  accept: string
+}
+
+/**
+ * 从 AI 报告全文里解析「60 天逐日执行表」。只认 D1–D60 开头的表格行；
+ * 表头、分隔线、「本周复盘」行天然不匹配 D\d，自动跳过。
+ * 兼容全角 ｜ 表格（整行都是全角时先归一成半角再切）。
+ */
+export function parseDailyRows(reportText: string): Map<number, DailyRow> {
+  const map = new Map<number, DailyRow>()
+  const text = String(reportText || '')
+  const start = text.search(/60\s*天[^。\n]{0,8}执行表/)
+  const scope = start >= 0 ? text.slice(start) : text
+  for (let line of scope.split('\n')) {
+    line = line.trim()
+    if (!line) continue
+    if (line.startsWith('｜')) line = line.replace(/｜/g, '|')
+    if (!line.startsWith('|')) continue
+    let parts = line.split('|').map((s) => s.trim())
+    if (parts[0] === '') parts = parts.slice(1)
+    if (parts.length && parts[parts.length - 1] === '') parts = parts.slice(0, -1)
+    if (parts.length < 3) continue
+    const dm = parts[0].match(/^D(\d{1,2})$/i)
+    if (!dm) continue
+    const day = Number(dm[1])
+    if (day < 1 || day > 60) continue
+    const c = (i: number) => String(parts[i] || '').trim()
+    map.set(day, { day, code: c(1), script: c(2), visual: c(3), action: c(4), bgm: c(5), benchmark: c(6), problem: c(7), accept: c(8) })
+  }
+  return map
+}
+
+/** 指令里「某天没有对应内容就写 —」的占位，统一视为空 */
+function isBlankCell(s: string): boolean {
+  const v = String(s || '').trim()
+  return !v || v === '—' || v === '-' || v === '–' || v === '无'
 }
 
 function localStamp(): string {
@@ -78,10 +132,12 @@ export function suggestTrackFromText(text: string): string {
 
 export function phaseTextOf(dayIndex: number): string {
   if (dayIndex <= 0) return '未开始'
-  if (dayIndex <= 7) return PLAN_PHASES[0].label
-  if (dayIndex <= 30) return PLAN_PHASES[1].label
-  if (dayIndex <= 60) return PLAN_PHASES[2].label
-  return PLAN_PHASES[3].label
+  if (dayIndex <= 3) return PLAN_PHASES[0].label
+  if (dayIndex <= 7) return PLAN_PHASES[1].label
+  if (dayIndex <= 15) return PLAN_PHASES[2].label
+  if (dayIndex <= 30) return PLAN_PHASES[3].label
+  if (dayIndex <= 60) return PLAN_PHASES[4].label
+  return PLAN_PHASES[5].label
 }
 
 /** 第 d 天练什么（d = 1..60） */
@@ -106,30 +162,52 @@ function dayPlan(d: number, drills: string[], assets: any[], isRest = false, isL
   const assetCode = asset ? String(asset['编号'] || '') : ''
   const assetText = asset ? String(asset['内容'] || '').slice(0, 50) : ''
 
-  if (d <= 7) {
+  if (d <= 3) {
+    // 阶段一·互相了解：找对标直播间、拆解，运营摸清主播
     const fixed: Array<[string, string, string]> = [
-      ['定位与对标', '确定赛道/人设；找 3 个对标直播间，各看 30 分钟，记 5 句能直接用的原话', '交一页定位卡：赛道、人设、3 个对标、5 句话术'],
-      ['直播间搭建', '按清单检查画面/灯光/声音/背景/BGM/网络；录 1 分钟测试回放', '回放里人脸清楚、无回声、BGM 不盖人声'],
-      ['开场三句 + 留人四步', '背熟开场三句（欢迎/价值/指令）与留人四步（点名/提问/福利/预告），开播前练 10 遍', '开播前 3 分钟连着用下来不卡'],
-      ['自我介绍与栏目单', '准备 30 秒版和 2 分钟版自我介绍；列 5 个固定栏目，写在镜头旁', '两版都能脱稿说完；栏目单贴上'],
-      ['互动四件套', '点名、封闭提问、复述观众、口令；每 5 分钟至少用 1 次', '一场里每样至少用 8 次'],
-      ['礼物与谢礼', '确认礼物价格表；练「称呼 + 感谢 + 引导」三连', '收到礼物 5 秒内回应，不冷场'],
-      ['首播测试 + 复盘', '完整播 30 分钟：开场→栏目→互动→收尾；下播立刻复盘', '找出 3 个问题，写进明天计划']
+      ['互相了解 + 找对标', '运营和主播深聊（经历/特长/可播时间/目标），定赛道与人设方向；主播找 3 个对标直播间，各看 30 分钟', '记 5 句能直接用的原话；3 个对标清单交给运营'],
+      ['拆解对标（一）', '用「拆解直播间」拆 1 场对标：开场/互动/留人/收尾四段各记 2 个能照做的动作', '交 1 份拆解记录（拆解素材包或笔记都行）'],
+      ['拆解对标（二）+ 定位卡', '再拆 1 场对标，汇总两场能直接用的原话和动作', '交一页定位卡：赛道、人设、3 个对标、5 句话术']
     ]
     const [title, how, accept] = fixed[d - 1]
     return { code: '', title, how, accept }
   }
 
-  if (d <= 30) {
+  if (d <= 7) {
+    // 阶段二·基础学习：搭建、开场收尾、互动四件套，第 7 天首播测试
+    const fixed: Array<[string, string, string]> = [
+      ['直播间搭建', '按清单检查画面/灯光/声音/背景/BGM/网络；录 1 分钟测试回放', '回放里人脸清楚、无回声、BGM 不盖人声'],
+      ['开场三句 + 留人四步', '背熟开场三句（欢迎/价值/指令）与留人四步（点名/提问/福利/预告），开播前练 10 遍', '开播前 3 分钟连着用下来不卡'],
+      ['自我介绍与互动四件套', '准备 30 秒版和 2 分钟版自我介绍；练点名、封闭提问、复述观众、口令四件套', '两版自我介绍脱稿；四件套各连说 5 次不卡'],
+      ['谢礼三连 + 首播测试 + 复盘', '练「称呼 + 感谢 + 引导」三连；完整播 30 分钟：开场→栏目→互动→收尾；下播立刻复盘', '找出 3 个问题，写进明天计划']
+    ]
+    const [title, how, accept] = fixed[d - 4]
+    return { code: '', title, how, accept }
+  }
+
+  if (d <= 15) {
+    // 阶段三·上播学习：每天上播实操，下播当天复盘
     const drill = drills[(d - 8) % drills.length]
     return {
       code: assetCode,
-      title: `核心训练：${drill}${assetText ? ' + 资产：' + assetText : ''}`,
-      how: '开播前练 10 分钟；直播中至少用 8 次；下播回看 3 处并记下来',
-      accept: `${drill}做到位；最长空档 ≤3 秒；今天至少把 1 条新话术交进资产库`
+      title: `上播学习：${drill}${assetText ? ' + 资产：' + assetText : ''}`,
+      how: '每天上播实操；开播前练 10 分钟；直播中至少用 6 次；下播当天复盘：回看 3 处并写 3 条改进',
+      accept: `${drill}做到位；当日复盘 3 条改进交运营，明天验证 1 条`
     }
   }
 
+  if (d <= 30) {
+    // 阶段四·提升：核心动作打磨 + 每天复盘
+    const drill = drills[(d - 8) % drills.length]
+    return {
+      code: assetCode,
+      title: `提升训练：${drill}${assetText ? ' + 资产：' + assetText : ''}`,
+      how: '开播前练 10 分钟；直播中至少用 8 次；下播当天复盘：回看 3 处并写 3 条改进',
+      accept: `${drill}做到位；最长空档 ≤3 秒；当日复盘 3 条改进，至少 1 条新话术交进资产库`
+    }
+  }
+
+  // 阶段五·巩固提升：实战循环；复盘每三天一次（D33/36/…/60），不再每天复盘
   const week = Math.floor((d - 31) / 7) % 5
   const modes: Array<[string, string, string]> = [
     ['拉时长与节奏', '连续播 3 小时，按 20 分钟一个环节排节目单', '空档 ≤2 秒；没有 10 分钟以上的冷场'],
@@ -139,11 +217,12 @@ function dayPlan(d: number, drills: string[], assets: any[], isRest = false, isL
     ['对标冲刺', '拆 1 场优秀主播，找 3 个可复用动作，融入今天直播', '新增 3 条资产；本周至少 1 个指标提升']
   ]
   const [title, how, accept] = modes[week]
+  const reviewDay = (d - 30) % 3 === 0
   return {
     code: assetCode,
-    title: `实战：${title}${assetText ? '（用资产：' + assetText + '）' : ''}`,
-    how,
-    accept
+    title: `巩固：${title}${reviewDay ? ' + 三日复盘' : ''}${assetText ? '（用资产：' + assetText + '）' : ''}`,
+    how: reviewDay ? how + '；今天做三日复盘：回看近 3 天数据，写 3 条改进' : how,
+    accept: reviewDay ? accept + '；三日复盘 3 条改进交运营' : accept
   }
 }
 
@@ -172,6 +251,9 @@ export async function generateTrainingPlan(opts: {
   const restDayNum = restMap[String(opts.restDay || '').trim()] ?? -1
   const leaveStart = String(opts.leaveStart || '')
   const leaveEnd = String(opts.leaveEnd || opts.leaveStart || '')
+  // 报告里的「60 天逐日执行表」：有就优先用 AI 排的每天内容，没有再退回内置排课
+  const dailyRows = parseDailyRows(opts.reportText || '')
+  let aiDays = 0
 
   // 清掉该主播旧的 D 计划（保留其它非 D 开头的课表行）
   const old = (await listRows('课表')).filter(
@@ -187,10 +269,32 @@ export async function generateTrainingPlan(opts: {
     const dateText = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     const isLeave = !!leaveStart && !!leaveEnd && dateText >= leaveStart && dateText <= leaveEnd
     const t = dayPlan(d, drills, assets, isRest, isLeave)
-    rows.push({
-      日期: `D${d}`, 主播: streamer, 资产编号: t.code,
-      今天练什么: t.title, 怎么练: t.how, 验收: t.accept, 打卡: '', 录入人: 'AI计划', 执行日期: dateText, 课程来源: 'AI计划'
-    })
+    const ai = !isRest && !isLeave ? dailyRows.get(d) : undefined
+    if (ai) {
+      // AI 逐日表：话术是当天主菜，视觉/动作/BGM/对标全进「怎么练」，验收带问题整改号
+      aiDays++
+      const segs: string[] = []
+      if (!isBlankCell(ai.script)) segs.push('话术：' + ai.script)
+      if (!isBlankCell(ai.visual)) segs.push('视觉：' + ai.visual)
+      if (!isBlankCell(ai.action)) segs.push('动作：' + ai.action)
+      if (!isBlankCell(ai.bgm)) segs.push('BGM：' + ai.bgm)
+      if (!isBlankCell(ai.benchmark)) segs.push('对标：' + ai.benchmark)
+      const titleCore = !isBlankCell(ai.script) ? ai.script
+        : !isBlankCell(ai.visual) ? ai.visual
+        : !isBlankCell(ai.action) ? ai.action
+        : t.title
+      const accept = (isBlankCell(ai.accept) ? t.accept : ai.accept) + (isBlankCell(ai.problem) ? '' : `（整改${ai.problem}）`)
+      rows.push({
+        日期: `D${d}`, 主播: streamer, 资产编号: isBlankCell(ai.code) ? t.code : ai.code,
+        今天练什么: titleCore.slice(0, 80), 怎么练: (segs.join('；') || t.how).slice(0, 240),
+        验收: accept.slice(0, 120), 打卡: '', 录入人: 'AI计划', 执行日期: dateText, 课程来源: 'AI计划'
+      })
+    } else {
+      rows.push({
+        日期: `D${d}`, 主播: streamer, 资产编号: t.code,
+        今天练什么: t.title, 怎么练: t.how, 验收: t.accept, 打卡: '', 录入人: 'AI计划', 执行日期: dateText, 课程来源: 'AI计划'
+      })
+    }
   }
   await importRows('课表', rows)
 
@@ -210,8 +314,9 @@ export async function generateTrainingPlan(opts: {
   if (roster) await updateRow('主播学籍', Number(roster.id), { ...roster, 赛道: finalTrack, 更新时间: start })
   else await addRow('主播学籍', { 主播: streamer, 带教运营: '', 赛道: finalTrack, 更新时间: start })
 
-  logger.info(LOG_MODULE, `已生成 60 天计划：${streamer} / ${finalTrack} / 资产 ${assets.length} 条`)
-  return { days: 60, track: finalTrack, assets: assets.length, message: `已生成 60 天计划：${streamer} · ${finalTrack}` }
+  logger.info(LOG_MODULE, `已生成 60 天计划：${streamer} / ${finalTrack} / 资产 ${assets.length} 条 / 报告逐日表命中 ${aiDays} 天`)
+  const tail = aiDays > 0 ? `（其中 ${aiDays} 天按报告逐日表排）` : ''
+  return { days: 60, track: finalTrack, assets: assets.length, message: `已生成 60 天计划：${streamer} · ${finalTrack}${tail}` }
 }
 
 /** 运营给主播追加一节自定义课程；不覆盖 AI 的 60 天计划。 */

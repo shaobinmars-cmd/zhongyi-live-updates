@@ -11,6 +11,7 @@ import TeardownView from './views/TeardownView.vue'
 import SettingsView from './views/SettingsView.vue'
 import AboutView from './views/AboutView.vue'
 import IncubateView from './views/IncubateView.vue'
+import HrView from './views/HrView.vue'
 import MusicLibraryView from './views/MusicLibraryView.vue'
 
 import { useDanmuStore } from './stores/danmu'
@@ -22,6 +23,7 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', component: DashboardView },
+    { path: '/hr', component: HrView },
     { path: '/rooms', component: LiveRoomsView },
     { path: '/live', component: LiveMonitorView },
     { path: '/danmu', component: DanmuView },

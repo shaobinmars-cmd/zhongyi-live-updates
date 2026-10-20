@@ -86,8 +86,17 @@ interface Window {
     incubateRestoreStreamer: (name: string) => Promise<any>
     incubateUpdateStreamer: (name: string, patch: any) => Promise<any>
     incubateDeleteStreamer: (name: string) => Promise<any>
+    hrOverview: (month?: string) => Promise<any>
+    hrPickSheet: () => Promise<string | null>
+    hrSheetPreview: (filePath: string) => Promise<any>
+    hrImportApply: (filePath: string, mapping: any, defaults: any) => Promise<any>
+    hrAddOne: (input: any) => Promise<any>
     incubateCustomCourseAdd: (opts: any) => Promise<any>
     incubateCustomCourseUpdate: (id: number, opts: any) => Promise<any>
+    incubateHomeworkPick: (streamer: string, title: string, note: string, date: string) => Promise<{ ok: boolean; id: number }>
+    incubateHomeworkAddLink: (streamer: string, title: string, url: string, note: string, date: string) => Promise<{ ok: boolean; id: number }>
+    incubateHomeworkOpen: (id: number) => Promise<boolean>
+    incubateHomeworkDelete: (id: number) => Promise<{ ok: boolean }>
     musicList: (search?: string, status?: string, folderId?: string) => Promise<any[]>
     musicFolders: () => Promise<any[]>
     musicFolderAdd: (name: string) => Promise<any>

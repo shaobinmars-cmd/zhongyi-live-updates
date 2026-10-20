@@ -10,9 +10,9 @@
     <!-- 拖进来的时候：整页盖一层，明确告诉你“松手就放进来” -->
     <div
       v-if="dragging"
-      style="position:fixed; inset:0; z-index:9999; background:rgba(11,118,190,0.10); border:3px dashed #0B76BE; display:flex; align-items:center; justify-content:center; pointer-events:none"
+      style="position:fixed; inset:0; z-index:9999; background:rgba(11,118,190,0.10); border:3px dashed var(--pulse-accent); display:flex; align-items:center; justify-content:center; pointer-events:none"
     >
-      <div style="background:#fff; border-radius:14px; padding:22px 40px; font-size:20px; font-weight:700; color:#0B76BE; box-shadow:0 10px 40px rgba(0,0,0,.18)">
+      <div style="background:var(--surface); border-radius:14px; padding:22px 40px; font-size:20px; font-weight:700; color:var(--pulse-accent); box-shadow:0 10px 40px rgba(0,0,0,.18)">
         松手就放进来
       </div>
     </div>
@@ -20,14 +20,14 @@
     <!-- 放进来之后：常驻一条，一眼能看到“现在放的是什么” -->
     <div
       v-if="input"
-      :style="{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', padding:'10px 14px', borderRadius:'10px', marginBottom:'10px', border:'1px solid ' + (pickedBad ? '#fecaca' : '#bbf7d0'), background: pickedBad ? '#fef2f2' : '#f0fdf4' }"
+      :style="{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', padding:'10px 14px', borderRadius:'10px', marginBottom:'10px', border:'1px solid ' + (pickedBad ? 'var(--bad-soft)' : 'var(--line-2)'), background: pickedBad ? 'var(--bad-soft)' : 'var(--pulse-soft)' }"
     >
       <span style="font-size:16px">{{ pickedBad ? '⚠️' : '✅' }}</span>
-      <span style="font-size:14px; font-weight:700" :style="{ color: pickedBad ? '#b91c1c' : '#15803d' }">
+      <span style="font-size:14px; font-weight:700" :style="{ color: pickedBad ? 'var(--bad)' : 'var(--ok)' }">
         {{ pickedBad ? '这个放进来读不出内容：' : '已放入：' }}
       </span>
-      <span style="font-size:13px; color:#1f2328; word-break:break-all">{{ pickedName }}</span>
-      <span style="font-size:12px; color:#6b7280">{{ pickedMeta }}</span>
+      <span style="font-size:13px; color:var(--ink); word-break:break-all">{{ pickedName }}</span>
+      <span style="font-size:12px; color:var(--ink-3)">{{ pickedMeta }}</span>
       <button class="link-btn" style="margin-left:auto" @click="pickedReset">换一个</button>
     </div>
     <div class="td-head">
@@ -149,8 +149,29 @@
         <div class="zone">
           <div class="zone-head">
             <span class="zone-num num">2</span>
-            <span class="zone-title">拆解设置与开始</span>
+            <span class="zone-title">开始拆解</span>
           </div>
+
+          <div class="run-actions">
+            <n-button
+              v-if="!running"
+              type="primary"
+              size="small"
+              :disabled="!input"
+              @click="onStart"
+            >开始拆解</n-button>
+            <n-button v-else type="error" size="small" @click="onStop">停止</n-button>
+            <span v-if="running" class="stage-text">
+              <span class="spinner"></span>{{ stage || '运行中' }}
+            </span>
+            <span v-else-if="stage" class="stage-text done">{{ stage }}</span>
+          </div>
+
+          <div v-if="error" class="err-text">{{ error }}</div>
+
+          <!-- 高级设置：模型/预算/设备/下载，平时不用动，默认收起 -->
+          <details class="adv-settings">
+            <summary>高级设置（转写模型 / 设备 / 模型下载，平时不用动）</summary>
 
           <div class="run-row">
             <div class="run-label">转写模型</div>
@@ -213,32 +234,16 @@
           <div v-if="prefetchMsg" class="model-hint prefetch-msg">{{ prefetchMsg }}</div>
           <div class="model-hint">GPU 运行库保存在用户目录，以后升级软件不用重新下载；旧版已装的 GPU 库会自动迁移。</div>
           <div class="model-hint">没下过的模型首次拆解要联网下载（medium 约 1.5GB）；点上面的按钮可以先下好，走的是国内镜像。</div>
-
-          <div class="run-actions">
-            <n-button
-              v-if="!running"
-              type="primary"
-              size="small"
-              :disabled="!input"
-              @click="onStart"
-            >开始拆解</n-button>
-            <n-button v-else type="error" size="small" @click="onStop">停止</n-button>
-            <span v-if="running" class="stage-text">
-              <span class="spinner"></span>{{ stage || '运行中' }}
-            </span>
-            <span v-else-if="stage" class="stage-text done">{{ stage }}</span>
-          </div>
-
-          <div v-if="error" class="err-text">{{ error }}</div>
+          </details>
 
         </div>
 
-        <div class="zone compare-zone">
-          <div class="zone-head">
+        <details class="zone compare-zone adv-zone">
+          <summary class="zone-head adv-zone-summary">
             <span class="zone-num num">3</span>
-            <span class="zone-title">双场对比</span>
+            <span class="zone-title">双场对比（进阶，默认收起）</span>
             <span class="panel-sub">A 对标 / B 自家</span>
-          </div>
+          </summary>
 
           <div class="run-row">
             <div class="run-label">A 对标</div>
@@ -262,20 +267,20 @@
           </div>
           <div class="model-hint">两边都要先拆解过（有「拆解素材包.md」）；下拉里没有的场次，点「选文件」直接指定那个素材包。生成后到右边「双场对比」页签看结果</div>
           <div v-if="compareError" class="err-text">{{ compareError }}</div>
-        </div>
+        </details>
 
       </div>
 
       <!-- 右：日志 / 素材包 / 分片 -->
       <div class="td-col right workspace">
         <div class="tabs">
-          <button :class="['tab', { active: tab === 'log' }]" @click="tab = 'log'">运行日志</button>
-          <button :class="['tab', { active: tab === 'packet' }]" @click="tab = 'packet'">
-            拆解素材包<span v-if="packet" class="tab-dot"></span>
-          </button>
           <button :class="['tab', { active: tab === 'split' }]" @click="tab = 'split'">
-            喂给 AI<span v-if="splitBadge" class="tab-badge">{{ splitBadge }}</span>
+            AI 出报告<span v-if="splitBadge" class="tab-badge">{{ splitBadge }}</span>
           </button>
+          <button :class="['tab', { active: tab === 'packet' }]" @click="tab = 'packet'">
+            素材包<span v-if="packet" class="tab-dot"></span>
+          </button>
+          <button :class="['tab', { active: tab === 'log' }]" @click="tab = 'log'">运行日志</button>
           <button :class="['tab', { active: tab === 'compare' }]" @click="tab = 'compare'">
             双场对比<span v-if="compareResult" class="tab-badge">{{ compareResult.split ? compareResult.parts.length : 1 }}</span>
           </button>
@@ -295,7 +300,7 @@
             <div class="packet-actions">
               <n-button size="tiny" type="primary" @click="onExport">导出素材包</n-button>
               <n-button size="tiny" @click="onCopy">{{ copied ? '已复制' : '复制全文' }}</n-button>
-              <span class="packet-meta" style="color:#0B76BE">出报告请看右边「喂给 AI」页签</span>
+              <span class="packet-meta" style="color:var(--pulse-accent)">出报告请看右边「喂给 AI」页签</span>
               <n-button size="tiny" @click="openTarget(packet.workDir)">打开输出目录</n-button>
               <span class="packet-meta">
                 网格图 {{ packet.grids.length }} 张
@@ -312,17 +317,17 @@
 
           <!-- 1 放素材 -->
           <div style="display:flex; gap:12px; margin-bottom:12px">
-            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:#0B76BE; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">1</div>
+            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:var(--pulse-accent); color:var(--surface); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">1</div>
             <div style="flex:1; min-width:0">
-              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">放素材包</div>
-              <div :style="{ border: '2px dashed ' + (!input ? '#c9d3de' : (pickedBad ? '#f87171' : '#4ade80')), background: !input ? '#fafbfc' : (pickedBad ? '#fef2f2' : '#f0fdf4'), borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }">
-                <div v-if="!input" style="font-size:14px; color:#1f2328; font-weight:600">
+              <div style="font-size:14px; font-weight:700; color:var(--ink); margin-bottom:6px">放素材包</div>
+              <div :style="{ border: '2px dashed ' + (!input ? 'var(--line-2)' : (pickedBad ? 'var(--bad)' : 'var(--ok)')), background: !input ? 'var(--pulse-soft)' : (pickedBad ? 'var(--bad-soft)' : 'var(--pulse-soft)'), borderRadius: '10px', padding: '14px 16px', textAlign: 'center' }">
+                <div v-if="!input" style="font-size:14px; color:var(--ink); font-weight:600">
                   把拆解素材包.md 拖到这里（只放素材包也能出文字报告）
                 </div>
-                <div v-else style="font-size:14px; font-weight:700; color:#1f2328; word-break:break-all">
+                <div v-else style="font-size:14px; font-weight:700; color:var(--ink); word-break:break-all">
                   {{ pickedBad ? '⚠️ ' : '✅ ' }}{{ pickedName }}
                 </div>
-                <div style="font-size:12px; color:#6b7280; margin-top:6px; line-height:1.6">
+                <div style="font-size:12px; color:var(--ink-3); margin-top:6px; line-height:1.6">
                   <template v-if="!input">也可以在左边列表里选择已经拆解好的场次；图片是可选补充，不是必填。</template>
                   <template v-else-if="pickedBad">读不出内容 —— 请拖「拆解素材包.md」，图片请放到下面的可选图片区</template>
                   <template v-else>{{ pickedMeta }}</template>
@@ -334,9 +339,9 @@
 
           <!-- 2 出报告 -->
           <div style="display:flex; gap:12px; margin-bottom:12px">
-            <div class="num" :style="{ flex:'0 0 22px', height:'22px', borderRadius:'50%', background: split ? '#0B76BE' : '#c9d3de', color:'#fff', fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }">2</div>
+            <div class="num" :style="{ flex:'0 0 22px', height:'22px', borderRadius:'50%', background: split ? 'var(--pulse-accent)' : 'var(--line-2)', color:'var(--surface)', fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }">2</div>
             <div style="flex:1; min-width:0">
-              <div style="font-size:14px; font-weight:700; color:#1f2328; margin-bottom:6px">出报告</div>
+              <div style="font-size:14px; font-weight:700; color:var(--ink); margin-bottom:6px">AI 出报告</div>
               <div class="ai-img-row">
                 <span>本场喂几张图给 AI</span>
                 <n-select v-model:value="imageCount" :options="imageOptions" size="small" style="width: 180px" />
@@ -357,7 +362,7 @@
               >
                 {{ aiBusy ? '正在出报告…' : (aiReportPath ? '查看报告' : '一键出报告') }}
               </n-button>
-              <div style="font-size:12px; color:#6b7280; margin-top:6px; line-height:1.6">
+              <div style="font-size:12px; color:var(--ink-3); margin-top:6px; line-height:1.6">
                 <template v-if="!split">把素材放进上面，这个按钮就亮了。分几段、怎么合并都是自动的，不用你管。</template>
                 <template v-else-if="aiReportPath">这一场的报告已经生成过，点一下就能看。</template>
                 <template v-else>点一下就行：整包约 {{ split.totalTokens }} 字，自动跑完再合并。以前拆过的也能直接出报告。</template>
@@ -369,34 +374,34 @@
           <div v-if="aiBusy" style="display:flex; gap:12px; margin-bottom:12px">
             <div class="num">…</div>
             <div style="flex:1; min-width:0">
-              <div style="height:8px; background:#eef0f3; border-radius:4px; overflow:hidden">
-                <div :style="{ width: aiPercent + '%', height: '100%', background: 'linear-gradient(90deg,#0B76BE,#00C2D1)', transition: 'width .4s' }"></div>
+              <div style="height:8px; background:var(--pulse-soft); border-radius:4px; overflow:hidden">
+                <div :style="{ width: aiPercent + '%', height: '100%', background: 'linear-gradient(90deg,var(--pulse-accent),var(--pulse-cyan))', transition: 'width .4s' }"></div>
               </div>
-              <div style="font-size:13px; color:#1f2328; margin-top:6px">
+              <div style="font-size:13px; color:var(--ink); margin-top:6px">
                 {{ aiStage }}　·　已用 {{ aiElapsedText }}<template v-if="aiEtaText">　·　预计还需 {{ aiEtaText }}</template>
               </div>
-              <div v-for="(h, i) in aiHistory" :key="i" style="font-size:12px; color:#10b981; margin-top:4px">✅ {{ h }}</div>
+              <div v-for="(h, i) in aiHistory" :key="i" style="font-size:12px; color:var(--ok); margin-top:4px">✅ {{ h }}</div>
               <n-button size="tiny" type="warning" style="margin-top:8px" @click="onCancelAnalyze">停止分析</n-button>
-              <div style="font-size:11px; color:#9aa1ab; margin-top:6px">中途停了也不白跑：已经跑完的那几段会留在报告里。</div>
+              <div style="font-size:11px; color:var(--ink-4); margin-top:6px">中途停了也不白跑：已经跑完的那几段会留在报告里。</div>
             </div>
           </div>
 
           <!-- 3 拿报告 -->
           <div v-if="!aiBusy && aiReportPath" style="display:flex; gap:12px; margin-bottom:12px">
-            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:#10b981; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">3</div>
+            <div class="num" style="flex:0 0 22px; height:22px; border-radius:50%; background:var(--ok); color:var(--surface); font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center">3</div>
             <div style="flex:1; min-width:0">
-              <div style="font-size:14px; font-weight:700; color:#10b981; margin-bottom:6px">报告好了</div>
+              <div style="font-size:14px; font-weight:700; color:var(--ok); margin-bottom:6px">报告好了</div>
               <div style="display:flex; gap:8px">
                 <n-button size="small" type="primary" @click="openTarget(aiReportPath)">打开报告</n-button>
                 <n-button size="small" @click="openTarget(packet.workDir)">打开文件夹</n-button>
               </div>
-              <div style="font-size:11px; color:#9aa1ab; margin-top:6px; word-break:break-all">{{ aiReportPath }}</div>
+              <div style="font-size:11px; color:var(--ink-4); margin-top:6px; word-break:break-all">{{ aiReportPath }}</div>
             </div>
           </div>
 
           <!-- 高级：运营平时不用碰，默认收起 -->
-          <details v-if="split" style="border-top:1px solid #e6e8ec; padding-top:8px; margin-top:4px">
-            <summary style="font-size:12px; color:#9aa1ab; cursor:pointer">高级（分片明细 / 导出分片 / 单份复制）</summary>
+          <details v-if="split" style="border-top:1px solid var(--line); padding-top:8px; margin-top:4px">
+            <summary style="font-size:12px; color:var(--ink-4); cursor:pointer">高级（分片明细 / 导出分片 / 单份复制）</summary>
             <div class="split-head" style="margin-top:10px">
               <span :class="['split-badge', split.split ? 'warn' : 'ok']">
                 {{ split.split ? `已切成 ${split.parts.length} 份` : '未超预算' }}
@@ -1012,7 +1017,7 @@ onMounted(async () => {
   await td.refreshConfig()
   try {
     const aiCfg = await api().aiConfigGet()
-    imageCount.value = Math.max(0, Math.min(8, Number(aiCfg?.visionMaxImages ?? 4) || 0))
+    imageCount.value = Math.max(0, Math.min(8, Number(aiCfg?.maxImages ?? 4) || 0))
   } catch { /* ignore */ }
   limitInput.value = td.contextLimit
   await td.refreshEngine()
@@ -1041,7 +1046,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   flex-shrink: 0;
 }
 
-.page-sub { font-size: 11px; color: #9aa1ab; margin-top: 4px; }
+.page-sub { font-size: 11px; color: var(--ink-4); margin-top: 4px; }
 
 .engine-chip {
   display: inline-flex;
@@ -1050,18 +1055,18 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   font-size: 11px;
   padding: 5px 10px;
   border-radius: 20px;
-  border: 1px solid #d8dbe0;
-  color: #6b7280;
+  border: 1px solid var(--line-2);
+  color: var(--ink-3);
 }
-.engine-chip.ok { color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
-.engine-chip.bad { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+.engine-chip.ok { color: var(--ok); border-color: rgba(16, 185, 129, 0.3); }
+.engine-chip.bad { color: var(--bad); border-color: rgba(239, 68, 68, 0.3); }
 .engine-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 .warn-card { padding: 14px 16px; margin-bottom: 12px; border-color: rgba(239, 68, 68, 0.3); }
-.warn-title { font-size: 13px; font-weight: 600; color: #ef4444; margin-bottom: 6px; }
-.warn-body { font-size: 11px; color: #6b7280; line-height: 1.7; }
-.warn-body code { background: #f4f5f7; padding: 1px 5px; border-radius: 4px; color: #f97316; }
-.warn-path { color: #9aa1ab; margin-top: 4px; word-break: break-all; }
+.warn-title { font-size: 13px; font-weight: 600; color: var(--bad); margin-bottom: 6px; }
+.warn-body { font-size: 11px; color: var(--ink-3); line-height: 1.7; }
+.warn-body code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; color: var(--pulse-accent); }
+.warn-path { color: var(--ink-4); margin-top: 4px; word-break: break-all; }
 
 .td-grid {
   display: grid;
@@ -1078,7 +1083,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 /* 每张卡按自己的内容高度排，不要自动撑高 ——
    否则卡片多了以后第一张被压扁，内容会溢出叠到下一张上 */
 .panel { padding: 14px; display: flex; flex-direction: column; flex: 0 0 auto; }
-.panel-sub { font-size: 10px; color: #9aa1ab; }
+.panel-sub { font-size: 10px; color: var(--ink-4); }
 
 .panel-head {
   display: flex;
@@ -1087,7 +1092,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   margin-bottom: 10px;
 }
 
-.panel-title { font-size: 12px; font-weight: 600; color: #374151; }
+.panel-title { font-size: 12px; font-weight: 600; color: var(--ink-2); }
 
 .link-btn {
   background: none;
@@ -1098,7 +1103,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   font-family: inherit;
   flex-shrink: 0;
 }
-.link-btn:disabled { color: #9aa1ab; cursor: default; }
+.link-btn:disabled { color: var(--ink-4); cursor: default; }
 
 .rec-list { max-height: 190px; overflow-y: auto; margin: 0 -4px; }
 
@@ -1118,15 +1123,15 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .rec-main { flex: 1; min-width: 0; }
 .rec-name {
   font-size: 12px;
-  color: #374151;
+  color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rec-meta { font-size: 10px; color: #9aa1ab; margin-top: 2px; }
+.rec-meta { font-size: 10px; color: var(--ink-4); margin-top: 2px; }
 .rec-tag {
   font-size: 10px;
-  color: #10b981;
+  color: var(--ok);
   border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: 10px;
   padding: 1px 6px;
@@ -1137,20 +1142,20 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .alt-row :deep(.n-input) { flex: 1; }
 
 .run-row { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
-.run-label { font-size: 11px; color: #6b7280; flex-shrink: 0; width: 62px; }
-.model-hint { font-size: 10px; color: #9aa1ab; margin: 4px 0 12px 72px; }
+.run-label { font-size: 11px; color: var(--ink-3); flex-shrink: 0; width: 62px; }
+.model-hint { font-size: 10px; color: var(--ink-4); margin: 4px 0 12px 72px; }
 
 .run-actions { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .dl-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px 72px; flex-wrap: wrap; }
-.prefetch-msg { color: #f97316; word-break: break-all; }
-.stage-text { font-size: 11px; color: #f97316; display: inline-flex; align-items: center; gap: 6px; }
-.stage-text.done { color: #10b981; }
+.prefetch-msg { color: var(--pulse-accent); word-break: break-all; }
+.stage-text { font-size: 11px; color: var(--pulse-accent); display: inline-flex; align-items: center; gap: 6px; }
+.stage-text.done { color: var(--ok); }
 
 .spinner {
   width: 10px;
   height: 10px;
   border: 2px solid rgba(249, 115, 22, 0.3);
-  border-top-color: #f97316;
+  border-top-color: var(--pulse-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -1158,7 +1163,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 
 .err-text {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--bad);
   margin-top: 8px;
   line-height: 1.6;
   word-break: break-all;
@@ -1170,7 +1175,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  color: #9aa1ab;
+  color: var(--ink-4);
   padding: 20px;
   text-align: center;
 }
@@ -1180,14 +1185,14 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   gap: 4px;
   padding: 12px 14px 0;
   background: var(--surface-2);
-  border-bottom: 1px solid #e6e8ec;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .tab {
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--ink-3);
   font-size: 12px;
   padding: 8px 12px;
   cursor: pointer;
@@ -1198,7 +1203,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   gap: 6px;
 }
 .tab.active { color: var(--pulse-violet); border-bottom-color: var(--pulse-violet); font-weight: 600; }
-.tab-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; }
+.tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .tab-badge {
   font-size: 10px;
   background: rgba(108, 75, 255, 0.16);
@@ -1228,10 +1233,10 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid #e6e8ec;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.packet-meta { font-size: 10px; color: #9aa1ab; margin-left: auto; }
+.packet-meta { font-size: 10px; color: var(--ink-4); margin-left: auto; }
 
 .packet {
   flex: 1;
@@ -1253,7 +1258,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid #e6e8ec;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -1264,12 +1269,12 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   flex-shrink: 0;
   border: 1px solid transparent;
 }
-.split-badge.warn { color: #f97316; background: rgba(249, 115, 22, 0.12); border-color: rgba(249, 115, 22, 0.3); }
-.split-badge.ok { color: #10b981; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25); }
+.split-badge.warn { color: var(--pulse-accent); background: rgba(249, 115, 22, 0.12); border-color: rgba(249, 115, 22, 0.3); }
+.split-badge.ok { color: var(--ok); background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25); }
 
 .split-note {
   font-size: 10px;
-  color: #6b7280;
+  color: var(--ink-3);
   flex: 1;
   min-width: 0;
 }
@@ -1278,7 +1283,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   max-height: 176px;
   overflow-y: auto;
   padding: 6px 8px;
-  border-bottom: 1px solid #e6e8ec;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -1295,30 +1300,30 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .part-item:hover { background: rgba(249, 115, 22, 0.05); }
 .part-item.active { background: rgba(249, 115, 22, 0.1); border-color: rgba(249, 115, 22, 0.3); }
 
-.part-idx { color: #6b7280; width: 34px; flex-shrink: 0; }
-.part-range { color: #374151; flex: 1; min-width: 0; }
-.part-tok { color: #9aa1ab; flex-shrink: 0; }
+.part-idx { color: var(--ink-3); width: 34px; flex-shrink: 0; }
+.part-range { color: var(--ink-2); flex: 1; min-width: 0; }
+.part-tok { color: var(--ink-4); flex-shrink: 0; }
 
-.batch-box { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e6e8ec; }
-.batch-head { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+.batch-box { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.batch-head { font-size: 11px; color: var(--ink-3); margin-bottom: 8px; }
 .batch-actions { display: flex; gap: 6px; }
-.batch-status { font-size: 10px; color: #f97316; margin-top: 8px; line-height: 1.6; }
-.batch-status.muted { color: #9aa1ab; }
+.batch-status { font-size: 10px; color: var(--pulse-accent); margin-top: 8px; line-height: 1.6; }
+.batch-status.muted { color: var(--ink-4); }
 .batch-list { max-height: 260px; }
 .batch-item { cursor: default; }
 .batch-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.batch-dot.ok { background: #10b981; }
-.batch-dot.bad { background: #ef4444; }
-.batch-dot.busy { background: #f97316; }
-.batch-dot.idle { background: #9aa1ab; }
+.batch-dot.ok { background: var(--ok); }
+.batch-dot.bad { background: var(--bad); }
+.batch-dot.busy { background: var(--pulse-accent); }
+.batch-dot.idle { background: var(--ink-4); }
 .batch-item .part-tok { max-width: 46%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .pick-row { display: flex; gap: 8px; margin-top: 10px; }
-.online-row { display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px dashed #dbe5ed; }
-.ai-img-row { display:flex; align-items:center; gap:8px; margin:8px 0 10px; padding:8px 10px; border-radius:8px; background:#f4f9fd; color:#385065; font-size:12px; }
-.manual-image-zone { margin:8px 0 10px; padding:9px 11px; border:1.5px dashed #b8d9e9; border-radius:9px; background:#fbfdff; }
-.manual-image-head { display:flex; align-items:center; gap:7px; color:#24546e; font-size:12px; } .manual-image-list { margin-top:6px; color:#5d7484; font-size:10px; word-break:break-all; }
-.pick-hint { font-size: 10px; color: #9aa1ab; line-height: 1.7; margin: 8px 0; }
+.online-row { display:flex; align-items:center; gap:8px; margin-top:10px; padding-top:10px; border-top:1px dashed var(--pulse-soft); }
+.ai-img-row { display:flex; align-items:center; gap:8px; margin:8px 0 10px; padding:8px 10px; border-radius:8px; background:var(--pulse-soft); color:var(--pulse-deep); font-size:12px; }
+.manual-image-zone { margin:8px 0 10px; padding:9px 11px; border:1.5px dashed var(--line-2); border-radius:9px; background:var(--surface-2); }
+.manual-image-head { display:flex; align-items:center; gap:7px; color:var(--pulse-deep); font-size:12px; } .manual-image-list { margin-top:6px; color:var(--pulse-accent); font-size:10px; word-break:break-all; }
+.pick-hint { font-size: 10px; color: var(--ink-4); line-height: 1.7; margin: 8px 0; }
 
 /* 把视频拖进窗口时的提示框 */
 .td-page.drag-over::after {
@@ -1344,8 +1349,8 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   gap: 10px;
   padding: 8px 14px;
   border-radius: 10px;
-  border: 1px solid #e6e8ec;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  background: var(--surface);
   margin-bottom: 10px;
   flex-shrink: 0;
 }
@@ -1353,29 +1358,29 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 .env-bar.warn { border-color: rgba(249, 115, 22, 0.35); }
 .env-bar.bad { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.06); }
 .env-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.env-bar.ok .env-dot { background: #10b981; }
-.env-bar.warn .env-dot { background: #f97316; }
-.env-bar.bad .env-dot { background: #ef4444; }
-.env-summary { font-size: 12px; color: #374151; flex-shrink: 0; }
+.env-bar.ok .env-dot { background: var(--ok); }
+.env-bar.warn .env-dot { background: var(--pulse-accent); }
+.env-bar.bad .env-dot { background: var(--bad); }
+.env-summary { font-size: 12px; color: var(--ink-2); flex-shrink: 0; }
 .env-chips { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 .env-chip {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 10px;
-  border: 1px solid #d8dbe0;
-  color: #6b7280;
+  border: 1px solid var(--line-2);
+  color: var(--ink-3);
   white-space: nowrap;
 }
-.env-chip.ok { color: #10b981; border-color: rgba(16, 185, 129, 0.25); }
-.env-chip.warn { color: #f97316; border-color: rgba(249, 115, 22, 0.3); }
-.env-chip.bad { color: #ef4444; border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); }
+.env-chip.ok { color: var(--ok); border-color: rgba(16, 185, 129, 0.25); }
+.env-chip.warn { color: var(--pulse-accent); border-color: rgba(249, 115, 22, 0.3); }
+.env-chip.bad { color: var(--bad); border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); }
 
 .env-detail { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; flex-shrink: 0; }
-.env-problem { padding: 8px 12px; border-radius: 8px; font-size: 11px; line-height: 1.7; background: #ffffff; border-left: 3px solid #f97316; }
-.env-problem.bad { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.07); }
-.env-problem-title { color: #1f2328; font-weight: 600; margin-right: 6px; }
-.env-problem-detail { color: #6b7280; }
-.env-problem-fix { color: #f97316; margin-top: 4px; }
+.env-problem { padding: 8px 12px; border-radius: 8px; font-size: 11px; line-height: 1.7; background: var(--surface); border-left: 3px solid var(--pulse-accent); }
+.env-problem.bad { border-left-color: var(--bad); background: rgba(239, 68, 68, 0.07); }
+.env-problem-title { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.env-problem-detail { color: var(--ink-3); }
+.env-problem-fix { color: var(--pulse-accent); margin-top: 4px; }
 
 /* ---------------- 顶部实时信号栏（本页的视觉主角） ---------------- */
 .rail {
@@ -1385,7 +1390,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
   height: var(--rail-h);
   padding: 0 18px;
   border-radius: var(--r-lg);
-  background: linear-gradient(120deg, #fffdfb 0%, var(--surface) 42%, #f6fbff 100%);
+  background: linear-gradient(120deg, var(--brand-soft) 0%, var(--surface) 42%, var(--pulse-soft) 100%);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-panel);
   margin-bottom: 12px;
@@ -1472,6 +1477,51 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 }
 /* 对比区域用信号青，和“实时/分析”这条线呼应 */
 .compare-zone .zone-num { background: rgba(0, 180, 216, 0.12); color: var(--signal); }
+
+/* 高级设置：默认收起的一条小字，展开后才露出模型/设备/下载 */
+.adv-settings {
+  margin-top: 10px;
+  border-top: 1px dashed var(--line);
+  padding-top: 4px;
+}
+.adv-settings > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 6px 0;
+}
+.adv-settings > summary::-webkit-details-marker { display: none; }
+.adv-settings > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+}
+.adv-settings[open] > summary::before { transform: rotate(90deg); }
+.adv-settings > summary:hover { color: var(--ink); }
+
+/* 双场对比：整块收进 details，summary 就是 zone-head */
+.adv-zone > summary.adv-zone-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.adv-zone > summary.adv-zone-summary::-webkit-details-marker { display: none; }
+.adv-zone > summary.adv-zone-summary::after {
+  content: '展开';
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-4);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px;
+  flex-shrink: 0;
+}
+.adv-zone[open] > summary.adv-zone-summary::after { content: '收起'; }
+.adv-zone:not([open]) > summary.adv-zone-summary { margin-bottom: 0; }
 .zone-title { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: 0.2px; }
 .zone-hint { font-size: 10px; color: var(--ink-4); }
 .zone-head .link-btn { margin-left: auto; }
@@ -1499,7 +1549,7 @@ onUnmounted(() => { /* 监听器全局保留，切页不丢进度 */ })
 }
 
 /* 页签自带操作区 */
-.tab-tools { padding: 10px 14px; border-bottom: 1px solid #e6e8ec; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.tab-tools { padding: 10px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
 .tab-tools-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tab-tools .model-hint { margin: 0; }
 

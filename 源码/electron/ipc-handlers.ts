@@ -21,8 +21,10 @@ import { getPullUrl } from './services/live-stream'
 import { detectPlatform, platformLabel, genericRoomInfo, resolveGenericPullUrl } from './services/platform'
 import * as db from './services/database'
 import * as incubate from './services/incubate'
+import * as importKnowledge from './services/import-knowledge'
 import * as updater from './services/updater'
 import * as incubatePlan from './services/incubate-plan'
+import * as hr from './services/hr'
 import * as musicLibrary from './services/music-library'
 import { V5_FULL_INSTRUCTION } from './services/teardown-instruction'
 import * as config from './services/record-config'
@@ -302,6 +304,17 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('ai:config-set', (_e, patch: any) => ai.saveAiConfig(patch))
   ipcMain.handle('ai:test', (_e, patch: any) => ai.testAiConnection(patch))
   ipcMain.handle('ai:read-report', (_e, input: string) => ai.readReport(input))
+  // 轻量文本生成（标准孵化手册这类非拆解场景用）
+  ipcMain.handle('ai:chat-text', (_e, system: string, user: string) => ai.chatText(system, user))
+  // 通用存文本：保存对话框 + 写文件（孵化手册导出 .md 用）
+  ipcMain.handle('ai:save-text', async (_e, defaultName: string, content: string) => {
+    const picked = await (mainWindow
+      ? dialog.showSaveDialog(mainWindow, { title: '保存文件', defaultPath: defaultName, filters: [{ name: 'Markdown', extensions: ['md'] }, { name: '文本', extensions: ['txt'] }] })
+      : dialog.showSaveDialog({ title: '保存文件', defaultPath: defaultName, filters: [{ name: 'Markdown', extensions: ['md'] }, { name: '文本', extensions: ['txt'] }] }))
+    if (picked.canceled || !picked.filePath) return ''
+    fs.writeFileSync(picked.filePath, content, 'utf8')
+    return picked.filePath
+  })
   ipcMain.handle('ai:pick-images', async () => {
     if (!mainWindow) return []
     const picked = await dialog.showOpenDialog(mainWindow, {
@@ -865,6 +878,42 @@ ipcMain.handle('incubate:list', async (_e, table: string) => incubate.listRows(t
 ipcMain.handle('incubate:add', async (_e, table: string, row: any) => incubate.addRow(table, row))
 ipcMain.handle('incubate:update', async (_e, table: string, id: number, row: any) => incubate.updateRow(table, id, row))
 ipcMain.handle('incubate:delete', async (_e, table: string, id: number) => incubate.deleteRow(table, id))
+// 资料一键导入：选文件 → 解析预览 → 确认入库（话术库 / PK玩法库）
+ipcMain.handle('incubate:knowledge-pick', async (_e, table: string) => {
+  const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+  const r = await dialog.showOpenDialog(win, {
+    title: '选择要导入的资料（话术 / PK玩法）',
+    properties: ['openFile'],
+    filters: [
+      { name: '资料文件', extensions: ['pdf', 'docx', 'txt', 'md', 'csv'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  })
+  if (r.canceled || !r.filePaths[0]) return { canceled: true }
+  try {
+    const file = r.filePaths[0]
+    const parsed = importKnowledge.parseKnowledgeFile(file, table)
+    return {
+      canceled: false,
+      fileName: path.basename(file),
+      kind: parsed.kind,
+      total: parsed.rows.length,
+      sample: parsed.rows.slice(0, 5),
+      rows: parsed.rows
+    }
+  } catch (e: any) {
+    return { canceled: false, error: String(e?.message || e) }
+  }
+})
+ipcMain.handle('incubate:knowledge-import', async (_e, table: string, rows: any[]) => {
+  if (!incubate.TABLES[table]) throw new Error('未知库：' + table)
+  const key = table === 'PK玩法库' ? '惩罚内容' : '回复方案'
+  const exist = new Set((await incubate.listRows(table)).map((r: any) => String(r[key] || '').trim()))
+  const miss = (rows || []).filter((r: any) => r && r[key] && !exist.has(String(r[key]).trim()))
+  if (!miss.length) return { added: 0, skipped: (rows || []).length }
+  const res = await incubate.importRows(table, miss)
+  return { added: res.added, skipped: (rows || []).length - miss.length }
+})
 
 // ---------------- 曲库（抖音无版权禁播清单） ----------------
 ipcMain.handle('music:folders', async () => musicLibrary.listFolders())
@@ -911,6 +960,28 @@ ipcMain.handle('incubate:delete-streamer', async (_e, name: string) => incubate.
 ipcMain.handle('incubate:import', async (_e, dir: string) => incubate.importFromTeardown(dir))
 ipcMain.handle('incubate:open-data-dir', () => incubate.openDataFolder())
 ipcMain.handle('incubate:instruction', () => V5_FULL_INSTRUCTION)
+// ---------------------------------------------------------------- 人事（极简）
+// 人事不另建档案：读写的还是孵化那张「主播学籍」，所以录一次，运营那边自动就有。
+ipcMain.handle('hr:overview', async (_e, month?: string) => hr.overview(month))
+ipcMain.handle('hr:pick-sheet', async () => {
+  const opts: any = {
+    title: '选新人表（Excel / CSV）',
+    properties: ['openFile'],
+    filters: [
+      { name: '表格 (xlsx / csv / tsv)', extensions: ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  }
+  const r = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, opts)
+    : await dialog.showOpenDialog(opts)
+  if (r.canceled || !r.filePaths.length) return null
+  return r.filePaths[0]
+})
+ipcMain.handle('hr:sheet-preview', async (_e, filePath: string) => hr.readSheetFile(filePath))
+ipcMain.handle('hr:import-apply', async (_e, filePath: string, mapping: any, defaults: any) =>
+  hr.applyImport(filePath, mapping || {}, defaults || {}))
+ipcMain.handle('hr:add-one', async (_e, input: any) => hr.addOne(input || {}))
 ipcMain.handle('incubate:browse-dir', async () => {
   // 重要：Windows 的对话框不能同时「选文件 + 选文件夹」（同时传只会弹选文件夹），
   // 这就是运营反馈「任何文件都不识别」的原因。现在拆成两个入口。
@@ -944,6 +1015,23 @@ ipcMain.handle('incubate:plan', async (_e, streamer: string) => incubatePlan.get
 ipcMain.handle('incubate:feedback-save', async (_e, row: any) => incubatePlan.saveFeedback(row || {}))
 ipcMain.handle('incubate:custom-course-add', async (_e, opts: any) => incubatePlan.addCustomCourse(opts || {}))
 ipcMain.handle('incubate:custom-course-update', async (_e, id: number, opts: any) => incubatePlan.updateCustomCourse(Number(id), opts || {}))
+// 主播作业：选文件（图片/视频/Word 等）复制存档；飞书等走链接登记
+ipcMain.handle('incubate:homework-pick', async (_e, streamer: string, title: string, note: string, date: string) => {
+  const opts = {
+    title: '选择主播作业文件',
+    properties: ['openFile' as const],
+    filters: [
+      { name: '作业文件（图片/视频/音频/文档）', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'mp4', 'mov', 'avi', 'mkv', 'flv', 'webm', 'mp3', 'wav', 'm4a', 'doc', 'docx', 'wps', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'txt', 'md'] },
+      { name: '全部文件', extensions: ['*'] }
+    ]
+  }
+  const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts)
+  if (r.canceled || !r.filePaths.length) return { ok: false, id: 0 }
+  return incubate.addHomeworkFile(r.filePaths[0], streamer, title, note, date)
+})
+ipcMain.handle('incubate:homework-add-link', async (_e, streamer: string, title: string, url: string, note: string, date: string) => incubate.addHomeworkLink(streamer, title, url, note, date))
+ipcMain.handle('incubate:homework-open', async (_e, id: number) => incubate.openHomework(Number(id)))
+ipcMain.handle('incubate:homework-delete', async (_e, id: number) => incubate.deleteHomework(Number(id)))
 ipcMain.handle('update:check-url', async (_e, url: string) => updater.checkUrl(url))
 ipcMain.handle('update:download-manifest', async (e, m: any) => updater.downloadManifest(m || {}, (p: number) => e.sender.send('update:on-progress', p)))
 ipcMain.handle('update:install-file', async (_e, file: string) => updater.install(file))

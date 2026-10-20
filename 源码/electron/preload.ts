@@ -26,6 +26,8 @@ const api = {
   incubateAdd: (table: string, row: any) => invoke('incubate:add', table, row),
   incubateUpdate: (table: string, id: number, row: any) => invoke('incubate:update', table, id, row),
   incubateDelete: (table: string, id: number) => invoke('incubate:delete', table, id),
+  incubateKnowledgePick: (table: string) => invoke('incubate:knowledge-pick', table),
+  incubateKnowledgeImport: (table: string, rows: any[]) => invoke('incubate:knowledge-import', table, rows),
   incubateScore: (month?: string) => invoke('incubate:score', month),
   incubateSeed: () => invoke('incubate:seed'),
   incubateTracks: () => invoke('incubate:tracks'),
@@ -34,7 +36,18 @@ const api = {
   incubateRestoreStreamer: (name: string) => invoke('incubate:restore-streamer', name),
   incubateUpdateStreamer: (name: string, patch: any) => invoke('incubate:update-streamer', name, patch),
   incubateDeleteStreamer: (name: string) => invoke('incubate:delete-streamer', name),
+  // 主播作业：文件复制存档 + 飞书等链接登记
+  incubateHomeworkPick: (streamer: string, title: string, note: string, date: string) => invoke('incubate:homework-pick', streamer, title, note, date),
+  incubateHomeworkAddLink: (streamer: string, title: string, url: string, note: string, date: string) => invoke('incubate:homework-add-link', streamer, title, url, note, date),
+  incubateHomeworkOpen: (id: number) => invoke('incubate:homework-open', id),
+  incubateHomeworkDelete: (id: number) => invoke('incubate:homework-delete', id),
   incubateInstruction: () => invoke('incubate:instruction'),
+  // 人事：读写的还是孵化那张「主播学籍」，不另建第二份档案
+  hrOverview: (month?: string) => invoke('hr:overview', month),
+  hrPickSheet: () => invoke('hr:pick-sheet'),
+  hrSheetPreview: (filePath: string) => invoke('hr:sheet-preview', filePath),
+  hrImportApply: (filePath: string, mapping: any, defaults: any) => invoke('hr:import-apply', filePath, mapping, defaults),
+  hrAddOne: (input: any) => invoke('hr:add-one', input),
   incubateImport: (dir: string) => invoke('incubate:import', dir),
   incubateExportCsv: () => invoke('incubate:export-csv'),
   incubateExportXlsx: () => invoke('incubate:export-xlsx'),
@@ -105,6 +118,9 @@ const api = {
   aiCancel: () => invoke('ai:cancel'),
   aiReadReport: (input: string) => invoke('ai:read-report', input),
   aiPickImages: () => invoke('ai:pick-images'),
+  // 轻量文本生成（孵化手册）+ 通用存文本
+  aiChatText: (system: string, user: string) => invoke('ai:chat-text', system, user),
+  aiSaveText: (defaultName: string, content: string) => invoke('ai:save-text', defaultName, content),
   // AI 共享（老板机当服务器，一人一密钥）
   aiShareGet: () => invoke('ai:share-get'),
   aiShareStatus: () => invoke('ai:share-status'),

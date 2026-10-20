@@ -36,6 +36,16 @@ export const useIncubateStore = defineStore('incubate', () => {
   const plan = ref<any>(null)
   const planDays = ref<any[]>([])
   const planFeedback = ref<any[]>([])
+  // 主播作业（当前选中主播的作业列表）
+  const homeworkRows = ref<any[]>([])
+
+  /** 加载作业：传主播名只看他的；不传/空串看全部 */
+  async function loadHomework(streamer?: string) {
+    const list = await api().incubateList('作业库')
+    const s = String(streamer || '').trim()
+    homeworkRows.value = s ? list.filter((r: any) => String(r['主播'] || '').trim() === s) : list
+    return homeworkRows.value
+  }
 
   function log(msg: string) {
     const t = new Date().toTimeString().slice(0, 8)
@@ -343,6 +353,7 @@ export const useIncubateStore = defineStore('incubate', () => {
     schema, table, rows, loading, logs, scoreRows, log,
     tracks, common, defaultTrack, sessions, streamers, schedule,
     plan, planDays, planFeedback,
+    homeworkRows, loadHomework,
     loadSchema, loadRows, switchTable, seed, score, importDir, browseDir, pickReport, importReportText,
     generatePlan, loadPlan, saveFeedback, addCustomCourse, updateCustomCourse, removeCourse,
     exportCsv, exportXlsx, openDataDir,

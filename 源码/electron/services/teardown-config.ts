@@ -9,8 +9,6 @@ export interface TeardownConfig {
   /** 转写用哪个设备：cpu（默认）/ cuda / auto。包内没带 CUDA 库，选 GPU 会在引擎里自动回退 CPU。 */
   whisperDevice: string
   revokeSource: string
-  /** AI 报告是否用 v5（孵化版）结构：框架 → 可复制资产 → 30 天清单。默认关（关闭时维持原有行为）。 */
-  useV5: boolean
 }
 
 const DEFAULT_CONFIG: TeardownConfig = {
@@ -19,8 +17,7 @@ const DEFAULT_CONFIG: TeardownConfig = {
   // 提到 64000：留一半给 AI 写报告，大部分场次切 1~2 段就够了。
   contextLimit: 64000,
   whisperDevice: 'cpu',
-  revokeSource: '',
-  useV5: false
+  revokeSource: ''
 }
 
 function configPath(): string {
@@ -35,8 +32,7 @@ export function load(): TeardownConfig {
     return {
       contextLimit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_CONFIG.contextLimit,
       revokeSource: typeof parsed?.revokeSource === 'string' ? parsed.revokeSource : DEFAULT_CONFIG.revokeSource,
-      whisperDevice: typeof parsed?.whisperDevice === 'string' ? parsed.whisperDevice : DEFAULT_CONFIG.whisperDevice,
-      useV5: parsed?.useV5 === true
+      whisperDevice: typeof parsed?.whisperDevice === 'string' ? parsed.whisperDevice : DEFAULT_CONFIG.whisperDevice
     }
   } catch {
     return { ...DEFAULT_CONFIG }

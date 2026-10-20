@@ -14,12 +14,11 @@
         <div class="plan-wrap">
           <section class="inc-block inc-command-block">
             <header class="section-heading section-heading-setup">
-              <span class="section-number">①</span>
+              <span class="section-role role-setup">设置区</span>
               <div class="section-heading-copy">
                 <h3>主播工作台</h3>
                 <p>选主播、维护档案，再导入报告生成计划</p>
               </div>
-              <span class="section-hint">先完成这一步</span>
             </header>
             <div class="command-grid">
               <div class="command-main">
@@ -215,12 +214,12 @@
           <template v-if="planInfo">
             <section class="inc-block inc-today-block">
             <header class="section-heading section-heading-today">
-              <span class="section-number">②</span>
+              <span class="section-role role-today">执行区</span>
               <div class="section-heading-copy">
                 <h3>今日工作</h3>
                 <p>只处理当前主播今天要完成的任务和结果反馈</p>
               </div>
-              <div class="section-person"><span>当前主播</span><b>{{ planStreamerName }}</b></div>
+              <span class="section-person-mini">{{ planStreamerName }}</span>
             </header>
             <div class="plan-head">
               <div class="plan-head-left">
@@ -291,15 +290,45 @@
               </div>
             </div>
 
+            <div class="fb-card hw-card">
+              <div class="today-title">主播作业<span v-if="hwTodayLabel" class="hw-today-chip">{{ hwTodayLabel }}</span>（图片 / 视频 / Word 等文件，或飞书链接，只属当前主播）</div>
+              <div class="fb-row">
+                <input type="date" v-model="hwDate" class="date-input" style="max-width: 148px" title="作业归属哪天（默认今天）" />
+                <span v-if="hwDateDayLabel" class="hw-day-hint">{{ hwDateDayLabel }}</span>
+                <n-input v-model:value="hwTitle" placeholder="作业标题（可空，默认取文件名）" style="max-width: 230px" />
+                <n-input v-model:value="hwNote" placeholder="备注（可空）" style="max-width: 200px" />
+                <n-button type="primary" ghost :disabled="!canHomework" :loading="hwBusy" @click="pickHomework">上传作业文件</n-button>
+              </div>
+              <div class="fb-row">
+                <n-input v-model:value="hwLink" placeholder="飞书等链接（https://…），回车直接登记" @keyup.enter="addHwLink" />
+                <n-button :disabled="!canHomework || !hwLink.trim()" @click="addHwLink">登记链接</n-button>
+              </div>
+              <div v-if="store.homeworkRows.length" class="hw-list">
+                <div v-for="w in store.homeworkRows" :key="w.id" class="hw-item">
+                  <span :class="['hw-type', { link: w['类型'] === '链接' }]">{{ w['类型'] }}</span>
+                  <span class="hw-name" :title="w['文件名'] || w['链接']">{{ w['标题'] }}</span>
+                  <span class="hw-date">{{ w['日期'] }}</span>
+                  <span v-if="hwDayLabel(w)" class="hw-day" :title="hwDayLabel(w)">{{ hwDayLabel(w) }}</span>
+                  <span v-if="w['备注']" class="hw-note">{{ w['备注'] }}</span>
+                  <n-button size="tiny" tertiary type="primary" @click="openHw(w)">打开</n-button>
+                  <n-popconfirm positive-text="删除" negative-text="保留" @positive-click="removeHw(w)">
+                    <template #trigger><n-button size="tiny" tertiary type="error">删</n-button></template>
+                    {{ w['类型'] === '链接' ? '删除这条登记记录' : '删除记录，存档的文件也会一起删掉' }}，确认？
+                  </n-popconfirm>
+                </div>
+              </div>
+              <div v-else class="hw-empty">还没有作业：主播交的图片、视频、Word 点「上传作业文件」；飞书文档/多维表格粘链接登记。</div>
+            </div>
+
             </section>
             <section class="inc-block inc-all-block">
             <header class="section-heading section-heading-all">
-              <span class="section-number">③</span>
+              <span class="section-role role-all">档案区</span>
               <div class="section-heading-copy">
                 <h3>全部课表与记录</h3>
                 <p>查本周安排、历史反馈和完整 60 天训练计划</p>
               </div>
-              <div class="section-person"><span>当前主播</span><b>{{ planStreamerName }}</b></div>
+              <span class="section-person-mini">{{ planStreamerName }}</span>
             </header>
             <div class="week-card">
               <div class="week-head">本周课表（所有主播的今日任务）</div>
@@ -470,45 +499,238 @@
         <div class="bar">
           <n-input v-model:value="month" size="small" placeholder="月份，如 2026-10" style="width: 150px" />
           <n-button type="primary" size="small" @click="calc">算分</n-button>
-          <span class="hint">只算三项：主播成长 40% ｜ 学习 40% ｜ 每日按时提交 20%</span>
+          <span class="hint">运营不用在这里填表——每天到「主播跟踪」填五项评分和今日反馈，月底点「算分」自动出结果。三块算总分：主播成长 40 分 ｜ 学习 40 分 ｜ 按时提交 20 分。点运营名字，直接跳到「主播跟踪」只看他带的主播。</span>
         </div>
         <n-data-table :columns="scoreColumns" :data="store.scoreRows" size="small" :bordered="false" max-height="calc(100vh - 420px)" />
         <div class="rule">
-          <div><b>主播成长 40%</b>＝40% 现状（名下主播本月所有场次按赛道合格线的达标率）＋ 60% 变化（每个主播本月最后一场 vs 第一场的单场得分；提升 20 分算满分、退 20 分算 0 分）</div>
-          <div><b>每日按时提交 20%</b>＝（当天交的场次 ＋ 事后补交 × 0.5）÷ 应交场次；应交＝名下主播数 × 4 场/月（一周一场的最低线，不看录像）；五个分都打才算一次提交</div>
-          <div><b>学习 40%</b>＝课表（月目标 10 条）、资产贡献（2 条）、周复盘（4 次）三项平均</div>
-          <div>抽查门禁：本月抽查合格率 &lt;70% → 总分 ×0.8（没抽查不罚）；结论：<b>≥80 达标</b> ｜ <b>60–79 待改进</b> ｜ <b>&lt;60 不合格</b></div>
+          <div><b>主播成长 40 分</b>：看两件事。① 名下主播这个月的场次有多少达到赛道合格线（占 16 分）；② 每个主播本月最后一场比第一场进步多少（占 24 分）——进步 20 分拿满，不进步拿一半，退步 20 分不得分。</div>
+          <div><b>学习 40 分</b>：三件事各占三分之一，按月数数量——课表完成 10 条、给知识库贡献 2 条资料、写 4 次周复盘，完成几成算几成分。</div>
+          <div><b>按时提交 20 分</b>：每个主播每月至少交 4 场评分（约一周一场）。当天交算 1 次，事后补交只算半次；五个分项都打分才算交了一次。应交次数 ＝ 在职主播数 × 4。</div>
+          <div><b>抽查</b>：本月抽查合格率不到 70%，总分打八折；没抽查不罚。<b>结论：80 分以上达标 ｜ 60–79 待改进 ｜ 60 以下不合格</b></div>
         </div>
       </n-tab-pane>
 
-      <!-- ③ 资产与课表 -->
+      <!-- ③ 知识库：库模式 —— 按类别查资料，按主播过滤，一键生成该主播的标准孵化手册 -->
       <n-tab-pane name="asset" tab="知识库">
         <div class="bar">
-          <n-select v-model:value="viewTable" :options="viewOptions" size="small" style="width: 180px" @update:value="loadView" />
-          <n-button size="small" type="primary" @click="doImport">导入报告文件</n-button>
-          <n-button size="small" @click="doImportDir">选 work 目录</n-button>
-          <n-button size="small" @click="store.exportCsv()">导出 CSV</n-button>
-          <n-button size="small" @click="store.exportXlsx()">导出 Excel</n-button>
-          <span class="hint">{{ store.rows.length }} 行</span>
-        </div>
-        <div class="card">
-          <div class="row">
-            <span class="switch-wrap">
-              <n-switch v-model:value="useV5" size="small" @update:value="saveUseV5" />
-              <span class="hint">AI 报告用 v5 孵化版结构（框架 → 可复制资产 → 30 天清单）｜ 默认关闭</span>
-            </span>
-            <n-button size="tiny" @click="copyInstruction">复制 v5 指令</n-button>
-            <span class="hint">关闭时：拆解页的 AI 分析维持原样。</span>
+          <div class="lib-cats">
+            <button
+              v-for="c in libCats"
+              :key="c.value"
+              :class="['lib-cat', { active: viewTable === c.value }]"
+              @click="switchLibCat(c.value)"
+            >{{ c.label }}</button>
           </div>
+          <n-select v-model:value="libStreamer" :options="libStreamerOptions" size="small" style="width: 150px" placeholder="按主播查" />
+          <n-button size="small" type="primary" :disabled="!libStreamer" :loading="manualBusy" @click="generateManual">生成标准孵化手册</n-button>
+          <n-button v-if="viewTable === '话术库' || viewTable === 'PK玩法库'" size="small" type="warning" ghost :loading="importBusy" @click="importKnowledgeFile">一键导入资料</n-button>
+          <template v-if="viewTable !== '话术库'">
+            <n-button size="small" @click="store.exportCsv()">导出 CSV</n-button>
+            <n-button size="small" @click="store.exportXlsx()">导出 Excel</n-button>
+          </template>
+          <n-button v-else size="small" type="primary" ghost @click="openScriptEdit()">+ 添加话术</n-button>
         </div>
-        <n-data-table :columns="assetColumns" :data="store.rows" size="small" :bordered="false" max-height="calc(100vh - 470px)" />
-        <div class="rule">
-          <div>运营平时用「导入报告文件」直接选那个 .md；只有当报告散在一场 work 目录里时，才用「选 work 目录」让它自己找。</div>
-          <div>两种报告都认：① v5 格式（带 <code>XD-XX-001</code> 资产表和 <code>| D1 | … |</code> 课表）；② 普通分析报告（把「<b>话术库</b>」里的表格抽成资产、把「<b>SOP</b>」清单抽成课表，编号自动生成）。</div>
-          <div v-for="(l, i) in store.logs.slice(0, 6)" :key="i" class="log">{{ l }}</div>
+        <div class="lib-hint hint">{{ libHint }}</div>
+
+        <!-- 话术库：按对话场景分区的卡片，主播照着念 -->
+        <template v-if="viewTable === '话术库'">
+          <div class="mindset-filter">
+            <button
+              v-for="c in scriptScenes"
+              :key="c"
+              :class="['mindset-chip', { active: scriptScene === c }]"
+              @click="scriptScene = c"
+            >{{ c }}</button>
+            <n-input v-model:value="scriptKw" size="small" clearable placeholder="搜游客说的话 / 回复方案…" style="width: 220px; margin-left: auto" />
+          </div>
+          <div class="mindset-list">
+            <div v-for="s in scriptShown" :key="s.id" class="mindset-card">
+              <div class="mindset-card-head">
+                <span class="mindset-cat">{{ s['场景'] || '未分类' }}</span>
+                <b class="mindset-q">游客说：{{ s['游客说'] }}</b>
+                <span class="mindset-ops">
+                  <n-button size="tiny" tertiary @click="openScriptEdit(s)">改</n-button>
+                  <n-popconfirm positive-text="删除" negative-text="取消" @positive-click="removeScript(s)">
+                    <template #trigger><n-button size="tiny" tertiary type="error">删</n-button></template>
+                    删掉这条就恢复不了，确认？
+                  </n-popconfirm>
+                </span>
+              </div>
+              <div class="mindset-block">
+                <div class="mindset-label">回复方案 · 主播照着念</div>
+                <div class="mindset-text">{{ s['回复方案'] }}</div>
+              </div>
+              <div v-if="s['出处']" class="script-source">出处：{{ s['出处'] }}</div>
+            </div>
+            <div v-if="!scriptShown.length" class="empty-state" style="padding: 40px 0">
+              <div class="empty-icon">🫥</div>
+              <div>{{ scriptKw || scriptScene !== '全部' ? '没有匹配的话术，换个关键词或场景' : '话术库是空的，点右上角「+ 添加话术」' }}</div>
+            </div>
+            <div v-else-if="scriptShown.length < scriptTotal" style="padding: 10px 0 18px; text-align: center">
+              <n-button size="small" @click="scriptLimit += 200">加载更多（已显示 {{ scriptShown.length }} / {{ scriptTotal }} 条）</n-button>
+            </div>
+          </div>
+        </template>
+
+        <!-- 资产库 / 课表 / 案例库：数据表 -->
+        <template v-else>
+          <div v-if="viewTable === '资产库'" class="bar">
+            <n-button size="small" type="primary" @click="doImport">导入报告文件</n-button>
+            <n-button size="small" @click="doImportDir">选 work 目录</n-button>
+            <n-button size="tiny" @click="copyInstruction">复制 v5 指令</n-button>
+            <span class="hint">{{ libRows.length }} 行</span>
+          </div>
+          <n-data-table :columns="assetColumns" :data="libRows" size="small" :bordered="false" max-height="calc(100vh - 480px)" />
+          <div v-if="viewTable === '资产库'" class="rule">
+            <div>运营平时用「导入报告文件」直接选那个 .md；只有当报告散在一场 work 目录里时，才用「选 work 目录」让它自己找。</div>
+            <div>两种报告都认：① v5 格式（带 <code>XD-XX-001</code> 资产表和 <code>| D1 | … |</code> 课表）；② 普通分析报告（把「<b>话术库</b>」里的表格抽成资产、把「<b>SOP</b>」清单抽成课表，编号自动生成）。</div>
+            <div v-for="(l, i) in store.logs.slice(0, 6)" :key="i" class="log">{{ l }}</div>
+          </div>
+        </template>
+      </n-tab-pane>
+
+      <!-- ④ 心态调整：多方心态方案 —— 主播/运营/管理者，各找各的场景 -->
+      <n-tab-pane name="mindset" tab="心态调整">
+        <div class="mindset-head">
+          <div class="mindset-title">
+            <b>心态问题库 · 多方方案</b>
+            <span>主播闹情绪找「主播」，运营有压力找「运营」，管理端自己犯愁找「管理者」——先选对象，再对场景，照着说、带着做。</span>
+          </div>
+          <n-button type="primary" ghost size="small" @click="openMindsetEdit()">+ 添加一条</n-button>
+        </div>
+        <div class="mindset-roles">
+          <button
+            v-for="r in mindsetRoleTabs"
+            :key="r"
+            :class="['mindset-role-tab', `role-${r}`, { active: mindsetRole === r }]"
+            @click="mindsetRole = r"
+          >{{ r === '全部' ? '全部对象' : r }}</button>
+        </div>
+        <div class="mindset-filter">
+          <button
+            v-for="c in mindsetCategories"
+            :key="c"
+            :class="['mindset-chip', { active: mindsetCat === c }]"
+            @click="mindsetCat = c"
+          >{{ c }}</button>
+          <n-input v-model:value="mindsetKw" size="small" clearable placeholder="搜索问题或回复…" style="width: 200px; margin-left: auto" />
+        </div>
+        <div class="mindset-list">
+          <div v-for="m in mindsetShown" :key="m.id" class="mindset-card">
+            <div class="mindset-card-head">
+              <span :class="['mindset-role', `role-${m['对象'] || '主播'}`]">{{ m['对象'] || '主播' }}</span>
+              <span class="mindset-cat">{{ m['分类'] || '未分类' }}</span>
+              <b class="mindset-q">{{ m['问题'] }}</b>
+              <span class="mindset-ops">
+                <n-button size="tiny" tertiary @click="openMindsetEdit(m)">改</n-button>
+                <n-popconfirm positive-text="删除" negative-text="取消" @positive-click="removeMindset(m)">
+                  <template #trigger><n-button size="tiny" tertiary type="error">删</n-button></template>
+                  删掉这条就恢复不了，确认？
+                </n-popconfirm>
+              </span>
+            </div>
+            <div class="mindset-block">
+              <div class="mindset-label">{{ mindsetReplyLabel(m) }}</div>
+              <div class="mindset-text">{{ m['疏导回复'] }}</div>
+            </div>
+            <div class="mindset-block action">
+              <div class="mindset-label">{{ mindsetActionLabel(m) }}</div>
+              <div class="mindset-text">{{ m['应对动作'] }}</div>
+            </div>
+          </div>
+          <div v-if="!mindsetShown.length" class="empty-state" style="padding: 40px 0">
+            <div class="empty-icon">🫥</div>
+            <div>{{ mindsetKw || mindsetCat !== '全部' || mindsetRole !== '全部' ? '没有匹配的内容，换个关键词、分类或对象' : '还没有内容，点右上角「+ 添加一条」' }}</div>
+          </div>
         </div>
       </n-tab-pane>
     </n-tabs>
+
+    <!-- 心态调整：添加/修改 -->
+    <n-modal v-model:show="showMindset" preset="card" style="width: 640px" :title="mindsetForm.id ? '修改这条' : '添加一条心态问题'">
+      <div class="rule"><div>先选「对象」：主播=运营照着说；运营=管理端照着说；管理者=自己想通照着做。「应对动作」都要写说完之后立刻做的事。</div></div>
+      <div class="custom-form">
+        <label class="field"><span>对象（这条给谁用）</span>
+          <n-select v-model:value="mindsetForm.对象" :options="mindsetRoleOptions" />
+        </label>
+        <label class="field"><span>分类</span>
+          <n-select v-model:value="mindsetForm.分类" :options="mindsetCatOptions" filterable tag placeholder="选择或输入新分类" />
+        </label>
+        <label class="field" style="grid-column: 1 / -1"><span>问题 / 场景</span>
+          <n-input v-model:value="mindsetForm.问题" placeholder="例如：播了一周还是个位数在线，觉得没希望" />
+        </label>
+        <label class="field" style="grid-column: 1 / -1"><span>疏导回复（照着说 / 自己想通）</span>
+          <n-input v-model:value="mindsetForm.疏导回复" type="textarea" :rows="4" placeholder="口语化、能直接念；管理者对象就写给自己想通的理" />
+        </label>
+        <label class="field" style="grid-column: 1 / -1"><span>应对动作（说完立刻做）</span>
+          <n-input v-model:value="mindsetForm.应对动作" type="textarea" :rows="3" placeholder="写具体、马上能做的事" />
+        </label>
+      </div>
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="showMindset = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="mindsetBusy" @click="saveMindset">保存</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 话术库：添加/修改一条话术 -->
+    <n-modal v-model:show="showScript" preset="card" style="width: 620px" :title="scriptForm.id ? '修改这条话术' : '添加一条话术'">
+      <div class="rule"><div>「游客说」写触发例句（弹幕原话或场景），「回复方案」写主播照着念的话，括号里的词按自己情况替换。</div></div>
+      <div class="custom-form">
+        <label class="field"><span>场景</span>
+          <n-select v-model:value="scriptForm.场景" :options="scriptSceneOptions" filterable tag placeholder="选择或输入新场景" />
+        </label>
+        <label class="field"><span>出处（可空）</span>
+          <n-input v-model:value="scriptForm.出处" placeholder="如：接话破冰 / 对答如流 / 自创" />
+        </label>
+        <label class="field" style="grid-column: 1 / -1"><span>游客说（触发例句）</span>
+          <n-input v-model:value="scriptForm.游客说" placeholder="例如：你真美 / 主播多大了 / （新游客进场没说话）" />
+        </label>
+        <label class="field" style="grid-column: 1 / -1"><span>回复方案（主播照着念）</span>
+          <n-input v-model:value="scriptForm.回复方案" type="textarea" :rows="4" placeholder="口语化、能直接念；括号里的词主播按自己情况替换" />
+        </label>
+      </div>
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="showScript = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="scriptBusy" @click="saveScript">保存</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 标准孵化手册：预览 + 复制/导出 -->
+    <n-modal v-model:show="showManual" preset="card" style="width: 860px" :title="manualTitle">
+      <div class="rule"><div>{{ manualNote }}</div></div>
+      <n-input v-model:value="manualText" type="textarea" :rows="24" readonly style="margin-top: 8px" />
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="copyManual">复制全文</n-button>
+          <n-button size="small" type="primary" @click="exportManual">导出 .md 文件</n-button>
+          <n-button size="small" @click="showManual = false">关闭</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 添加一个主播：与人事同一份档案、同一条写入规则（同名=同一人，只补不冲） -->
+    <n-modal v-model:show="showAddOne" preset="card" style="width: 560px" title="添加一个主播">
+      <div class="rule"><div>和人事录入的是同一份档案：同名视为同一个人，已有档案会自动补齐空字段，不会重复建档；人事页也能立刻看到这个人。</div></div>
+      <div class="custom-form" style="margin-top: 10px">
+        <label class="field"><span>主播姓名 *</span><n-input v-model:value="addOneForm.name" placeholder="主播姓名" @keydown.enter="doAddOne" /></label>
+        <label class="field"><span>带教运营</span><n-input v-model:value="addOneForm.operator" placeholder="谁来带这个主播" /></label>
+        <label class="field"><span>联系方式</span><n-input v-model:value="addOneForm.contact" placeholder="微信 / 电话，可空" /></label>
+        <label class="field"><span>训练赛道</span><n-select v-model:value="addOneForm.track" :options="trackOptions" placeholder="选择赛道" /></label>
+        <label class="field"><span>入司日期</span><input type="date" v-model="addOneForm.joinDate" class="date-input" /></label>
+        <label class="field"><span>开播日期</span><input type="date" v-model="addOneForm.firstLive" class="date-input" /></label>
+      </div>
+      <div class="plan-hint" style="margin-top: 12px">入司日期建议当天就填，离职率和 60 天留存都靠它算。一次要加多人？<a style="color: var(--pulse-accent); cursor: pointer" @click="switchToBatch">用批量粘贴名单</a></div>
+      <template #footer>
+        <div class="actions" style="justify-content: flex-end">
+          <n-button size="small" @click="showAddOne = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="addOneBusy" @click="doAddOne">添加主播</n-button>
+        </div>
+      </template>
+    </n-modal>
 
     <!-- 批量粘贴名单 -->
     <n-modal v-model:show="showImport" preset="card" style="width: 600px" title="添加主播（可一次加多人）">
@@ -587,11 +809,12 @@
 
 <script setup lang="ts">
 import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { NButton, NDataTable, NDatePicker, NInput, NModal, NPopconfirm, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
+import { NButton, NDataTable, NDatePicker, NInput, NModal, NPopconfirm, NSelect, NSwitch, NTabPane, NTabs, useDialog, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
 import { useIncubateStore } from '../stores/incubate'
 
 const store = useIncubateStore()
 const msg = useMessage()
+const dialog = useDialog()
 const api = () => (window as any).electronAPI
 
 type Level = 'ok' | 'warn' | 'bad' | 'none'
@@ -600,11 +823,22 @@ type Filter = 'all' | Level | 'today'
 const tab = ref('plan')
 const month = ref(new Date().toISOString().slice(0, 7))
 const viewTable = ref('资产库')
-const viewOptions = [
+// 知识库·库模式：五个资料类别 + 按主播过滤 + 生成标准孵化手册
+const libCats = [
   { label: '资产库', value: '资产库' },
-  { label: '本周课表', value: '课表' }
-  ,{ label: '案例库（可直接打开视频和报告）', value: '案例库' }
+  { label: '话术库', value: '话术库' },
+  { label: 'PK玩法库', value: 'PK玩法库' },
+  { label: '课表', value: '课表' },
+  { label: '案例库', value: '案例库' }
 ]
+const libStreamer = ref('')
+const libStreamerOptions = computed<SelectOption[]>(() => [
+  { label: '全部主播', value: '' },
+  ...store.streamers
+    .map((s: any) => String(s['主播'] || '').trim())
+    .filter(Boolean)
+    .map((n: string) => ({ label: n, value: n }))
+])
 const yesNo: SelectOption[] = [
   { label: '是', value: '是' },
   { label: '否', value: '否' }
@@ -628,8 +862,10 @@ const editStreamerForm = ref({ oldName: '', name: '', operator: '', track: '' })
 const importText = ref('')
 const importOp = ref(localStorage.getItem('inc_operator') || '')
 const importTrack = ref('下单游戏')
+const showAddOne = ref(false)
+const addOneBusy = ref(false)
+const addOneForm = ref({ name: '', operator: '', contact: '', track: '', joinDate: '', firstLive: '' })
 const statusBusy = ref(false)
-const useV5 = ref(false)
 const today = (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` })()
 
 /** 1–5 分下拉：把 hint 里的锚点直接当选项，四个运营打分才一致 */
@@ -978,7 +1214,7 @@ const feedbackList = computed(() => {
   return allFeedback.value
 })
 function pickPhase(p: any) {
-  dayPhase.value = p.from === 1 ? '1-7' : p.from === 8 ? '8-30' : p.from === 31 ? '31-60' : 'all'
+  dayPhase.value = Number(p.to) <= 60 ? `${p.from}-${p.to}` : 'all'
   const el = document.querySelector('.plan-filter')
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
@@ -1075,9 +1311,11 @@ const fbOptions: SelectOption[] = [
 ]
 const dayPhaseOptions: SelectOption[] = [
   { label: '全部 60 天', value: 'all' },
-  { label: '1-7 天 起号基础', value: '1-7' },
-  { label: '8-30 天 能力成型', value: '8-30' },
-  { label: '31-60 天 实战冲刺', value: '31-60' }
+  { label: '1-3 天 互相了解', value: '1-3' },
+  { label: '4-7 天 基础学习', value: '4-7' },
+  { label: '8-15 天 上播学习', value: '8-15' },
+  { label: '16-30 天 提升', value: '16-30' },
+  { label: '31-60 天 巩固提升', value: '31-60' }
 ]
 
 function courseSource(row: any): string {
@@ -1128,6 +1366,7 @@ const dayColumns = computed<DataTableColumns<any>>(() => [
   { title: '来源', key: '来源', width: 96, render: (row: any) => courseSource(row) || 'AI计划' },
   { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
   { title: '验收', key: '验收', width: 250, ellipsis: { tooltip: true } },
+  { title: '作业', key: '作业', width: 76, render: (row: any) => { const list = hwListByDay(String(row['日期'])); if (!list.length) return ''; return h('span', { title: list.map((w: any) => String(w['标题'] || '')).join('\n'), style: 'color: var(--ok); font-weight: 600' }, `✓ ${list.length} 份`) } },
   {
     title: '操作', key: 'ops', width: 132,
     render: (row: any) => courseSource(row) === '运营自定义'
@@ -1188,6 +1427,101 @@ async function onPlanStreamer(name: string) {
   curTrack.value = planTrack.value
   await loadPlanFor(name)
   await loadTodayScores(name)
+  store.loadHomework(name)
+}
+
+// ---------------- 主播作业 ----------------
+const hwTitle = ref('')
+const hwNote = ref('')
+const hwLink = ref('')
+const hwDate = ref(localDate())
+const hwBusy = ref(false)
+const canHomework = computed(() => !!planStreamer.value && planStreamer.value !== ALL_PLAN)
+
+// —— 作业 × 孵化计划联动：作业按日历日期 ↔ 60 天计划的「第 N 天」对齐 ——
+const planStartDate = computed(() => String(planInfo.value?.plan?.['开始日期'] || ''))
+/** 日历日期 → 计划第几天（1–60），对不上返回 null */
+function dateToDayIndex(d: string): number | null {
+  const s = planStartDate.value
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null
+  const n = Math.round((Date.parse(d) - Date.parse(s)) / 86400000) + 1
+  return n >= 1 && n <= 60 ? n : null
+}
+/** 作业行显示：第 N 天 · 当天训练内容 */
+function hwDayLabel(w: any): string {
+  const n = dateToDayIndex(String(w['日期'] || ''))
+  if (!n) return ''
+  const task = store.planDays.find((r: any) => String(r['日期']) === 'D' + n && courseSource(r) !== '运营自定义')
+  const t = String(task?.['今天练什么'] || '').trim()
+  return `第 ${n} 天` + (t ? ' · ' + t : '')
+}
+/** 上传区选的日期对应第几天，选完日期一眼看到 */
+const hwDateDayLabel = computed(() => {
+  const n = dateToDayIndex(hwDate.value)
+  return n ? `计划的第 ${n} 天` : ''
+})
+
+/** 「D5」当天的作业列表（课表作业列悬浮显示标题用） */
+function hwListByDay(dayKey: string): any[] {
+  return store.homeworkRows.filter((w: any) => {
+    const n = dateToDayIndex(String(w['日期'] || ''))
+    return n !== null && 'D' + n === dayKey
+  })
+}
+
+/** 作业卡标题状态：今天对应计划第几天、作业交了没（联动一眼可见） */
+const hwTodayLabel = computed(() => {
+  if (!planInfo.value?.plan) return ''
+  const n = dateToDayIndex(today)
+  const c = store.homeworkRows.filter((w: any) => String(w['日期'] || '') === today).length
+  const dayText = n ? `计划第 ${n} 天` : '计划外'
+  return `今天 · ${dayText} · ${c ? `已交 ${c} 份作业` : '还没交作业'}`
+})
+
+async function pickHomework() {
+  if (!canHomework.value) return
+  hwBusy.value = true
+  try {
+    const r = await api().incubateHomeworkPick(planStreamer.value, hwTitle.value.trim(), hwNote.value.trim(), hwDate.value)
+    if (r && r.ok) {
+      msg.success('作业已上传存档')
+      hwTitle.value = ''
+      hwNote.value = ''
+      await store.loadHomework(planStreamer.value)
+    }
+  } catch (e: any) {
+    msg.error('上传失败：' + (e?.message || e))
+  } finally {
+    hwBusy.value = false
+  }
+}
+
+async function addHwLink() {
+  const u = hwLink.value.trim()
+  if (!canHomework.value || !u) return
+  try {
+    await api().incubateHomeworkAddLink(planStreamer.value, hwTitle.value.trim(), u, hwNote.value.trim(), hwDate.value)
+    msg.success('链接已登记')
+    hwLink.value = ''
+    await store.loadHomework(planStreamer.value)
+  } catch (e: any) {
+    msg.error('登记失败：' + (e?.message || e))
+  }
+}
+
+async function openHw(w: any) {
+  const ok = await api().incubateHomeworkOpen(Number(w.id))
+  if (!ok) msg.error('打不开：文件可能已被移动或删除')
+}
+
+async function removeHw(w: any) {
+  try {
+    await api().incubateHomeworkDelete(Number(w.id))
+    msg.success('已删除')
+    await store.loadHomework(planStreamer.value)
+  } catch (e: any) {
+    msg.error('删除失败：' + (e?.message || e))
+  }
 }
 
 async function importFileAndGenerate(filePath: string) {
@@ -1526,7 +1860,7 @@ const sessionColumns = computed<DataTableColumns<any>>(() => {
 })
 
 const scoreColumns = computed<DataTableColumns<any>>(() => [
-  { title: '运营', key: '运营', width: 86 },
+  { title: '运营', key: '运营', width: 86, render: (row: any) => h(NButton, { size: 'tiny', quaternary: true, type: 'primary', title: '跳到「主播跟踪」只看他带的主播', onClick: () => viewOperatorStreamers(row['运营']) }, { default: () => row['运营'] || '-' }) },
   { title: '在职主播', key: '主播数', width: 72 },
   { title: '已离司', key: '已离司', width: 64 },
   { title: '离职率', key: '离职率', width: 64, render: (row: any) => `${row['离职率'] || 0}%` },
@@ -1621,8 +1955,330 @@ async function calc() {
   }
 }
 
+/** 考核表点运营名字 → 跳到主播跟踪，只看他带的主播（考核和主播档案联动） */
+function viewOperatorStreamers(name: any) {
+  const n = String(name || '').trim()
+  if (!n) return
+  onOperatorName(n)
+  onlyMine.value = true
+  saveOnlyMine()
+  tab.value = 'plan'
+  msg.info(`已跳到「主播跟踪」，只看 ${n} 带的主播`)
+}
+
 async function loadView(v: string) {
   await store.switchTable(String(v))
+}
+
+// ---------------------------------------------------------------- 知识库·库模式
+
+function switchLibCat(v: string) {
+  if (v === viewTable.value) return
+  viewTable.value = v
+  if (v === '话术库') loadScripts()
+  else loadView(v)
+}
+
+/** 选中主播的赛道（案例库按它过滤） */
+const libStreamerTrack = computed(() => {
+  if (!libStreamer.value) return ''
+  const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === libStreamer.value)
+  return String(s?.['赛道'] || '').trim()
+})
+
+/** 表格类资料按主播过滤：课表看人、资产看「适用主播」、案例看同赛道 */
+const libRows = computed(() => {
+  const rows = store.rows || []
+  const name = libStreamer.value
+  if (!name) return rows
+  if (viewTable.value === '课表') return rows.filter((r: any) => String(r['主播'] || '').trim() === name)
+  if (viewTable.value === '资产库') {
+    return rows.filter((r: any) => {
+      const fit = String(r['适用主播'] || '').trim()
+      return !fit || fit === '通用' || fit.includes(name)
+    })
+  }
+  if (viewTable.value === '案例库') {
+    const t = libStreamerTrack.value
+    return t ? rows.filter((r: any) => String(r['赛道'] || '').trim() === t) : rows
+  }
+  return rows
+})
+
+const libHint = computed(() => {
+  const name = libStreamer.value
+  const base: Record<string, string> = {
+    资产库: '拆解产出的可复制资产（话术片段/节目/道具），可导入报告自动入库',
+    话术库: '主播在直播间照着念的回话方案，按对话场景分区；支持 PDF/Word/TXT/CSV 一键导入',
+    PK玩法库: 'PK 输了做的惩罚玩法，每条带安全提示；支持 PDF/Word/TXT/CSV 一键导入，已内置 200 条规避风险玩法',
+    课表: '每个主播的 60 天孵化计划与运营自定义课程',
+    案例库: '历史场次的成功案例，可直接打开视频和报告'
+  }
+  const cur = base[viewTable.value] || ''
+  if (!name) return cur + '。选一个主播可以只看他相关的资料。'
+  if (viewTable.value === '话术库' || viewTable.value === 'PK玩法库') return cur + '。这是通用库，不分主播；点「生成标准孵化手册」会收进该主播的手册。'
+  if (viewTable.value === '课表') return `只看「${name}」的课表。`
+  if (viewTable.value === '资产库') return `只看适用「${name}」和通用的资产。`
+  if (viewTable.value === '案例库') return `只看「${name}」同赛道（${libStreamerTrack.value || '未填赛道'}）的案例。`
+  return cur
+})
+
+// ---------------------------------------------------------------- 话术库
+
+const scriptRows = ref<any[]>([])
+const scriptScene = ref('全部')
+const scriptKw = ref('')
+const showScript = ref(false)
+const scriptBusy = ref(false)
+const scriptForm = ref<any>({ id: 0, 场景: '', 游客说: '', 回复方案: '', 出处: '' })
+let scriptLoaded = false
+
+const scriptScenes = computed(() => {
+  const cats = scriptRows.value.map((r) => String(r['场景'] || '').trim()).filter(Boolean)
+  return ['全部', ...Array.from(new Set(cats))]
+})
+const scriptSceneOptions = computed<SelectOption[]>(() =>
+  scriptScenes.value.filter((c) => c !== '全部').map((c) => ({ label: c, value: c }))
+)
+const scriptShown = computed(() => {
+  const kw = scriptKw.value.trim()
+  const filtered = scriptRows.value.filter((r) => {
+    if (scriptScene.value !== '全部' && String(r['场景'] || '').trim() !== scriptScene.value) return false
+    if (!kw) return true
+    return `${r['场景']} ${r['游客说']} ${r['回复方案']} ${r['出处']}`.includes(kw)
+  })
+  return filtered.slice(0, scriptLimit.value)
+})
+const scriptTotal = computed(() => {
+  const kw = scriptKw.value.trim()
+  return scriptRows.value.filter((r) => {
+    if (scriptScene.value !== '全部' && String(r['场景'] || '').trim() !== scriptScene.value) return false
+    if (!kw) return true
+    return `${r['场景']} ${r['游客说']} ${r['回复方案']} ${r['出处']}`.includes(kw)
+  }).length
+})
+// 大库防卡：默认只渲染前 80 张卡片，点「加载更多」逐步放开
+const scriptLimit = ref(80)
+watch([scriptScene, scriptKw], () => { scriptLimit.value = 80 })
+
+async function loadScripts(force = false) {
+  if (scriptLoaded && !force) return
+  try {
+    // 幂等：空表自动灌种子，老用户第一次打开话术库就有内置内容
+    await api().incubateSeed()
+    scriptRows.value = await api().incubateList('话术库')
+    scriptLoaded = true
+  } catch (e: any) {
+    msg.error('话术库加载失败：' + (e?.message || e))
+  }
+}
+
+// ---------------------------------------------------------------- 资料一键导入（话术库 / PK玩法库）
+const importBusy = ref(false)
+async function importKnowledgeFile() {
+  const table = viewTable.value
+  if (table !== '话术库' && table !== 'PK玩法库') return
+  importBusy.value = true
+  try {
+    const r = await api().incubateKnowledgePick(table)
+    if (!r || r.canceled) return
+    if (r.error) { msg.error(r.error); return }
+    // 确认导入：告诉运营识别出多少条、来自哪个文件
+    const unit = table === 'PK玩法库' ? '条玩法' : '条话术'
+    const ok = await new Promise<boolean>((resolve) => {
+      dialog.warning({
+        title: '一键导入资料',
+        content: `从「${r.fileName}」识别出 ${r.total} ${unit}，导入到「${table}」？\n（已经有的会自动跳过，不会重复）`,
+        positiveText: '导入',
+        negativeText: '取消',
+        onPositiveClick: () => resolve(true),
+        onNegativeClick: () => resolve(false),
+        onClose: () => resolve(false)
+      })
+    })
+    if (!ok) return
+    const res = await api().incubateKnowledgeImport(table, r.rows)
+    msg.success(`导入完成：新增 ${res.added} ${unit}${res.skipped ? `，跳过已有 ${res.skipped} 条` : ''}`)
+    if (table === '话术库') await loadScripts(true)
+    else await store.switchTable(viewTable.value)
+  } catch (e: any) {
+    msg.error('导入失败：' + (e?.message || e))
+  } finally {
+    importBusy.value = false
+  }
+}
+
+function openScriptEdit(row?: any) {
+  if (row) {
+    scriptForm.value = { id: Number(row.id), 场景: row['场景'] || '', 游客说: row['游客说'] || '', 回复方案: row['回复方案'] || '', 出处: row['出处'] || '' }
+  } else {
+    scriptForm.value = { id: 0, 场景: scriptScene.value !== '全部' ? scriptScene.value : '', 游客说: '', 回复方案: '', 出处: '' }
+  }
+  showScript.value = true
+}
+
+async function saveScript() {
+  const f = scriptForm.value
+  if (!String(f['游客说'] || '').trim()) return msg.warning('先写「游客说」的触发例句')
+  if (!String(f['回复方案'] || '').trim()) return msg.warning('先写「回复方案」')
+  scriptBusy.value = true
+  try {
+    const row = {
+      场景: String(f['场景'] || '').trim() || '未分类',
+      游客说: String(f['游客说'] || '').trim(),
+      回复方案: String(f['回复方案'] || '').trim(),
+      出处: String(f['出处'] || '').trim(),
+      更新时间: today
+    }
+    if (f.id) await api().incubateUpdate('话术库', Number(f.id), row)
+    else await api().incubateAdd('话术库', row)
+    showScript.value = false
+    await loadScripts(true)
+    msg.success(f.id ? '已保存修改' : '已添加')
+  } catch (e: any) {
+    msg.error('保存失败：' + (e?.message || e))
+  } finally {
+    scriptBusy.value = false
+  }
+}
+
+async function removeScript(row: any) {
+  try {
+    await api().incubateDelete('话术库', Number(row.id))
+    await loadScripts(true)
+    msg.success('已删除')
+  } catch (e: any) {
+    msg.error('删除失败：' + (e?.message || e))
+  }
+}
+
+// ---------------------------------------------------------------- 标准孵化手册
+
+const showManual = ref(false)
+const manualBusy = ref(false)
+const manualText = ref('')
+const manualTitle = ref('标准孵化手册')
+const manualNote = ref('')
+
+function trunc(s: string, n: number): string {
+  const t = String(s || '').trim()
+  return t.length > n ? t.slice(0, n) + '…' : t
+}
+
+/** 汇总一个主播的全部资料，拼成本地版手册（AI 不可用时也能直接出） */
+function assembleManualLocal(name: string, profile: any, plans: any[], scripts: any[], assets: any[], cases: any[], mindsets: any[]): string {
+  const L: string[] = []
+  L.push(`# ${name} · 标准孵化手册`)
+  L.push('')
+  L.push(`> 生成日期：${today} ｜ 带教运营：${profile?.['带教运营'] || '未填'} ｜ 赛道：${profile?.['赛道'] || '未填'} ｜ 入司：${profile?.['入司日期'] || '未填'} ｜ 首播：${profile?.['首播日期'] || '未播'}`)
+  L.push('')
+  L.push('## 一、主播档案')
+  L.push(`- 当前等级：${profile?.['当前等级'] || '未评'}　配合意愿：${profile?.['配合意愿'] || '未填'}　是否正常开播：${profile?.['是否正常开播'] || '未填'}`)
+  if (profile?.['联系方式']) L.push(`- 联系方式：${profile['联系方式']}`)
+  if (profile?.['固定休息日']) L.push(`- 固定休息日：${profile['固定休息日']}`)
+  L.push('')
+  L.push(`## 二、60 天孵化计划（共 ${plans.length} 天课表）`)
+  if (plans.length) {
+    for (const p of plans) {
+      L.push(`- ${p['日期'] || p['执行日期'] || ''}｜${trunc(p['今天练什么'], 40)}｜怎么练：${trunc(p['怎么练'], 50)}｜验收：${trunc(p['验收'], 30)}`)
+    }
+  } else L.push('（还没有课表：先在「主播跟踪」导入 AI 报告生成 60 天计划）')
+  L.push('')
+  L.push('## 附、运营标准工作（阶段与复盘节奏）')
+  L.push('- 阶段：1-3 天互相了解（找对标直播间、拆解）→ 4-7 天基础学习 → 8-15 天上播学习 → 16-30 天提升 → 31-60 天巩固提升')
+  L.push('- 复盘：前 30 天每天下播后当日复盘（写 3 条改进，明天验证 1 条）；31-60 天每三天复盘一次；60 天以后每周复盘 + 学习')
+  L.push('- 判断标准（音浪是标准不是任务）：20 万基础｜30 万成熟｜60 万进阶｜100 万以上优秀；第 40 天达 20 万即孵化成功')
+  L.push('')
+  L.push(`## 三、直播间话术库（按场景，共 ${scripts.length} 条）`)
+  const byScene = new Map<string, any[]>()
+  for (const s of scripts) {
+    const k = String(s['场景'] || '未分类')
+    if (!byScene.has(k)) byScene.set(k, [])
+    byScene.get(k)!.push(s)
+  }
+  for (const [scene, list] of byScene) {
+    L.push(`### ${scene}`)
+    for (const s of list) L.push(`- 游客说「${trunc(s['游客说'], 30)}」→ ${trunc(s['回复方案'], 80)}`)
+  }
+  L.push('')
+  L.push(`## 四、可复制资产（适用本主播 + 通用，共 ${assets.length} 条）`)
+  if (assets.length) for (const a of assets) L.push(`- [${a['编号'] || ''}] ${a['类型'] || ''}：${trunc(a['内容'], 60)}`)
+  else L.push('（暂无：在知识库导入拆解报告自动入库）')
+  L.push('')
+  L.push(`## 五、同赛道案例（共 ${cases.length} 条）`)
+  if (cases.length) for (const c of cases) L.push(`- ${c['案例名'] || ''}：证明了${trunc(c['证明了什么'], 50)}`)
+  else L.push('（暂无同赛道案例）')
+  L.push('')
+  L.push(`## 六、心态调整预案（主播高发问题 ${mindsets.length} 条）`)
+  for (const m of mindsets) L.push(`- 【${m['分类'] || ''}】${trunc(m['问题'], 30)} → 应对：${trunc(m['应对动作'], 50)}`)
+  L.push('')
+  L.push('—— 本手册由系统根据知识库资料自动汇编，可按主播风格增删后打印使用。')
+  return L.join('\n')
+}
+
+async function generateManual() {
+  const name = libStreamer.value
+  if (!name) return msg.warning('先在右上角选一个主播')
+  manualBusy.value = true
+  try {
+    const profile = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+    const [allPlans, scripts, allAssets, allCases, allMindset] = await Promise.all([
+      api().incubateList('课表'),
+      api().incubateList('话术库'),
+      api().incubateList('资产库'),
+      api().incubateList('案例库'),
+      api().incubateList('心态调整')
+    ])
+    const plans = (allPlans || []).filter((r: any) => String(r['主播'] || '').trim() === name)
+    const track = String(profile?.['赛道'] || '').trim()
+    const assets = (allAssets || []).filter((r: any) => {
+      const fit = String(r['适用主播'] || '').trim()
+      return !fit || fit === '通用' || fit.includes(name)
+    })
+    const cases = track ? (allCases || []).filter((r: any) => String(r['赛道'] || '').trim() === track) : (allCases || [])
+    const mindsets = (allMindset || []).filter((r: any) => String(r['对象'] || '主播') === '主播')
+
+    const local = assembleManualLocal(name, profile, plans, scripts || [], assets, cases, mindsets)
+    manualTitle.value = `${name} · 标准孵化手册`
+
+    // 有 AI 配置就让 AI 把手册写得更像正式文档；失败/未配置就用本地汇编版
+    try {
+      const aiText = await api().aiChatText(
+        '你是资深抖音直播运营总监。把给你的资料汇编改写成一份可直接打印使用的《主播标准孵化手册》。' +
+        '要求：结构清晰（档案→60天计划→话术库→资产→案例→心态预案），话术和课表逐条保留不得省略，' +
+        '语气像带教手册（告诉运营每一步怎么做），输出 Markdown，不要加资料里没有的内容。',
+        local
+      )
+      manualText.value = String(aiText || '').trim() || local
+      manualNote.value = '已由 AI 整理成正式手册。话术与课表逐条保留；可直接复制或导出 .md 打印。'
+    } catch (e: any) {
+      manualText.value = local
+      manualNote.value = 'AI 不可用（' + trunc(e?.message || String(e), 60) + '），已用系统本地汇编版——内容一样全，只是没润色。'
+    }
+    showManual.value = true
+  } catch (e: any) {
+    msg.error('生成失败：' + (e?.message || e))
+  } finally {
+    manualBusy.value = false
+  }
+}
+
+async function copyManual() {
+  try {
+    await navigator.clipboard.writeText(manualText.value)
+    msg.success('已复制，直接粘到文档/微信都行')
+  } catch {
+    msg.warning('复制失败，请手动全选复制')
+  }
+}
+
+async function exportManual() {
+  try {
+    const p = await api().aiSaveText(`${manualTitle.value}.md`, manualText.value)
+    if (p) msg.success('已保存：' + p)
+  } catch (e: any) {
+    msg.error('保存失败：' + (e?.message || e))
+  }
 }
 
 async function doImport() {
@@ -1663,25 +2319,43 @@ async function doImportStreamers() {
 }
 
 function openAddStreamer() {
+  addOneForm.value = { name: '', operator: opFilter.value.trim(), contact: '', track: planTrack.value || store.defaultTrack, joinDate: today, firstLive: '' }
+  showAddOne.value = true
+}
+
+function switchToBatch() {
+  showAddOne.value = false
   importOp.value = opFilter.value.trim()
   importTrack.value = planTrack.value || store.defaultTrack
   showImport.value = true
 }
 
-async function loadUseV5() {
+/** 单个添加：走人事同一个 hrAddOne —— 同名视为同一人、只补不冲、绝不重复建档，两端天然对齐 */
+async function doAddOne() {
+  const name = addOneForm.value.name.trim()
+  if (!name) return msg.warning('先填主播姓名')
+  addOneBusy.value = true
   try {
-    const cfg = await (window as any).electronAPI.teardownConfigGet()
-    useV5.value = cfg?.useV5 === true
-  } catch { /* 读不到就当关闭 */ }
-}
-
-async function saveUseV5() {
-  try {
-    await (window as any).electronAPI.teardownConfigSet({ useV5: useV5.value })
-    msg.success(useV5.value ? '已开启：AI 报告走 v5 结构' : '已关闭：AI 报告维持原样')
-    store.log(useV5.value ? 'AI 报告结构：v5（孵化版）' : 'AI 报告结构：原样')
+    const r: any = await api().hrAddOne({
+      name,
+      operator: addOneForm.value.operator.trim(),
+      contact: addOneForm.value.contact.trim(),
+      track: addOneForm.value.track,
+      joinDate: addOneForm.value.joinDate,
+      firstLive: addOneForm.value.firstLive
+    })
+    if (r?.added) msg.success(`已添加 ${name}`)
+    else if (r?.updated) msg.success(`${name} 已有档案，新信息已补齐`)
+    else msg.info(`${name} 档案已存在，内容一致无需改动`)
+    showAddOne.value = false
+    await store.loadStreamers()
+    ensureSelection()
+    await loadWeekTasks()
+    await onPlanStreamer(name)   // 添加完直接选中新主播开干
   } catch (e: any) {
-    msg.error('保存失败：' + (e?.message || e))
+    msg.error('添加失败：' + (e?.message || e))
+  } finally {
+    addOneBusy.value = false
   }
 }
 
@@ -1707,6 +2381,133 @@ watch(values, () => {
   autoSaveTimer = setTimeout(() => { autoSaveScores().catch(() => { /* 状态已记录 */ }) }, 900)
 }, { deep: true })
 
+// ---------------------------------------------------------------- 心态调整（多方心态问题库：主播/运营/管理者）
+const mindsetRows = ref<any[]>([])
+const mindsetRole = ref('全部')
+const mindsetCat = ref('全部')
+const mindsetKw = ref('')
+const showMindset = ref(false)
+const mindsetBusy = ref(false)
+const mindsetForm = ref<any>({ id: 0, 对象: '主播', 分类: '', 问题: '', 疏导回复: '', 应对动作: '' })
+let mindsetLoaded = false
+
+const mindsetRoleTabs = ['全部', '主播', '运营', '管理者']
+const mindsetRoleOptions: SelectOption[] = [
+  { label: '主播（运营照着说）', value: '主播' },
+  { label: '运营（管理端照着说）', value: '运营' },
+  { label: '管理者（自己想通照着做）', value: '管理者' }
+]
+
+// 切换对象时分类从头选，避免选了个该对象没有的分类
+watch(mindsetRole, () => { mindsetCat.value = '全部' })
+
+const mindsetCategories = computed(() => {
+  const cats = mindsetRows.value
+    .filter((r) => mindsetRole.value === '全部' || String(r['对象'] || '主播') === mindsetRole.value)
+    .map((r) => String(r['分类'] || '').trim())
+    .filter(Boolean)
+  return ['全部', ...Array.from(new Set(cats))]
+})
+
+const mindsetCatOptions = computed<SelectOption[]>(() =>
+  mindsetCategories.value.filter((c) => c !== '全部').map((c) => ({ label: c, value: c }))
+)
+
+const mindsetShown = computed(() => {
+  const kw = mindsetKw.value.trim()
+  return mindsetRows.value.filter((r) => {
+    if (mindsetRole.value !== '全部' && String(r['对象'] || '主播') !== mindsetRole.value) return false
+    if (mindsetCat.value !== '全部' && String(r['分类'] || '').trim() !== mindsetCat.value) return false
+    if (!kw) return true
+    const hay = `${r['对象']} ${r['分类']} ${r['问题']} ${r['疏导回复']} ${r['应对动作']}`
+    return hay.includes(kw)
+  })
+})
+
+function mindsetReplyLabel(row: any): string {
+  const o = String(row['对象'] || '主播')
+  if (o === '运营') return '疏导回复 · 管理端照着说'
+  if (o === '管理者') return '自我提醒 · 自己想通'
+  return '疏导回复 · 运营照着说'
+}
+
+function mindsetActionLabel(row: any): string {
+  const o = String(row['对象'] || '主播')
+  if (o === '主播') return '应对动作 · 说完带着做'
+  if (o === '运营') return '应对动作 · 落地管理动作'
+  return '应对动作 · 回去就做'
+}
+
+async function loadMindset(force = false) {
+  if (mindsetLoaded && !force) return
+  try {
+    // 幂等：只给空表灌种子，老用户第一次打开这个 tab 也能拿到内置内容
+    await api().incubateSeed()
+    mindsetRows.value = await api().incubateList('心态调整')
+    mindsetLoaded = true
+  } catch (e: any) {
+    msg.error('心态调整加载失败：' + (e?.message || e))
+  }
+}
+
+function openMindsetEdit(row?: any) {
+  if (row) {
+    mindsetForm.value = { id: Number(row.id), 对象: row['对象'] || '主播', 分类: row['分类'] || '', 问题: row['问题'] || '', 疏导回复: row['疏导回复'] || '', 应对动作: row['应对动作'] || '' }
+  } else {
+    mindsetForm.value = {
+      id: 0,
+      对象: mindsetRole.value !== '全部' ? mindsetRole.value : '主播',
+      分类: mindsetCat.value !== '全部' ? mindsetCat.value : '',
+      问题: '', 疏导回复: '', 应对动作: ''
+    }
+  }
+  showMindset.value = true
+}
+
+async function saveMindset() {
+  const f = mindsetForm.value
+  if (!String(f['问题'] || '').trim()) return msg.warning('先填写问题 / 场景')
+  if (!String(f['疏导回复'] || '').trim()) return msg.warning('先填写疏导回复')
+  mindsetBusy.value = true
+  try {
+    const row = {
+      对象: String(f['对象'] || '').trim() || '主播',
+      分类: String(f['分类'] || '').trim() || '未分类',
+      问题: String(f['问题'] || '').trim(),
+      疏导回复: String(f['疏导回复'] || '').trim(),
+      应对动作: String(f['应对动作'] || '').trim(),
+      更新时间: today
+    }
+    if (f.id) {
+      await api().incubateUpdate('心态调整', Number(f.id), row)
+    } else {
+      await api().incubateAdd('心态调整', row)
+    }
+    showMindset.value = false
+    await loadMindset(true)
+    msg.success(f.id ? '已保存修改' : '已添加')
+  } catch (e: any) {
+    msg.error('保存失败：' + (e?.message || e))
+  } finally {
+    mindsetBusy.value = false
+  }
+}
+
+async function removeMindset(row: any) {
+  try {
+    await api().incubateDelete('心态调整', Number(row.id))
+    await loadMindset(true)
+    msg.success('已删除')
+  } catch (e: any) {
+    msg.error('删除失败：' + (e?.message || e))
+  }
+}
+
+watch(tab, (t) => {
+  if (t === 'mindset') loadMindset()
+  if (t === 'asset' && viewTable.value === '话术库') loadScripts()
+})
+
 onMounted(async () => {
   await store.loadTracks()
   await store.loadSchema()
@@ -1714,7 +2515,6 @@ onMounted(async () => {
   await store.loadSessions()
   await store.loadSchedule()
   await store.switchTable(viewTable.value)
-  await loadUseV5()
   blankValues()
   if (recent.value.length && !current.value) pick(recent.value[0])
   ensureSelection()
@@ -1727,6 +2527,7 @@ onMounted(async () => {
     loadProfile(planStreamer.value)
     await loadPlanFor(planStreamer.value)
     await loadTodayScores(planStreamer.value)
+    store.loadHomework(planStreamer.value)
   }
   window.addEventListener('keydown', onKey)
   scroller()?.addEventListener('scroll', onScroll)
@@ -1741,14 +2542,14 @@ onUnmounted(() => {
 <style scoped>
 /* 孵化页跟随全局浅色主题：白卡片 + 墨色字 + 紫罗兰交互色，深色遗留全部收掉 */
 .inc-page { padding: 18px 22px; color: var(--ink-2); font-size: 14px; }
-.edit-streamer-note { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:1px solid #bfe0ea; border-radius:10px; background:#f3fbfd; }
-.edit-streamer-note b { color:#0e6177; font-size:14px; }
-.edit-streamer-note span { color:#527083; font-size:12.5px; line-height:1.6; }
+.edit-streamer-note { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:1px solid var(--line-2); border-radius:10px; background:var(--pulse-soft); }
+.edit-streamer-note b { color:var(--pulse-deep); font-size:14px; }
+.edit-streamer-note span { color:var(--pulse-deep); font-size:12.5px; line-height:1.6; }
 .edit-streamer-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }
-.delete-streamer-zone { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:16px; padding:13px 14px; border:1px solid #fecaca; border-radius:10px; background:#fff7f7; }
+.delete-streamer-zone { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:16px; padding:13px 14px; border:1px solid var(--bad-soft); border-radius:10px; background:var(--bad-soft); }
 .delete-streamer-zone > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
-.delete-streamer-zone b { color:#b91c1c; font-size:13.5px; }
-.delete-streamer-zone span { color:#7f4747; font-size:12.5px; line-height:1.55; }
+.delete-streamer-zone b { color:var(--bad); font-size:13.5px; }
+.delete-streamer-zone span { color:var(--bad); font-size:12.5px; line-height:1.55; }
 .edit-streamer-footer { display:flex; justify-content:flex-end; gap:9px; }
 @media (max-width:760px) { .edit-streamer-grid { grid-template-columns:1fr; } .delete-streamer-zone { align-items:flex-start; flex-direction:column; } }
 .inc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
@@ -1760,14 +2561,14 @@ onUnmounted(() => {
 .chip { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; background: var(--surface); border: 1px solid var(--line-2); border-radius: 999px; cursor: pointer; user-select: none; transition: background-color 0.15s ease, border-color 0.15s ease; }
 .chip b { font-size: 15px; }
 .chip span { font-size: 12px; color: var(--ink-3); }
-.chip.ok { border-color: rgba(18, 183, 106, 0.35); background: rgba(18, 183, 106, 0.06); } .chip.ok b { color: var(--ok); }
-.chip.warn { border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.07); } .chip.warn b { color: #f59e0b; }
-.chip.bad { border-color: rgba(240, 68, 56, 0.35); background: rgba(240, 68, 56, 0.06); } .chip.bad b { color: var(--bad); }
-.chip.today { border-color: rgba(0, 198, 216, 0.42); background: rgba(0, 198, 216, 0.08); } .chip.today b { color: #0093b5; }
+.chip.ok { border-color: rgba(22, 122, 74, 0.3); background: var(--ok-soft); } .chip.ok b { color: var(--ok); }
+.chip.warn { border-color: rgba(180, 131, 12, 0.32); background: var(--warn-soft); } .chip.warn b { color: var(--warn); }
+.chip.bad { border-color: rgba(192, 57, 43, 0.3); background: var(--bad-soft); } .chip.bad b { color: var(--bad); }
+.chip.today { border-color: rgba(31, 78, 138, 0.35); background: var(--pulse-soft); } .chip.today b { color: var(--pulse-deep); }
 .chip.none b { color: var(--ink-4); }
-.chip.active { border-color: rgba(11, 118, 190, 0.4); background: rgba(11, 118, 190, 0.1); }
+.chip.active { border-color: rgba(31, 78, 138, 0.4); background: var(--pulse-soft); }
 .watch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 4px; }
-.dot.warn { color: #f59e0b; } .dot.bad { color: var(--bad); } .dot.none { color: var(--ink-4); }
+.dot.warn { color: var(--warn); } .dot.bad { color: var(--bad); } .dot.none { color: var(--ink-4); }
 .recent { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
 /* 填报卡：浅色卡面 + 左侧紫罗兰色带，是这一页唯一的强调 */
 .card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px 18px 18px 20px; margin: 10px 0 14px; box-shadow: var(--shadow-panel); }
@@ -1776,251 +2577,311 @@ onUnmounted(() => {
 .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .who b { font-size: 16px; color: var(--ink); }
 .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink-3); }
-.tag.ok { border-color: rgba(18, 183, 106, 0.4); background: rgba(18, 183, 106, 0.08); color: var(--ok); }
-.tag.warn { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08); color: #b45309; }
-.tag.bad { border-color: rgba(240, 68, 56, 0.4); background: rgba(240, 68, 56, 0.08); color: var(--bad); }
+.tag.ok { border-color: rgba(22, 122, 74, 0.35); background: var(--ok-soft); color: var(--ok); }
+.tag.warn { border-color: rgba(180, 131, 12, 0.35); background: var(--warn-soft); color: var(--brand); }
+.tag.bad { border-color: rgba(192, 57, 43, 0.35); background: var(--bad-soft); color: var(--bad); }
 .metrics { display: grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap: 14px 18px; margin: 10px 0; }
 .metric { display: flex; flex-direction: column; gap: 5px; }
-.mlabel { font-size: 13.5px; font-weight: 600; color: #374151; }
+.mlabel { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
 .extras { margin: 6px 0; }
 .actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .hint { font-size: 12px; color: var(--ink-4); }
 
 /* 「今天该盯」：一个人一个小卡片，字大一号，一眼看得出来是几个人 */
 .watch { margin-bottom: 10px; }
-.watch-title { font-size: 14px; font-weight: 700; color: #1f2328; margin-bottom: 6px; }
+.watch-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
 .watch-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .watch-item {
   padding: 6px 12px; border-radius: 10px; height: auto;
-  border: 1px solid #e6e8ec; background: #fff;
-  border-left: 4px solid #d8dbe0;
+  border: 1px solid var(--line); background: var(--surface);
+  border-left: 4px solid var(--line-2);
 }
-.watch-item:hover { border-color: #f97316; box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }
+.watch-item:hover { border-color: var(--pulse-accent); box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }
 /* n-button 默认是横排居中，这里改成上下两行，名字大、状态小 */
 .watch-item :deep(.n-button__content) {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
 }
-.watch-item.warn { border-left-color: #f97316; }
-.watch-item.bad { border-left-color: #ef4444; }
-.watch-item.idle { border-left-color: #d8dbe0; }
-.watch-name { font-size: 15px; font-weight: 700; color: #1f2328; line-height: 1.3; }
-.watch-text { font-size: 12px; color: #6b7280; line-height: 1.3; }
+.watch-item.warn { border-left-color: var(--pulse-accent); }
+.watch-item.bad { border-left-color: var(--bad); }
+.watch-item.idle { border-left-color: var(--line-2); }
+.watch-name { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.watch-text { font-size: 12px; color: var(--ink-3); line-height: 1.3; }
 .bar { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; flex-wrap: wrap; }
 .empty { margin: 30px 0; font-size: 13px; color: var(--ink-4); }
 .rule { margin-top: 12px; font-size: 12px; color: var(--ink-3); line-height: 1.9; }
-.rule code { background: rgba(11, 118, 190, 0.09); padding: 1px 5px; border-radius: 4px; color: var(--pulse-accent); }
+.rule code { background: var(--pulse-soft); padding: 1px 5px; border-radius: 4px; color: var(--pulse-accent); }
 .log { font-family: var(--font-num); color: var(--ink-4); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* ---------- 培训计划（导入 → 60 天 → 每日反馈） ---------- */
 .plan-wrap { display: flex; flex-direction: column; gap: 12px; }
 .inc-block { border:1px solid var(--line); border-radius:16px; padding:14px 16px 16px; margin: 0; box-shadow:var(--shadow-panel); }
-.inc-base-block { background:linear-gradient(160deg,#f0f9ff 0%,#ffffff 55%,#f7fcff 100%); border-color:#cfe8f6; }
-.inc-today-block { background:linear-gradient(160deg,#effcf8 0%,#ffffff 58%,#f7fffc 100%); border-color:#c8eee4; }
-.inc-all-block { background:linear-gradient(160deg,#f6f4ff 0%,#ffffff 58%,#fbfaff 100%); border-color:#ded9f5; }
+/* 渐变背景已统一为白卡片 */
 .inc-block .blk-head { margin-top:0; }
-.plan-import { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; }
-.plan-import-title { font-weight: 700; margin-bottom: 10px; color: #1f2328; }
+.plan-import { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.plan-import-title { font-weight: 700; margin-bottom: 10px; color: var(--ink); }
 .plan-import-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.leave-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; padding:9px 11px; border-radius:9px; background:#f4fbf8; border:1px solid #d7f0e7; }
-.leave-row b { font-size:12px; color:#167a67; }
-.plan-hint { margin-top: 8px; font-size: 12px; color: #6b7280; }
-.plan-drop { margin-top: 10px; border: 1.5px dashed #c7d2fe; border-radius: 10px; padding: 14px; text-align: center; color: #64748b; font-size: 13px; background: #f8faff; }
+.leave-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; padding:9px 11px; border-radius:9px; background:var(--ok-soft); border:1px solid var(--ok-soft); }
+.leave-row b { font-size:12px; color:var(--ok); }
+.plan-hint { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+.plan-drop { margin-top: 10px; border: 1.5px dashed var(--pulse-soft); border-radius: 10px; padding: 14px; text-align: center; color: var(--ink-3); font-size: 13px; background: var(--pulse-soft); }
 .plan-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
 .plan-head-left { display: flex; gap: 8px; align-items: center; }
-.plan-head-right { font-size: 12px; color: #6b7280; }
-.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 12px; }
-.pill.on { background: #dcfce7; color: #15803d; }
-.phase-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.phase-card { border: 1px solid #e6e8ec; border-radius: 12px; padding: 10px 12px; background: #fff; }
-.phase-card.on { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
-.phase-name { font-weight: 700; font-size: 13px; color: #1f2328; }
-.phase-goal { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
-.today-card, .fb-card { background: #fff; border: 1px solid #e6e8ec; border-radius: 12px; padding: 14px 16px; }
-.today-title { font-weight: 700; font-size: 13px; color: #1f2328; margin-bottom: 8px; }
-.today-main { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 6px; }
-.today-line { font-size: 13px; color: #374151; line-height: 1.7; }
+.plan-head-right { font-size: 12px; color: var(--ink-3); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--pulse-soft); color: var(--pulse-accent); font-size: 12px; }
+.pill.on { background: var(--ok-soft); color: var(--ok); }
+.phase-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.phase-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); }
+.phase-card.on { border-color: var(--pulse-accent); box-shadow: 0 0 0 3px rgba(31, 78, 138, 0.15); }
+.phase-name { font-weight: 700; font-size: 13px; color: var(--ink); }
+.phase-goal { font-size: 12px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+.today-card, .fb-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.today-title { font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 8px; }
+.today-main { font-size: 15px; font-weight: 700; color: var(--pulse-deep); margin-bottom: 6px; }
+.today-line { font-size: 13px; color: var(--ink-2); line-height: 1.7; }
 .fb-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: stretch; }
 .plan-table-title { font-weight: 700; font-size: 13px; margin-top: 4px; }
 .plan-filter { margin-bottom: 6px; }
-.plan-empty { margin: 36px auto; color: #6b7280; font-size: 13px; text-align: center; }
+.plan-empty { margin: 36px auto; color: var(--ink-3); font-size: 13px; text-align: center; }
 .blk-head { margin: 24px 0 12px; padding: 11px 15px; border-radius: 11px; font-size: 16px; font-weight: 800; letter-spacing: .2px; border-left: 5px solid transparent; box-shadow: 0 2px 8px rgba(16, 80, 120, .05); }
-.blk-base-head { background: linear-gradient(90deg, #dff3ff, #f2fbff); color: #075985; border-left-color: #0b76be; }
-.blk-today-head { background: linear-gradient(90deg, #dcfced, #f2fff9); color: #08765f; border-left-color: #0f9d82; }
-.blk-all-head { background: linear-gradient(90deg, #eee9ff, #f8f5ff); color: #5b3d9a; border-left-color: #8065c8; }
-.week-card { background: #fff; border: 1px solid #dbe3ea; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
-.week-head { font-size: 14px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.blk-base-head { background: linear-gradient(90deg, var(--pulse-soft), var(--pulse-soft)); color: var(--pulse-deep); border-left-color: var(--pulse-accent); }
+.blk-today-head { background: linear-gradient(90deg, var(--ok-soft), var(--ok-soft)); color: var(--ok); border-left-color: var(--ok); }
+.blk-all-head { background: linear-gradient(90deg, var(--pulse-soft), var(--pulse-soft)); color: var(--pulse-accent); border-left-color: var(--pulse-accent); }
+.week-card { background: var(--surface); border: 1px solid var(--pulse-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.week-head { font-size: 14px; font-weight: 700; color: var(--ink-2); margin-bottom: 8px; }
 .week-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: var(--ink-3); font-size: 12px; }
-.advanced-block { margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+.advanced-block { margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
 .advanced-block > summary { cursor: pointer; color: var(--pulse-accent); font-weight: 700; font-size: 13px; }
 .advanced-block .track-daily { border-top: 0; margin-top: 10px; padding-top: 0; }
-.pill.departed { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
-.pill.rest { background:#ecfdf5; color:#0f766e; }
-.pill.leave { background:#fff7ed; color:#b45309; }
+.pill.departed { background: var(--pulse-soft); color: var(--ink-3); text-decoration: line-through; }
+.pill.rest { background:var(--ok-soft); color:var(--ok); }
+.pill.leave { background:var(--brand-soft); color:var(--brand); }
 /* 整页滚轮/滑条 */
 .inc-page { height: calc(100vh - 56px); overflow-y: auto; padding-right: 18px; }
 .inc-page::-webkit-scrollbar { width: 10px; }
-.inc-page::-webkit-scrollbar-thumb { background: #c1c7d0; border-radius: 6px; }
+.inc-page::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 6px; }
 .inc-page::-webkit-scrollbar-track { background: transparent; }
-.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #6b7280; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-3); }
 .field { min-width: 170px; }
-.date-input { height: 34px; border: 1px solid #dcdfe6; border-radius: 6px; padding: 0 10px; width: 170px; font-size: 14px; color: #1f2328; background: #fff; }
-.to-top { position: fixed; right: 28px; bottom: 28px; z-index: 50; background: #0b76be; color: #fff; padding: 10px 16px; border-radius: 999px; cursor: pointer; box-shadow: 0 6px 18px rgba(11,118,190,.35); font-size: 13px; }
-.to-top:hover { background: #095f99; }
+.date-input { height: 34px; border: 1px solid var(--pulse-soft); border-radius: 6px; padding: 0 10px; width: 170px; font-size: 14px; color: var(--ink); background: var(--surface); }
+.to-top { position: fixed; right: 28px; bottom: 28px; z-index: 50; background: var(--pulse-accent); color: var(--surface); padding: 10px 16px; border-radius: 999px; cursor: pointer; box-shadow: 0 6px 18px rgba(11,118,190,.35); font-size: 13px; }
+.to-top:hover { background: var(--pulse-deep); }
 /* 今天该盯：红色重点条 */
-.watch { background: #fff1f0; border: 1px solid #ffa39e; border-radius: 12px; padding: 10px 14px; }
-.watch-title { color: #cf1322; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.watch { background: var(--bad-soft); border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; }
+.watch-title { color: var(--bad); font-weight: 800; font-size: 14px; margin-bottom: 6px; }
 .watch-item { cursor: pointer; }
-.watch-item:hover { background: #ffe7e6; }
-.track-daily { border-top: 1px dashed #e5e7eb; margin-top: 16px; padding-top: 16px; }
-.sec-title { font-size: 15px; font-weight: 700; color: #1f2328; margin-bottom: 10px; }
+.watch-item:hover { background: var(--bad-soft); }
+.track-daily { border-top: 1px dashed var(--line); margin-top: 16px; padding-top: 16px; }
+.sec-title { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
 /* 表格字大一点、行高一点，不费眼 */
 .inc-page :deep(.n-data-table .n-data-table-td),
 .inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13px; padding-top: 9px; padding-bottom: 9px; }
 /* 今天 与 60 天课表：强区分 */
-.today-head { color: #1d4ed8; font-size: 16px; font-weight: 800; margin: 18px 0 10px; padding-left: 10px; border-left: 4px solid #2563eb; }
-.today-card { background: #e8f2ff !important; border: 1px solid #93c5fd !important; border-left: 7px solid #1d4ed8 !important; border-radius: 14px !important; padding: 18px 20px !important; box-shadow: 0 2px 10px rgba(29,78,216,.08); }
-.today-card.rest { background:#ecfdf5 !important; border-color:#99f6e4 !important; border-left-color:#0f9d82 !important; }
-.leave-card { background:#fffaf0 !important; border:1px solid #fed7aa !important; border-left:7px solid #f59e0b !important; border-radius:14px !important; padding:18px 20px !important; }
-.fb-card { background: #ecf8ff !important; border: 1px solid #7dd3fc !important; border-left: 7px solid #0284c7 !important; border-radius: 14px !important; padding: 18px 20px !important; margin-top: 14px; }
-.schedule-title { background: #e2e8f0; color: #334155; padding: 10px 14px; border-radius: 10px; font-size: 15px; margin: 10px 0 8px; }
+.today-head { color: var(--pulse-accent); font-size: 16px; font-weight: 800; margin: 18px 0 10px; padding-left: 10px; border-left: 4px solid var(--pulse-accent); }
+.today-card { background: var(--pulse-soft) !important; border: 1px solid var(--line-2) !important; border-left: 7px solid var(--pulse-accent) !important; border-radius: 14px !important; padding: 18px 20px !important; box-shadow: 0 2px 10px rgba(29,78,216,.08); }
+.today-card.rest { background:var(--ok-soft) !important; border-color:var(--line-2) !important; border-left-color:var(--ok) !important; }
+.leave-card { background:var(--brand-soft) !important; border:1px solid var(--line-2) !important; border-left:7px solid var(--warn) !important; border-radius:14px !important; padding:18px 20px !important; }
+.fb-card { background: var(--pulse-soft) !important; border: 1px solid var(--pulse-cyan) !important; border-left: 7px solid var(--pulse-deep) !important; border-radius: 14px !important; padding: 18px 20px !important; margin-top: 14px; }
+.schedule-title { background: var(--line); color: var(--ink-2); padding: 10px 14px; border-radius: 10px; font-size: 15px; margin: 10px 0 8px; }
 .today-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; }
 .today-head-row .today-head { margin: 0; }
-.custom-course-card { margin-top: 10px; border-color: #86d7c8; background: #f2fffb; }
-.custom-course-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px dashed #b9e6dd; }
+.custom-course-card { margin-top: 10px; border-color: var(--ok); background: var(--ok-soft); }
+.custom-course-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--line-2); }
 .custom-course-row:first-of-type { border-top: 0; }
-.custom-course-name { font-weight: 700; color: #0f766e; margin-bottom: 4px; }
+.custom-course-name { font-weight: 700; color: var(--ok); margin-bottom: 4px; }
 .custom-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-.sec-divider { height: 1px; background: #e5e7eb; margin: 22px 0 16px; }
-.schedule-table { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
-.schedule-table .n-data-table-th { background: #eef2f7 !important; }
+.sec-divider { height: 1px; background: var(--line); margin: 22px 0 16px; }
+.schedule-table { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+.schedule-table .n-data-table-th { background: var(--pulse-soft) !important; }
 /* 2026-10 孵化页重排：主播身份置顶、三大板块强区分、评分自动保存 */
-.inc-command-block { background:linear-gradient(135deg,#ecfeff 0%,#eff6ff 55%,#f5f3ff 100%); border:1px solid #bae6fd; border-top:5px solid #0891b2; }
+/* 统一白卡片 */
+/* 板块排序：设置区(含主播录入) → 当前主播条 → 基础档案 → 今日评分；档案提到评分前 */
+.inc-command-block { display:flex; flex-direction:column; }
+.inc-command-block .command-grid { order:1; }
+.inc-command-block .selected-hero { order:2; }
+.inc-command-block .basic-profile-card { order:3; }
+.inc-command-block .top-score-card { order:4; }
 .command-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.8fr); gap:14px; align-items:start; }
-.command-label { font-size:13px; font-weight:800; color:#0e7490; margin-bottom:10px; letter-spacing:.3px; }
+.command-label { font-size:13px; font-weight:800; color:var(--pulse-deep); margin-bottom:10px; letter-spacing:.3px; }
 .command-main .plan-import-row { margin-top:0; }
-.watch-dock { background:#fff7ed; border:1px solid #fdba74; border-radius:14px; padding:11px 13px; min-height:86px; }
-.watch-dock .watch-title { color:#9a3412; margin-bottom:8px; }
-.watch-dock .watch-list { display:flex; flex-wrap:wrap; gap:7px; max-height:150px; overflow:auto; }
-.watch-dock .watch-item { display:flex; flex-direction:column; align-items:flex-start; gap:2px; border:1px solid #fed7aa; border-left:4px solid #f97316; border-radius:10px; background:#fff; padding:6px 9px; cursor:pointer; text-align:left; }
-.watch-dock .watch-item.bad { border-left-color:#ef4444; background:#fff1f2; }
-.watch-dock .watch-item.ok { border-left-color:#10b981; }
-.selected-hero { margin-top:14px; padding:16px 18px; border-radius:16px; background:#0f172a; color:#fff; display:flex; justify-content:space-between; gap:18px; align-items:center; box-shadow:0 8px 24px rgba(15,23,42,.16); }
+.watch-dock { background:var(--warn-soft); border:1px solid var(--warn); border-radius:14px; padding:11px 13px; min-height:86px; }
+.watch-dock .watch-title { color:var(--warn); font-weight:800; margin-bottom:8px; }
+.watch-dock .watch-list { display:flex; flex-wrap:wrap; gap:7px; }
+.watch-dock .watch-item { display:flex; flex-direction:column; align-items:flex-start; gap:2px; border:1px solid var(--line-2); border-left:4px solid var(--warn); border-radius:10px; background:var(--surface); padding:6px 9px; cursor:pointer; text-align:left; }
+.watch-dock .watch-item.bad { border-left-color:var(--bad); background:var(--bad-soft); }
+.watch-dock .watch-item.ok { border-left-color:var(--ok); }
+.selected-hero { margin-top:14px; padding:16px 18px; border-radius:16px; background:var(--pulse-deep); color:var(--surface); display:flex; justify-content:space-between; gap:18px; align-items:center; box-shadow:0 8px 24px rgba(15,23,42,.16); }
 .hero-name-wrap { display:flex; align-items:baseline; gap:12px; min-width:0; flex-wrap:wrap; }
-.hero-name-wrap span { font-size:12px; color:#67e8f9; font-weight:800; letter-spacing:1px; }
+.hero-name-wrap span { font-size:12px; color:var(--pulse-cyan); font-weight:800; letter-spacing:1px; }
 .hero-name-wrap b { font-size:30px; line-height:1.05; letter-spacing:.5px; }
-.hero-name-wrap em { font-style:normal; font-size:12px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.13); color:#cffafe; }
-.hero-info { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; font-size:12px; color:#cbd5e1; }
+.hero-name-wrap em { font-style:normal; font-size:12px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.13); color:var(--pulse-soft); }
+.hero-info { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; font-size:12px; color:var(--line-2); }
 .hero-info span { padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.09); }
-.hero-info .hero-danger { background:#7f1d1d; color:#fecaca; font-weight:700; }
-.top-score-card { margin-top:12px; border:1px solid #a5b4fc; background:#fff; border-radius:14px; padding:12px 14px; }
+.hero-info .hero-danger { background:var(--bad); color:var(--bad-soft); font-weight:700; }
+.top-score-card { margin-top:12px; border:1px solid var(--line-2); background:var(--surface); border-radius:14px; padding:12px 14px; }
 .top-score-head { display:flex; align-items:baseline; gap:10px; margin-bottom:9px; }
-.top-score-head b { color:#3730a3; font-size:14px; }
-.top-score-head span { color:#64748b; font-size:11px; }
-.top-score-head i { margin-left:auto; font-style:normal; font-size:11px; color:#0f766e; background:#ecfdf5; padding:3px 8px; border-radius:999px; }
+.top-score-head b { color:var(--pulse-deep); font-size:14px; }
+.top-score-head span { color:var(--ink-3); font-size:11px; }
+.top-score-head i { margin-left:auto; font-style:normal; font-size:11px; color:var(--ok); background:var(--ok-soft); padding:3px 8px; border-radius:999px; }
 .top-score-grid { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:10px; }
-.top-score-grid label { display:flex; flex-direction:column; gap:5px; padding:9px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
-.top-score-grid label span { font-size:12px; font-weight:700; color:#334155; }
-.block-streamer-name { display:flex; align-items:baseline; gap:10px; padding:12px 16px; margin:-2px -2px 12px; border-radius:12px; font-size:14px; font-weight:800; color:#fff; }
+.top-score-grid label { display:flex; flex-direction:column; gap:5px; padding:9px 10px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; }
+.top-score-grid label span { font-size:12px; font-weight:700; color:var(--ink-2); }
+.block-streamer-name { display:flex; align-items:baseline; gap:10px; padding:12px 16px; margin:-2px -2px 12px; border-radius:12px; font-size:14px; font-weight:800; color:var(--surface); }
 .block-streamer-name b { font-size:28px; line-height:1; letter-spacing:.4px; }
-.inc-base-block { background:#f0f9ff; border-color:#7dd3fc; }
-.block-streamer-name { background:linear-gradient(90deg,#0369a1,#0891b2); }
-.inc-today-block { background:#fff7ed; border-color:#fdba74; }
-.today-name { background:linear-gradient(90deg,#c2410c,#f59e0b); }
-.inc-all-block { background:#f5f3ff; border-color:#c4b5fd; }
-.all-name { background:linear-gradient(90deg,#6d28d9,#8b5cf6); }
-.week-focus { display:flex; align-items:center; gap:6px; font-size:12px; color:#475569; }
-.week-date-chip { display:inline-flex; align-items:center; justify-content:center; min-width:86px; padding:3px 8px; border-radius:999px; color:#fff; font-weight:700; background:var(--week-color); }
-.week-detail { margin-top:10px; padding:12px 14px; border-radius:12px; border:1px solid #c4b5fd; background:#fff; display:flex; flex-direction:column; gap:7px; color:#334155; }
+/* 统一白卡片 */
+.block-streamer-name { background:linear-gradient(90deg,var(--pulse-deep),var(--pulse-accent)); }
+/* 统一白卡片 */
+.today-name { background:linear-gradient(90deg,var(--brand),var(--warn)); }
+/* 统一白卡片 */
+.all-name { background:linear-gradient(90deg,var(--pulse-violet),var(--pulse-accent)); }
+.week-focus { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--pulse-deep); }
+.week-date-chip { display:inline-flex; align-items:center; justify-content:center; min-width:86px; padding:3px 8px; border-radius:999px; color:var(--surface); font-weight:700; background:var(--week-color); }
+.week-detail { margin-top:10px; padding:12px 14px; border-radius:12px; border:1px solid var(--line-2); background:var(--surface); display:flex; flex-direction:column; gap:7px; color:var(--ink-2); }
 .week-detail-head { display:flex; align-items:baseline; gap:10px; }
-.week-detail-head b { font-size:18px; color:#5b21b6; }
-.week-detail-head span { font-size:12px; color:#64748b; }
+.week-detail-head b { font-size:18px; color:var(--pulse-violet); }
+.week-detail-head span { font-size:12px; color:var(--ink-3); }
 .plan-drop { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; transition:all .15s ease; }
-.plan-drop:hover { background:#eef2ff; border-color:#6366f1; color:#4338ca; }
+.plan-drop:hover { background:var(--pulse-soft); border-color:var(--pulse-accent); color:var(--pulse-accent); }
 @media (max-width:980px) { .command-grid { grid-template-columns:1fr; } .top-score-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); } .selected-hero { flex-direction:column; align-items:flex-start; } .hero-info { justify-content:flex-start; } }
 @media (min-width:901px) { .top-score-grid { grid-template-columns:repeat(5,minmax(100px,1fr)); } }
 @media (max-width:900px) { .top-score-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); } }
-.basic-profile-card { margin-top:12px; border:1px solid #bae6fd; border-radius:14px; background:#fff; padding:12px 14px; }
+.basic-profile-card { margin-top:12px; border:1px solid var(--line-2); border-radius:14px; background:var(--surface); padding:12px 14px; }
 .basic-profile-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-.basic-profile-head b { color:#0e7490; font-size:14px; }
-.basic-profile-head span { color:#64748b; font-size:11px; }
+.basic-profile-head b { color:var(--pulse-deep); font-size:14px; }
+.basic-profile-head span { color:var(--ink-3); font-size:11px; }
 .basic-profile-head .n-button { margin-left:auto; }
-.inline-switch { display:flex; align-items:center; gap:5px; color:#475569; font-size:11px; }
+.inline-switch { display:flex; align-items:center; gap:5px; color:var(--pulse-deep); font-size:11px; }
 .basic-profile-grid { display:grid; grid-template-columns:repeat(3,minmax(170px,1fr)); gap:9px 12px; }
-.basic-profile-grid label { display:flex; flex-direction:column; gap:4px; color:#64748b; font-size:11px; }
-.basic-leave-row { margin-top:10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:10px; border-top:1px dashed #dbeafe; }
-.basic-leave-row > b { color:#9a3412; font-size:12px; }
-.basic-leave-row label { display:flex; align-items:center; gap:5px; color:#64748b; font-size:11px; }
+.basic-profile-grid label { display:flex; flex-direction:column; gap:4px; color:var(--ink-3); font-size:11px; }
+.basic-leave-row { margin-top:10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:10px; border-top:1px dashed var(--pulse-soft); }
+.basic-leave-row > b { color:var(--brand); font-size:12px; }
+.basic-leave-row label { display:flex; align-items:center; gap:5px; color:var(--ink-3); font-size:11px; }
 .basic-status-row { margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
 @media (max-width:900px) { .basic-profile-grid { grid-template-columns:1fr; } }
 /* 功能分组可读性：标题更大、三块之间留出明显间隔 */
 .plan-wrap { gap:18px; }
 .command-label { font-size:15px; line-height:1.35; }
 .watch-title, .top-score-head b, .basic-profile-head b { font-size:15px; }
-.profile-summary { color:#0f5f73 !important; font-size:12px !important; font-weight:600; }
-.basic-profile-card { border-top:5px solid #0891b2; }
-.inc-today-block { border-top:6px solid #f59e0b; box-shadow:0 8px 22px rgba(194,65,12,.08); }
-.inc-all-block { border-top:6px solid #7c3aed; box-shadow:0 8px 22px rgba(109,40,217,.08); }
+.profile-summary { color:var(--pulse-deep) !important; font-size:12px !important; font-weight:600; }
+.basic-profile-card { border-top:5px solid var(--pulse-accent); }
+.inc-today-block { border-top: none; box-shadow: var(--shadow-panel); }
+.inc-all-block { border-top: none; box-shadow: var(--shadow-panel); }
 .block-streamer-name b { font-size:32px; }
 .panel-head b, .sec-title, .today-title, .week-head { font-size:14px; }
 .plan-import-row { gap:8px; align-items:center; }
 .plan-import-row .n-button { min-height:32px; }
 .day-ops, .custom-course-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
 .custom-course-actions { justify-content:flex-end; }
+
+/* —— 知识库·库模式 —— */
+.lib-cats { display:flex; gap:4px; padding:3px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; }
+.lib-cat { padding:5px 16px; border:none; background:transparent; color:var(--ink-3); border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:all .15s ease; }
+.lib-cat:hover { color:var(--pulse-accent); }
+.lib-cat.active { background:var(--pulse-accent); color:#fff; box-shadow:0 1px 3px rgba(31,78,138,.25); }
+.lib-hint { margin:6px 0 10px; }
+.script-source { margin-top:6px; font-size:11.5px; color:var(--ink-4); }
+
+/* —— 心态调整 tab —— */
+.mindset-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin:12px 0 10px; }
+.mindset-title { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.mindset-title b { font-size:15px; color:var(--ink); }
+.mindset-title span { font-size:12px; color:var(--ink-3); line-height:1.6; }
+.mindset-filter { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.mindset-chip { padding:4px 12px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); border-radius:999px; font-size:12px; cursor:pointer; font-family:inherit; transition:all .15s ease; }
+.mindset-chip:hover { border-color:var(--pulse-accent); color:var(--pulse-accent); }
+.mindset-chip.active { background:var(--pulse-soft); border-color:var(--pulse-accent); color:var(--pulse-accent); font-weight:600; }
+.mindset-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:12px; }
+.mindset-card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:13px 14px; box-shadow:var(--shadow-panel); display:flex; flex-direction:column; gap:9px; }
+.mindset-card-head { display:flex; align-items:flex-start; gap:8px; }
+.mindset-cat { flex-shrink:0; padding:2px 8px; border-radius:999px; background:var(--pulse-soft); color:var(--pulse-deep); font-size:11px; font-weight:600; line-height:1.7; }
+.mindset-q { flex:1; min-width:0; font-size:13.5px; color:var(--ink); line-height:1.5; }
+.mindset-ops { flex-shrink:0; display:flex; gap:4px; }
+.mindset-block { background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+.mindset-block.action { background:var(--ok-soft); border-color:rgba(22,122,74,.2); }
+.mindset-label { font-size:11px; font-weight:600; color:var(--ink-4); margin-bottom:4px; letter-spacing:.02em; }
+.mindset-block.action .mindset-label { color:var(--ok); }
+.mindset-text { font-size:12.5px; color:var(--ink-2); line-height:1.7; white-space:pre-wrap; }
+/* 多方对象筛选：主播=蓝 / 运营=绿 / 管理者=橙，一眼分清这条给谁用 */
+.mindset-roles { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.mindset-role-tab { padding:5px 16px; border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit; transition:all .15s ease; }
+.mindset-role-tab:hover { border-color:var(--pulse-accent); color:var(--pulse-accent); }
+.mindset-role-tab.active.role-全部 { background:var(--ink); border-color:var(--ink); color:var(--surface); }
+.mindset-role-tab.active.role-主播 { background:var(--pulse-accent); border-color:var(--pulse-accent); color:var(--surface); }
+.mindset-role-tab.active.role-运营 { background:var(--ok); border-color:var(--ok); color:var(--surface); }
+.mindset-role-tab.active.role-管理者 { background:var(--brand); border-color:var(--brand); color:var(--surface); }
+.mindset-role { flex-shrink:0; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; line-height:1.7; }
+.mindset-role.role-主播 { background:var(--pulse-soft); color:var(--pulse-deep); }
+.mindset-role.role-运营 { background:var(--ok-soft); color:var(--ok); }
+.mindset-role.role-管理者 { background:var(--brand-soft); color:var(--brand); }
 /* 2.9.12 可读性收口：字号有台阶、功能有边界、主操作只有一个焦点 */
-.inc-page { padding: 22px 26px 42px; font-size: 14px; line-height: 1.58; color: #274358; }
+.inc-page { padding: 22px 26px 42px; font-size: 14px; line-height: 1.58; color: var(--pulse-deep); }
 .inc-header { align-items: center; margin-bottom: 14px; padding: 0 2px; }
-.inc-title { margin: 0 0 5px; font-size: 24px; line-height: 1.2; letter-spacing: -0.4px; color: #0b2537; }
-.inc-subtitle { max-width: 790px; font-size: 13.5px; line-height: 1.6; color: #587488; }
+.inc-title { margin: 0 0 5px; font-size: 24px; line-height: 1.2; letter-spacing: -0.4px; color: var(--pulse-deep); }
+.inc-subtitle { max-width: 790px; font-size: 13.5px; line-height: 1.6; color: var(--pulse-accent); }
 .header-action { min-height: 34px; font-size: 13px; }
 .inc-page :deep(.n-tabs-tab) { font-size: 14px; font-weight: 650; }
 .plan-wrap { gap: 24px; }
-.inc-block { overflow: hidden; padding: 0 20px 20px; border-radius: 18px; border: 1px solid #d8e5ef; box-shadow: 0 5px 20px rgba(16, 80, 120, .065); }
-.inc-command-block { background: #f6fbfe; border-color: #b9dcef; }
-.inc-today-block { background: #fffaf3; border-color: #f3c98f; }
-.inc-all-block { background: #faf7ff; border-color: #d8c7ee; }
-.section-heading { display: flex; align-items: center; gap: 13px; min-height: 82px; margin: 0 -20px 20px; padding: 14px 18px; border-bottom: 1px solid rgba(70, 105, 130, .12); }
-.section-number { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 12px; color: #fff; font-size: 20px; font-weight: 800; box-shadow: 0 4px 12px rgba(14, 116, 144, .16); }
-.section-heading-copy { min-width: 0; }
-.section-heading-copy h3 { margin: 0 0 2px; font-size: 20px; line-height: 1.25; font-weight: 800; color: #123247; letter-spacing: -0.25px; }
-.section-heading-copy p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #587488; }
-.section-hint { margin-left: auto; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, .72); border: 1px solid rgba(81, 141, 171, .18); color: #315f76; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
-.section-person { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: auto; padding: 7px 12px; border-radius: 10px; background: rgba(255, 255, 255, .72); border: 1px solid rgba(117, 86, 153, .16); }
-.section-person span { font-size: 11.5px; color: #6a7180; }
-.section-person b { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; line-height: 1.25; color: #3b2158; }
-.section-heading-setup { background: #eaf7fd; border-bottom-color: #bfe3f2; }
-.section-heading-setup .section-number { background: #0b76be; }
-.section-heading-today { background: #fff2e3; border-bottom-color: #f4d2a8; }
-.section-heading-today .section-number { background: #d97706; box-shadow: 0 4px 12px rgba(217, 119, 6, .18); }
-.section-heading-today .section-heading-copy h3, .section-heading-today .section-person b { color: #7c3e06; }
-.section-heading-all { background: #f3ecff; border-bottom-color: #d8c8ef; }
-.section-heading-all .section-number { background: #7e22ce; box-shadow: 0 4px 12px rgba(126, 34, 206, .17); }
-.section-heading-all .section-heading-copy h3, .section-heading-all .section-person b { color: #51217e; }
+.inc-block { overflow: hidden; padding: 0 20px 20px; border-radius: 18px; border: 1px solid var(--line); box-shadow: var(--shadow-panel); background: var(--surface); }
+/* 三大板块身份区分：左色条 + 标题区淡色底 + 角色签
+   设置区=靛蓝（准备）、执行区=墨绿（今天干活）、档案区=琥珀（历史沉淀） */
+.inc-command-block { border-left: 3px solid var(--pulse-accent); }
+.inc-today-block { border-left: 3px solid var(--ok); }
+.inc-all-block { border-left: 3px solid var(--warn); }
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  margin: 0 -20px 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.section-heading-copy { min-width: 0; flex: 1; }
+.section-heading-copy h3 { margin: 0 0 2px; font-size: 16px; line-height: 1.25; font-weight: 700; color: var(--ink); letter-spacing: -0.1px; }
+.section-heading-copy p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-3); }
+.section-person-mini { font-size: 12px; color: var(--pulse-accent); font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--pulse-soft); white-space: nowrap; }
+.section-heading-setup { background: var(--pulse-soft); }
+.section-heading-today { background: var(--ok-soft); }
+.section-heading-all { background: var(--warn-soft); }
+.section-role {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+.role-setup { color: var(--pulse-accent); border: 1px solid rgba(31, 78, 138, 0.35); }
+.role-today { color: var(--ok); border: 1px solid rgba(22, 122, 74, 0.35); }
+.role-all { color: var(--warn); border: 1px solid rgba(180, 131, 12, 0.4); }
 .command-grid { grid-template-columns: minmax(0, 1.65fr) minmax(270px, .75fr); gap: 16px; }
 .command-main { min-width: 0; }
-.control-block { padding: 15px 16px; background: rgba(255, 255, 255, .9); border: 1px solid #d7e7f1; border-radius: 14px; }
+.control-block { padding: 15px 16px; background: rgba(255, 255, 255, .9); border: 1px solid var(--pulse-soft); border-radius: 14px; }
 .control-block + .control-block { margin-top: 12px; }
 .control-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px; margin-bottom: 11px; }
-.control-heading b { white-space: nowrap; font-size: 15px; line-height: 1.35; color: #153c53; }
-.control-heading span { font-size: 12.5px; line-height: 1.45; color: #668093; }
+.control-heading b { white-space: nowrap; font-size: 15px; line-height: 1.35; color: var(--pulse-deep); }
+.control-heading span { font-size: 12.5px; line-height: 1.45; color: var(--pulse-accent); }
 .selector-row { display: grid; align-items: end; gap: 12px; }
 .selector-row-main { grid-template-columns: minmax(190px, 1.35fr) minmax(145px, .9fr) auto; }
 .selector-row-settings { grid-template-columns: minmax(160px, 1fr) minmax(165px, 1fr) auto; margin-top: 11px; }
 .control-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.control-field > span { font-size: 12.5px; line-height: 1.35; font-weight: 700; color: #36596d; }
+.control-field > span { font-size: 12.5px; line-height: 1.35; font-weight: 700; color: var(--pulse-deep); }
 .control-field .date-input { width: 100%; font-size: 13.5px; }
 .add-streamer-btn, .action-row .n-button { min-height: 36px; font-size: 13px; font-weight: 650; }
 .plan-switch { align-self: center; min-height: 34px; margin-top: 17px; padding: 0 2px; font-size: 12.5px; }
-.action-control-block { border-color: #c8dff0; }
+.action-control-block { border-color: var(--line-2); }
 .action-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .action-divider { display: none; }
 .custom-course-btn { flex-basis: 100%; width: max-content; margin-top: 2px; font-weight: 700; }
 .plan-drop { margin-top: 12px; padding: 15px 18px; border-radius: 11px; font-size: 13px; }
-.plan-drop b { font-size: 14px; line-height: 1.4; color: #274f88; }
+.plan-drop b { font-size: 14px; line-height: 1.4; color: var(--pulse-deep); }
 .plan-drop span { font-size: 12.5px; line-height: 1.5; }
-.watch-dock { min-height: 100%; padding: 14px; border-radius: 14px; background: #fff4e5; border-color: #f4bd72; box-shadow: inset 0 0 0 1px rgba(255,255,255,.52); }
-.watch-dock .watch-title { margin-bottom: 10px; font-size: 16px; line-height: 1.35; color: #9a3412; }
-.watch-dock .watch-list { max-height: 240px; gap: 8px; }
+.watch-dock { min-height: 100%; padding: 14px; border-radius: 14px; background: var(--warn-soft); border: 1px solid var(--warn); }
+.watch-dock .watch-title { margin-bottom: 10px; font-size: 16px; line-height: 1.35; color: var(--warn); }
+.watch-dock .watch-list { gap: 8px; }
 .watch-dock .watch-item { min-width: 118px; padding: 8px 10px; border-radius: 10px; }
 .watch-name { font-size: 16px; }
 .watch-text { font-size: 12.5px; line-height: 1.45; }
@@ -2029,26 +2890,26 @@ onUnmounted(() => {
 .hero-name-wrap span { font-size: 12.5px; letter-spacing: .5px; }
 .hero-name-wrap b { font-size: 34px; line-height: 1.08; }
 .hero-name-wrap em, .hero-info { font-size: 12.5px; }
-.top-score-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: #b9c8f5; }
+.top-score-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: var(--line-2); }
 .top-score-head { align-items: center; margin-bottom: 12px; }
 .top-score-head b { font-size: 16px; }
-.top-score-head span { font-size: 12.5px; color: #5d7182; }
+.top-score-head span { font-size: 12.5px; color: var(--pulse-accent); }
 .top-score-head i { font-size: 12px; }
 .top-score-grid { gap: 12px; }
 .top-score-grid label { min-height: 74px; padding: 11px 12px; border-radius: 11px; }
-.top-score-grid label span { font-size: 13.5px; line-height: 1.35; color: #31475f; }
-.basic-profile-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: #b9ddec; border-top-width: 4px; }
+.top-score-grid label span { font-size: 13.5px; line-height: 1.35; color: var(--pulse-deep); }
+.basic-profile-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: var(--line-2); border-top-width: 4px; }
 .basic-profile-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0; }
 .basic-profile-title { display: flex; flex-direction: column; gap: 1px; }
-.basic-profile-title b { font-size: 16px; line-height: 1.3; color: #0b5e73; }
-.basic-profile-title span { font-size: 12px; color: #6a7f8e; }
+.basic-profile-title b { font-size: 16px; line-height: 1.3; color: var(--pulse-deep); }
+.basic-profile-title span { font-size: 12px; color: var(--pulse-accent); }
 .profile-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
 .profile-summary { grid-column: 1 / -1; display: flex; align-items: stretch; justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
-.profile-summary > span { display: inline-flex; align-items: baseline; gap: 7px; min-height: 34px; padding: 6px 10px; border-radius: 8px; background: #f4f9fc; border: 1px solid #dceaf2; }
-.profile-summary i { font-style: normal; font-size: 11.5px; color: #668093; }
-.profile-summary b { font-size: 13px; color: #16495f; }
-.basic-profile-grid { margin-top: 14px; padding-top: 15px; border-top: 1px dashed #c9dfe9; gap: 11px 14px; }
-.basic-profile-grid label { gap: 5px; font-size: 12.5px; font-weight: 650; color: #476477; }
+.profile-summary > span { display: inline-flex; align-items: baseline; gap: 7px; min-height: 34px; padding: 6px 10px; border-radius: 8px; background: var(--pulse-soft); border: 1px solid var(--pulse-soft); }
+.profile-summary i { font-style: normal; font-size: 11.5px; color: var(--pulse-accent); }
+.profile-summary b { font-size: 13px; color: var(--pulse-deep); }
+.basic-profile-grid { margin-top: 14px; padding-top: 15px; border-top: 1px dashed var(--line-2); gap: 11px 14px; }
+.basic-profile-grid label { gap: 5px; font-size: 12.5px; font-weight: 650; color: var(--pulse-deep); }
 .basic-leave-row { margin-top: 12px; padding-top: 12px; }
 .basic-leave-row > b, .basic-leave-row label { font-size: 12.5px; }
 .basic-status-row { gap: 8px; margin-top: 12px; }
@@ -2057,9 +2918,9 @@ onUnmounted(() => {
 .inc-page .chip span { font-size: 12.5px; }
 .plan-head { padding: 2px 0 13px; }
 .plan-head-left { gap: 7px; flex-wrap: wrap; }
-.plan-head-left > b { font-size: 18px; color: #4a2d0c; }
+.plan-head-left > b { font-size: 18px; color: var(--brand); }
 .pill { padding: 4px 9px; font-size: 12.5px; }
-.plan-head-right { font-size: 12.5px; color: #6f6151; }
+.plan-head-right { font-size: 12.5px; color: var(--brand); }
 .phase-cards { gap: 10px; margin-bottom: 16px; }
 .phase-card { padding: 11px 12px; border-radius: 11px; background: rgba(255,255,255,.88); }
 .phase-name { font-size: 14px; }
@@ -2072,13 +2933,27 @@ onUnmounted(() => {
 .today-line { font-size: 13.5px; line-height: 1.72; }
 .custom-course-name { font-size: 14px; }
 .fb-card { margin-top: 16px; }
+
+/* 主播作业：挂在今日工作里，样式和反馈卡一家人 */
+.hw-card { border-left: 3px solid var(--ok) !important; }
+.hw-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.hw-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.hw-type { flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--ok); border: 1px solid rgba(22, 122, 74, 0.35); }
+.hw-type.link { color: var(--pulse-accent); border-color: rgba(31, 78, 138, 0.35); }
+.hw-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ink); }
+.hw-date { flex-shrink: 0; color: var(--ink-3); font-size: 11.5px; }
+.hw-note { flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); font-size: 11.5px; }
+.hw-empty { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
+.hw-day { flex-shrink: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--ok); border: 1px solid rgba(22, 122, 74, 0.3); border-radius: 6px; padding: 1px 7px; }
+.hw-day-hint { flex-shrink: 0; align-self: center; font-size: 11.5px; font-weight: 700; color: var(--ok); }
+.hw-today-chip { font-size: 11px; font-weight: 700; color: var(--ok); border: 1px solid rgba(22, 122, 74, 0.35); border-radius: 999px; padding: 1px 9px; margin: 0 8px; }
 .week-card { padding: 14px 15px; border-radius: 13px; margin-bottom: 16px; background: rgba(255,255,255,.92); }
-.week-head { margin-bottom: 9px; font-size: 16px; line-height: 1.35; color: #44246b; }
+.week-head { margin-bottom: 9px; font-size: 16px; line-height: 1.35; color: var(--pulse-deep); }
 .week-tools { font-size: 12.5px; line-height: 1.45; }
-.plan-table-title { font-size: 15px; line-height: 1.4; color: #4b3268; }
+.plan-table-title { font-size: 15px; line-height: 1.4; color: var(--pulse-deep); }
 .schedule-title { font-size: 16px; }
 .inc-page :deep(.n-data-table .n-data-table-td), .inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13.5px; padding-top: 10px; padding-bottom: 10px; }
-.inc-page :deep(.n-data-table .n-data-table-th) { font-weight: 700; color: #416276; }
+.inc-page :deep(.n-data-table .n-data-table-th) { font-weight: 700; color: var(--pulse-deep); }
 .week-detail { padding: 13px 15px; font-size: 13.5px; line-height: 1.65; }
 .week-detail-head b { font-size: 19px; }
 .week-detail-head span { font-size: 12.5px; }

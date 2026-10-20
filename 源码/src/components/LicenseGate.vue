@@ -135,14 +135,14 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(155deg, #eef1ff 0%, #f5f7fe 48%, #e9fbfd 100%);
+  background: linear-gradient(155deg, var(--pulse-soft) 0%, var(--pulse-soft) 48%, var(--pulse-soft) 100%);
   padding: 24px;
 }
 
 .gate-card {
   width: 560px;
   max-width: 100%;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 28px;
@@ -154,8 +154,8 @@ onMounted(async () => {
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #ffa63d 0%, #ff6a1a 46%, #ff2d6f 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand) 46%, var(--brand-2) 100%);
+  color: var(--surface);
   font-size: 30px;
   font-weight: 800;
   line-height: 1;
@@ -169,7 +169,7 @@ onMounted(async () => {
 .gate-sub { font-size: 12px; color: var(--ink-3); margin-top: 6px; line-height: 1.7; }
 
 .gate-block { margin-bottom: 16px; }
-.gate-label { font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+.gate-label { font-size: 11px; color: var(--ink-3); margin-bottom: 6px; }
 
 .machine-row { display: flex; align-items: center; gap: 10px; }
 .machine {
@@ -178,7 +178,7 @@ onMounted(async () => {
   font-size: 14px;
   letter-spacing: 1px;
   color: var(--pulse-violet);
-  background: #f4f5f7;
+  background: var(--surface-2);
   border: 1px solid var(--line-2);
   border-radius: 8px;
   padding: 9px 12px;
@@ -187,7 +187,7 @@ onMounted(async () => {
 
 .gate-reason {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--bad);
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.25);
   border-radius: 8px;
@@ -198,6 +198,6 @@ onMounted(async () => {
 
 .gate-actions { display: flex; gap: 10px; margin-top: 4px; }
 
-.gate-error { font-size: 11px; color: #ef4444; margin-top: 12px; line-height: 1.7; }
-.gate-info { font-size: 11px; color: #10b981; margin-top: 12px; }
+.gate-error { font-size: 11px; color: var(--bad); margin-top: 12px; line-height: 1.7; }
+.gate-info { font-size: 11px; color: var(--ok); margin-top: 12px; }
 </style>
