@@ -243,8 +243,8 @@ const aiPresets = [
   {
     name: '阿里通义',
     baseUrl: 'https://ws-r9vynbc12ax2fjvf.cn-beijing.maas.aliyuncs.com/compatible-mode/v1',
-    note: '百炼专属通道（官网控制台复制）：qwen-max / qwen-plus 实测可用（纯文字，图片张数请设 0）；vl 视觉模型未部署。',
-    models: ['qwen-max', 'qwen-plus']
+    note: '百炼专属通道（官网控制台复制）：识别图片选 qwen3-vl-plus；纯文字选 qwen-max / qwen-plus，均已实测可用。',
+    models: ['qwen3-vl-plus', 'qwen-max', 'qwen-plus']
   },
   {
     name: 'DeepSeek',

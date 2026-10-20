@@ -1,7 +1,7 @@
 {
-  "version": "2.9.31",
-  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.31/zhongyi-setup-2.9.31.exe",
-  "sha256": "DD2A0C5A004AEC11E4F2EC343A0E57298057135D579BDFF91AD64BB977C0494E",
-  "notes": "AI接口修正：阿里通义默认地址改为百炼专属通道，qwen-max/qwen-plus 实测可用；话术库1639条+PK玩法库200条；知识库一键导入资料；人事模块；监播常用链接；主播跟踪排版与卡顿修复。",
-  "size": 297807442
+  "version": "2.9.32",
+  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.32/zhongyi-setup-2.9.32.exe",
+  "sha256": "D9E329E531964D3572819A9069DC965C1556B08B8AA783C6D64A844B4028022C",
+  "notes": "阿里通义新增 qwen3-vl-plus 视觉模型（识别图片实测通过），qwen-max/qwen-plus 纯文字；素材包截图随AI分析一起发送；话术库1639条+PK玩法库200条；人事模块；监播常用链接。",
+  "size": 297807444
 }
