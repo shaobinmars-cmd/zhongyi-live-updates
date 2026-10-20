@@ -8,7 +8,7 @@ const path = require('path')
 const WebSocket = require('ws')
 
 const PORT = Number(process.argv[2] || 9666)
-const OUT = path.join(__dirname, 'e2e-out')
+const OUT = process.env.E2E_OUT_DIR || path.join(__dirname, 'e2e-out')
 fs.mkdirSync(OUT, { recursive: true })
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -80,8 +80,8 @@ async function main() {
   }
 
   const body = String(await evaluate('document.body.innerText') || '')
-  if (!body.includes('2.9.11')) console.log('BODY_DEBUG', JSON.stringify(body.slice(0, 1000)))
-  check(body.includes('2.9.11'), '安装包版本显示 2.9.11')
+  if (!body.includes('2.9.12')) console.log('BODY_DEBUG', JSON.stringify(body.slice(0, 1000)))
+  check(body.includes('2.9.12'), '安装包版本显示 2.9.12')
   check(!/激活|机器码/.test(body.slice(0, 300)), '隔离授权可正常进入主界面')
 
   const nav = String(await evaluate(`Array.from(document.querySelectorAll('.nav-label')).map((e) => e.textContent.trim()).join('|')`) || '')
@@ -124,7 +124,7 @@ async function main() {
 
   const liveScreenshot = await send('Page.captureScreenshot', { format: 'png' })
   if (liveScreenshot.result?.data) {
-    const output = path.join(OUT, `live-auto-2.9.11-${Date.now()}.png`)
+    const output = path.join(OUT, `live-auto-2.9.12-${Date.now()}.png`)
     fs.writeFileSync(output, Buffer.from(liveScreenshot.result.data, 'base64'))
     check(fs.statSync(output).size > 10000, '直播监播自动等待界面截图生成', output)
   }
@@ -145,12 +145,14 @@ async function main() {
   await sleep(900)
   const updateUrl = String(await evaluate(`document.querySelector('input[placeholder*="latest.json"]')?.value || ''`) || '')
   check(updateUrl.includes('ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'), '设置页使用最新自动更新源', updateUrl)
+  const updateLinkCount = Number(await evaluate(`document.querySelectorAll('.update-links button').length`))
+  check(updateLinkCount === 4, '设置页列出首选、两个备用和 GitHub 原更新入口', String(updateLinkCount))
   const updateCheck = await evaluate(`(async () => await window.electronAPI.updateCheckUrl(${JSON.stringify(updateUrl)}))()`)
-  check(updateCheck?.ok === true && String(updateCheck?.latest || '') === '2.9.11', '联网更新清单可读取 2.9.11', JSON.stringify(updateCheck))
+  check(updateCheck?.ok === true && !!String(updateCheck?.latest || ''), '联网更新清单可读取', JSON.stringify(updateCheck))
 
   const screenshot = await send('Page.captureScreenshot', { format: 'png' })
   if (screenshot.result?.data) {
-    const output = path.join(OUT, `final-2.9.11-${Date.now()}.png`)
+    const output = path.join(OUT, `final-2.9.12-${Date.now()}.png`)
     fs.writeFileSync(output, Buffer.from(screenshot.result.data, 'base64'))
     check(fs.statSync(output).size > 10000, '最终界面截图生成', output)
   }

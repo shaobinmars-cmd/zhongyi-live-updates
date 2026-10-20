@@ -432,6 +432,71 @@ export async function restoreStreamer(name: string): Promise<{ ok: boolean }> {
 }
 
 // ---------------------------------------------------------------- 运营考核（全自动）
+/** 修改主播姓名、带教运营或赛道；改名会同步所有以主播名关联的孵化数据。 */
+export async function updateStreamerIdentity(
+  oldName: string,
+  patch: { name?: string; operator?: string; track?: string }
+): Promise<{ ok: boolean; oldName: string; name: string; operator: string; track: string; updatedRows: number }> {
+  const who = String(oldName || '').trim()
+  if (!who) throw new Error('请先选择主播')
+  const roster = await listRows('主播学籍')
+  const hit = roster.find((r) => String(r['主播'] || '').trim() === who)
+  if (!hit) throw new Error('找不到这个主播的学籍')
+  const nextName = String(patch.name ?? who).trim()
+  if (!nextName) throw new Error('主播姓名不能为空')
+  const duplicate = roster.find((r) => Number(r.id) !== Number(hit.id) && String(r['主播'] || '').trim() === nextName)
+  if (nextName !== who && duplicate) throw new Error(`主播“${nextName}”已经存在，请换一个名字或先处理重复档案`)
+  const nextOperator = String(patch.operator ?? hit['带教运营'] ?? '').trim()
+  const requestedTrack = String(patch.track ?? hit['赛道'] ?? '').trim()
+  const nextTrack = TRACKS[requestedTrack] ? requestedTrack : String(hit['赛道'] || DEFAULT_TRACK)
+  const day = new Date().toISOString().slice(0, 10)
+  let updatedRows = 0
+  await updateRow('主播学籍', Number(hit.id), { ...hit, 主播: nextName, 带教运营: nextOperator, 赛道: nextTrack, 更新时间: day })
+  updatedRows++
+  if (nextName !== who) {
+    for (const [table, columns] of Object.entries(TABLES)) {
+      if (table === '主播学籍' || !columns.includes('主播')) continue
+      const rows = await listRows(table)
+      for (const row of rows) {
+        if (String(row['主播'] || '').trim() !== who) continue
+        await updateRow(table, Number(row.id), { ...row, 主播: nextName })
+        updatedRows++
+      }
+    }
+  }
+  const plans = await listRows('培训计划')
+  for (const row of plans) {
+    if (String(row['主播'] || '').trim() !== nextName) continue
+    if (String(row['赛道'] || '').trim() !== nextTrack) {
+      await updateRow('培训计划', Number(row.id), { ...row, 赛道: nextTrack, 更新时间: day })
+      updatedRows++
+    }
+  }
+  logger.info(LOG_MODULE, `主播资料修改：${who} → ${nextName}（${nextOperator} / ${nextTrack}）`)
+  return { ok: true, oldName: who, name: nextName, operator: nextOperator, track: nextTrack, updatedRows }
+}
+
+/** 仅用于误建或重复主播；正常离职应使用 departStreamer 保留历史。 */
+export async function deleteStreamer(name: string): Promise<{ ok: boolean; name: string; deleted: Record<string, number> }> {
+  const who = String(name || '').trim()
+  if (!who) throw new Error('请先选择主播')
+  const roster = await listRows('主播学籍')
+  const hit = roster.find((r) => String(r['主播'] || '').trim() === who)
+  if (!hit) throw new Error('找不到这个主播的学籍')
+  const deleted: Record<string, number> = {}
+  for (const [table, columns] of Object.entries(TABLES)) {
+    if (table === '主播学籍' || !columns.includes('主播')) continue
+    const rows = await listRows(table)
+    const targets = rows.filter((row) => String(row['主播'] || '').trim() === who)
+    for (const row of targets) await deleteRow(table, Number(row.id))
+    if (targets.length) deleted[table] = targets.length
+  }
+  await deleteRow('主播学籍', Number(hit.id))
+  deleted['主播学籍'] = 1
+  logger.warn(LOG_MODULE, `删除错误主播：${who} / ${JSON.stringify(deleted)}`)
+  return { ok: true, name: who, deleted }
+}
+
 function num(v: string | undefined): number | null {
   if (v === undefined || v === null) return null
   const s = String(v).trim()

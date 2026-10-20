@@ -108,10 +108,20 @@ function proxied(url: string, i: number): string {
 
 async function downloadTo(url: string, file: string, offset: number, total: number, onPct?: (p: number) => void): Promise<number> {
   let lastErr: any = null
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const target = attempt === 0 ? url : proxied(url, attempt - 1)
+  const isGithub = /github\.com|githubusercontent\.com/i.test(url)
+  const targets = isGithub
+    ? [proxied(url, 0), proxied(url, 1), proxied(url, 2), url]
+    : [url]
+  for (const target of targets) {
     try {
-      const res = await axios.get(target, { responseType: 'stream', timeout: 0, maxContentLength: 500 * 1024 * 1024, maxBodyLength: Infinity })
+      logger.info(LOG, `下载更新包：${target}`)
+      const res = await axios.get(target, {
+        responseType: 'stream',
+        timeout: 45_000,
+        maxContentLength: 500 * 1024 * 1024,
+        maxBodyLength: Infinity,
+        headers: { 'User-Agent': 'Zhongyi-Updater', 'Cache-Control': 'no-cache' }
+      })
       const len = Number(res.headers['content-length'] || 0) || 0
       const all = total || len || 0
       let got = 0
@@ -145,6 +155,7 @@ export async function downloadManifest(m: Manifest, onPct?: (p: number) => void)
     if (free > 0 && free < need) {
       return { ok: false, message: `磁盘空间不足：更新至少需要 ${(need / 1024 ** 3).toFixed(1)} GB，当前只剩 ${(free / 1024 ** 3).toFixed(1)} GB。先清理磁盘再更新。` }
     }
+    onPct?.(0)
     let offset = 0
     if (Array.isArray(m.parts) && m.parts.length) {
       for (const u of m.parts) offset += await downloadTo(u, out, offset, Number(m.size) || 0, onPct)

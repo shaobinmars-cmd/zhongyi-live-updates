@@ -2,6 +2,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import * as https from 'https'
 import { spawn } from 'child_process'
 import { app } from 'electron'
 import { engineStatus } from './teardown'
@@ -177,6 +178,51 @@ export async function generateReports(): Promise<SyncRunResult> {
   } finally {
     running = false
   }
+}
+
+function githubGet(pathname: string, token: string): Promise<{ code: number; text: string }> {
+  return new Promise((resolve) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: pathname,
+      method: 'GET',
+      timeout: 20_000,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'Zhongyi-Sync-Test'
+      }
+    }, (res) => {
+      let text = ''
+      res.setEncoding('utf-8')
+      res.on('data', (chunk) => { text += chunk })
+      res.on('end', () => resolve({ code: res.statusCode || 0, text }))
+    })
+    req.on('timeout', () => req.destroy(new Error('GitHub 连接超时')))
+    req.on('error', (ex) => resolve({ code: 0, text: ex.message }))
+    req.end()
+  })
+}
+
+export async function testConnection(): Promise<SyncRunResult> {
+  const cfg = loadSyncConfig()
+  if (!cfg.owner || !cfg.repo) return { ok: false, message: '仓库所有者或仓库名未填写', output: [] }
+  if (!cfg.token) return { ok: false, message: '还没有填写 GitHub 数据仓库令牌', output: [] }
+  const repoPath = '/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo)
+  const repoRes = await githubGet(repoPath, cfg.token)
+  if (repoRes.code !== 200) return { ok: false, message: `仓库连接失败（HTTP ${repoRes.code}）：${repoRes.text.slice(0, 200)}`, output: [repoRes.text] }
+  let repo: any = {}
+  try { repo = JSON.parse(repoRes.text) } catch { /* ignore */ }
+  const canPush = repo?.permissions?.push === true
+  const dataRes = await githubGet(repoPath + '/contents/data?ref=main', cfg.token)
+  const dataOk = dataRes.code === 200 || dataRes.code === 404
+  if (!dataOk) return { ok: false, message: `仓库能进，但 data 目录读取失败（HTTP ${dataRes.code}）`, output: [dataRes.text] }
+  const message = canPush
+    ? `上传通道正常：${cfg.owner}/${cfg.repo} 可读写，data 目录可访问，当前运营：${cfg.operator}`
+    : `仓库可以连接，但令牌没有写入权限；请换有 Contents: Read and write 的令牌`
+  saveSyncConfig({ lastResult: message })
+  return { ok: canPush, message, output: [message] }
 }
 
 export function startAutoSync(): void {

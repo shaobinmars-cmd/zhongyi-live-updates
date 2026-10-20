@@ -2,21 +2,156 @@
   <div class="inc-page">
     <div class="inc-header">
       <div>
-        <h2 class="inc-title">孵化</h2>
-        <div class="inc-subtitle">导入 AI 拆解报告 → 自动生成 60 天培训计划 → 每天填一次孵化反馈；页面下方可打五个分。</div>
+        <h2 class="inc-title">主播孵化</h2>
+        <div class="inc-subtitle">先选主播并导入 AI 报告，再按“今日工作”执行；全部课表、反馈和评分都集中在这一页。</div>
       </div>
-      <n-button size="small" @click="store.openDataDir()">打开数据目录</n-button>
+      <n-button class="header-action" size="small" @click="store.openDataDir()">打开数据目录</n-button>
     </div>
 
     <n-tabs v-model:value="tab" type="line" animated>
       <!-- ⓪ 培训计划：导入 AI 报告 → 60 天计划 → 每日反馈（运营主入口） -->
       <n-tab-pane name="plan" tab="主播跟踪">
         <div class="plan-wrap">
-          <section class="inc-block inc-base-block">
+          <section class="inc-block inc-command-block">
+            <header class="section-heading section-heading-setup">
+              <span class="section-number">①</span>
+              <div class="section-heading-copy">
+                <h3>主播工作台</h3>
+                <p>选主播、维护档案，再导入报告生成计划</p>
+              </div>
+              <span class="section-hint">先完成这一步</span>
+            </header>
+            <div class="command-grid">
+              <div class="command-main">
+                <div class="control-block">
+                  <div class="control-heading"><b>选择当前主播</b><span>下方档案、评分和今日任务会自动跟随这里的选择</span></div>
+                  <div class="selector-row selector-row-main">
+                    <label class="control-field current-streamer-field">
+                      <span>当前主播</span>
+                      <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选择或搜索主播" @update:value="onPlanStreamer" />
+                    </label>
+                    <label class="control-field">
+                      <span>带教运营</span>
+                      <n-input v-model:value="opFilter" placeholder="填写运营名字" @update:value="onOperatorName" />
+                    </label>
+                    <n-button class="add-streamer-btn" type="primary" ghost @click="openAddStreamer">+ 添加主播</n-button>
+                  </div>
+                  <div class="selector-row selector-row-settings">
+                    <label class="control-field">
+                      <span>训练赛道</span>
+                      <n-select v-model:value="planTrack" :options="trackOptions" placeholder="选择赛道" @update:value="onPlanTrackChanged" />
+                    </label>
+                    <label class="control-field">
+                      <span>计划开始日期</span>
+                      <input type="date" v-model="planStart" class="date-input" title="计划开始日期" />
+                    </label>
+                    <label class="inline-switch plan-switch"><n-switch v-model:value="onlyMine" size="small" @update:value="saveOnlyMine" /> 只看我带的</label>
+                  </div>
+                </div>
+                <div class="control-block action-control-block">
+                  <div class="control-heading"><b>导入报告并生成计划</b><span>完整报告会自动生成 60 天课表；已有课表也可单独补充运营课程</span></div>
+                  <div class="action-row">
+                    <n-button type="primary" :loading="planBusy" @click="importAndGenerate">{{ planStreamer === ALL_PLAN ? '导入报告并批量生成' : '导入报告并生成 60 天计划' }}</n-button>
+                    <n-button @click="showPaste = true">粘贴报告</n-button>
+                    <n-button tertiary @click="justGenerate">{{ planStreamer === ALL_PLAN ? '批量重新生成' : '只重新生成计划' }}</n-button>
+                    <span class="action-divider" />
+                    <n-button class="custom-course-btn" type="primary" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" @click="openCustomCourse">+ 运营加课</n-button>
+                  </div>
+                  <div class="plan-drop plan-drop-top" role="button" tabindex="0" @click="importAndGenerate" @keydown.enter.prevent="importAndGenerate" @dragenter.prevent @dragover.prevent @drop.prevent.stop="onDropReport">
+                    <b>把 AI 报告文件拖到这里</b>
+                    <span>支持 Markdown、TXT、Word、WPS；也可以点击直接选择文件</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="needAttention.length" class="watch-dock">
+                <div class="watch-title">今日该盯 · 点名字直接带出资料</div>
+                <div class="watch-list">
+                  <button v-for="w in needAttention" :key="w.name" :class="['watch-item', w.level]" @click="openWatchStreamer(w.name)">
+                    <span class="watch-name">{{ w.name }}</span>
+                    <span class="watch-text">{{ w.text }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="selected-hero">
+              <div class="hero-name-wrap">
+                <span>当前主播</span>
+                <b>{{ planStreamerName }}</b>
+                <em>{{ planTrack || '未选赛道' }}</em>
+              </div>
+              <div class="hero-info">
+                <span>运营：{{ operatorOf(planStreamer) || opFilter || '未填写' }}</span>
+                <span v-if="planInfo">D{{ Math.min(planInfo.dayIndex, 60) }} / 60</span>
+                <span v-if="planInfo">{{ planInfo.phase }}</span>
+                <span v-if="profile['离司日期']" class="hero-danger">已离司 {{ profile['离司日期'] }}</span>
+              </div>
+            </div>
+
+            <div class="top-score-card">
+              <div class="top-score-head">
+                <b>今日五项评分</b>
+                <span>{{ planStreamerName }} · 输入后自动保存</span>
+                <i>{{ autoSaveText }}</i>
+              </div>
+              <div class="top-score-grid">
+                <label v-for="d in topScoreDefs" :key="d.key">
+                  <span>{{ d.label }}</span>
+                  <n-select v-model:value="values[d.key]" size="small" clearable placeholder="选择 1–5" :options="rateOptions(d.hint)" />
+                </label>
+              </div>
+            </div>
+            <div class="basic-profile-card">
+              <div class="basic-profile-head">
+                <div class="basic-profile-title">
+                  <b>基础档案</b>
+                  <span>以下信息只属于当前主播</span>
+                </div>
+                <div class="profile-summary">
+                  <span><i>入司</i><b>{{ profile['入司日期'] || '未填' }}</b></span>
+                  <span><i>首播</i><b>{{ profile['首播日期'] || '未填' }}</b></span>
+                  <span><i>开播</i><b>{{ profile['是否正常开播'] || '未填' }}</b></span>
+                  <span><i>配合</i><b>{{ profile['配合意愿'] || '未填' }}</b></span>
+                </div>
+                <div class="profile-actions">
+                  <n-button size="small" type="primary" :loading="profileBusy" :disabled="!planStreamer || planStreamer === ALL_PLAN" @click="saveProfile">保存基础档案</n-button>
+                  <n-button size="small" type="primary" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" @click="openEditStreamer">修改主播资料</n-button>
+                  <n-button size="small" tertiary @click="showProfile = !showProfile">{{ showProfile ? '收起档案' : '展开/编辑档案' }}</n-button>
+                </div>
+              </div>
+              <div v-show="showProfile" class="basic-profile-grid">
+                <label><span>入司日期</span><input type="date" v-model="profile['入司日期']" class="date-input" /></label>
+                <label><span>首播日期</span><input type="date" v-model="profile['首播日期']" class="date-input" /></label>
+                <label><span>离司日期</span><input type="date" v-model="profile['离司日期']" class="date-input" /></label>
+                <label><span>固定休息日</span><n-select v-model:value="profile['固定休息日']" :options="restOptions" size="small" /></label>
+                <label><span>是否正常开播</span><n-select v-model:value="profile['是否正常开播']" :options="airOptions" size="small" /></label>
+                <label><span>配合程度</span><n-select v-model:value="profile['配合意愿']" :options="willOptions" size="small" /></label>
+              </div>
+              <div v-show="showProfile" class="basic-leave-row">
+                <b>请假登记</b>
+                <label><span>开始</span><input type="date" v-model="profile['请假开始日期']" class="date-input" /></label>
+                <label><span>结束</span><input type="date" v-model="profile['请假结束日期']" class="date-input" /></label>
+                <n-input v-model:value="profile['请假原因']" size="small" placeholder="请假原因（可留空）" style="width: 190px" />
+                <n-button v-if="profile['离司日期']" size="small" type="success" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="statusBusy" @click="restoreCurrentStreamer">恢复在职</n-button>
+                <n-popconfirm v-else positive-text="标记离司" negative-text="取消" @positive-click="departCurrentStreamer">
+                  <template #trigger><n-button size="small" type="warning" ghost :disabled="!planStreamer || planStreamer === ALL_PLAN" :loading="statusBusy">标记离司</n-button></template>
+                  将保留全部历史，只记录离司日期。
+                </n-popconfirm>
+              </div>
+              <div class="basic-status-row">
+                <div v-for="g in groupChips" :key="g.key" class="chip" :class="[g.cls, { active: statusFilter === g.key }]" @click="toggleGroup(g.key)">
+                  <b>{{ g.count }}</b><span>{{ g.label }}</span>
+                </div>
+                <n-button v-if="statusFilter !== 'all'" size="tiny" quaternary @click="statusFilter = 'all'">显示全部</n-button>
+              </div>
+            </div>
+          </section>
+          <section v-if="false" class="inc-block inc-base-block">
+          <div class="block-streamer-name">① 基础档案 <b>{{ planStreamerName }}</b></div>
           <div class="blk-head blk-base-head">① 基础信息</div>
           <div class="plan-import">
-            <div class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
-            <div class="plan-import-row">
+            <div v-if="false" class="plan-import-title">① 选主播 + 导入 AI 拆解报告</div>
+            <div v-if="false" class="plan-import-row">
               <n-select v-model:value="planStreamer" :options="planStreamerOptions" filterable clearable placeholder="选主播（可打字搜）" style="width: 220px" @update:value="onPlanStreamer" />
               <n-button type="primary" ghost @click="openAddStreamer">+ 添加主播</n-button>
               <n-input v-model:value="opFilter" placeholder="运营名字（带教）" style="width: 150px" @update:value="onOperatorName" />
@@ -63,20 +198,30 @@
               </div>
               <n-button v-if="statusFilter !== 'all'" size="tiny" quaternary @click="statusFilter = 'all'">显示全部</n-button>
             </div>
-            <div v-if="needAttention.length" class="watch" style="margin-top: 8px">
+            <div v-if="false" class="watch" style="margin-top: 8px">
               <div class="watch-title">今天该盯</div>
               <div v-for="w in needAttention" :key="w.name" class="watch-item" :class="w.level" @click="pick(w.name)">
                 <span class="watch-name">{{ w.name }}</span>
                 <span class="watch-text">{{ w.text }}</span>
               </div>
             </div>
-            <div class="plan-drop" @dragover.prevent @drop.prevent="onDropReport">把 AI 报告文件拖到这里（或点上面的按钮）</div>
+            <div v-if="false" class="plan-drop" role="button" tabindex="0" @click="importAndGenerate" @keydown.enter.prevent="importAndGenerate" @dragenter.prevent @dragover.prevent @drop.prevent.stop="onDropReport">
+              <b>把 AI 报告文件拖到这里</b>
+              <span>支持 Markdown、TXT、Word、WPS；也可以点击这里直接选文件</span>
+            </div>
           </div>
           </section>
 
           <template v-if="planInfo">
             <section class="inc-block inc-today-block">
-            <div class="blk-head blk-today-head">② 今日的工作</div>
+            <header class="section-heading section-heading-today">
+              <span class="section-number">②</span>
+              <div class="section-heading-copy">
+                <h3>今日工作</h3>
+                <p>只处理当前主播今天要完成的任务和结果反馈</p>
+              </div>
+              <div class="section-person"><span>当前主播</span><b>{{ planStreamerName }}</b></div>
+            </header>
             <div class="plan-head">
               <div class="plan-head-left">
                 <b>{{ planStreamer }}</b>
@@ -124,6 +269,7 @@
                   <div v-if="c['怎么练']" class="today-line"><b>怎么练：</b>{{ c['怎么练'] }}</div>
                   <div v-if="c['验收']" class="today-line"><b>验收：</b>{{ c['验收'] }}</div>
                 </div>
+                <n-button size="tiny" type="primary" quaternary @click="editCustomCourse(c)">修改</n-button>
                 <n-popconfirm positive-text="删除" negative-text="保留" @positive-click="deleteCustomCourse(c)">
                   <template #trigger><n-button size="tiny" type="error" quaternary>删除</n-button></template>
                   只删除这条运营课程，AI 60 天计划不受影响。
@@ -147,14 +293,27 @@
 
             </section>
             <section class="inc-block inc-all-block">
-            <div class="blk-head blk-all-head">③ 全部课表与记录</div>
+            <header class="section-heading section-heading-all">
+              <span class="section-number">③</span>
+              <div class="section-heading-copy">
+                <h3>全部课表与记录</h3>
+                <p>查本周安排、历史反馈和完整 60 天训练计划</p>
+              </div>
+              <div class="section-person"><span>当前主播</span><b>{{ planStreamerName }}</b></div>
+            </header>
             <div class="week-card">
               <div class="week-head">本周课表（所有主播的今日任务）</div>
               <div class="week-tools">
                 <span>按周一到周日展开，每个主播只显示本周该练的课</span>
+                <label class="week-focus"><n-switch v-model:value="weekFocus" size="small" /> 只看今天该盯与当前主播</label>
                 <n-button size="tiny" type="primary" ghost @click="showAllCourses">查看当前主播全部 60 天</n-button>
               </div>
-              <n-data-table size="small" :columns="weekColumns" :data="weekTasks" :max-height="240" virtual-scroll />
+              <n-data-table size="small" :columns="weekColumns" :data="displayWeekTasks" :row-props="weekRowProps" :max-height="280" virtual-scroll />
+              <div v-if="selectedWeekTask" class="week-detail">
+                <div class="week-detail-head"><b>{{ selectedWeekTask['主播'] }}</b><span>{{ selectedWeekTask['日期'] }} · {{ selectedWeekTask['赛道'] }} · {{ selectedWeekTask['来源'] }}</span></div>
+                <div><b>今天练什么：</b>{{ selectedWeekTask['今天练什么'] }}</div>
+                <div><b>验收标准：</b>{{ selectedWeekTask['验收'] || '暂无' }}</div>
+              </div>
             </div>
             <div class="plan-table-title">最近反馈（全部主播）</div>
             <div class="plan-filter">
@@ -173,7 +332,7 @@
           <div v-else class="plan-empty">还没有计划：选好主播、导入 AI 报告，点「导入报告并生成 60 天计划」。</div>
         </div>
       
-          <details class="advanced-block">
+          <details v-if="false" class="advanced-block">
             <summary>补充工具：今日五项评分（可选，点这里展开）</summary>
           <div class="track-daily">
             <div class="sec-title">今日打分（可选：这一场五个分）</div>
@@ -352,22 +511,52 @@
     </n-tabs>
 
     <!-- 批量粘贴名单 -->
-    <n-modal v-model:show="showImport" preset="card" style="width: 560px" title="添加主播 / 批量导入">
-      <div class="rule"><div>一行一个主播；要指定带教运营/赛道就写 <code>主播名,运营名,赛道</code>（赛道可省）。重名自动合并。</div></div>
+    <n-modal v-model:show="showImport" preset="card" style="width: 600px" title="添加主播（可一次加多人）">
+      <div class="rule"><div>每行一个主播。只填主播名也可以；需要指定时写 <code>主播名,运营名,赛道</code>。重名不会重复创建。</div></div>
       <n-input v-model:value="importOp" size="small" placeholder="默认带教运营（可留空）" style="margin: 10px 0" />
       <n-select v-model:value="importTrack" :options="trackOptions" placeholder="新主播默认赛道" style="margin-bottom: 10px" />
-      <div class="plan-hint" style="margin: -2px 0 10px">默认赛道只用于本次新加的主播；名单第三段明确写了赛道时，以名单里的为准。</div>
-      <n-input v-model:value="importText" type="textarea" :rows="10" placeholder="张三&#10;李四,小A,唱歌点歌&#10;王五,小B" />
+      <div class="plan-hint" style="margin: -2px 0 10px">上面两项只作为本次新增主播的默认值；名单里单独写了运营或赛道，以名单为准。</div>
+      <n-input v-model:value="importText" type="textarea" :rows="8" placeholder="张三&#10;李四,小A,唱歌点歌&#10;王五,小B" />
       <template #footer>
         <div class="actions" style="justify-content: flex-end">
           <n-button size="small" @click="showImport = false">取消</n-button>
-          <n-button size="small" type="primary" @click="doImportStreamers">导入</n-button>
+          <n-button size="small" type="primary" @click="doImportStreamers">添加这些主播</n-button>
         </div>
       </template>
     </n-modal>
 
-    <!-- 粘贴 AI 报告 → 生成 60 天计划 -->
-    <n-modal v-model:show="showCustomCourse" preset="card" style="width: 680px" title="添加运营自定义课程">
+    <!-- 修改或删除误填主播 -->
+    <n-modal v-model:show="showEditStreamer" preset="card" style="width: 680px" title="修改或删除主播">
+      <div class="edit-streamer-note">
+        <b>只处理填错或重复建档</b>
+        <span>改名、换运营、换赛道会同步该主播已有的评分、课表、反馈和培训计划。正常离职请用“标记离司”，这样离职率不会丢。</span>
+      </div>
+      <div class="edit-streamer-grid">
+        <label class="field"><span>主播姓名</span><n-input v-model:value="editStreamerForm.name" placeholder="填写正确的主播姓名" /></label>
+        <label class="field"><span>带教运营</span><n-input v-model:value="editStreamerForm.operator" placeholder="填写带教运营" /></label>
+        <label class="field"><span>训练赛道</span><n-select v-model:value="editStreamerForm.track" :options="trackOptions" placeholder="选择赛道" /></label>
+      </div>
+      <div class="delete-streamer-zone">
+        <div>
+          <b>删除错误主播</b>
+          <span>只用于误建或重复。会删除该主播的档案、评分、课表、反馈和 60 天计划；电脑里的录像、拆解素材和报告文件不会删除。</span>
+        </div>
+        <n-popconfirm positive-text="确认删除" negative-text="取消" @positive-click="deleteCurrentStreamer">
+          <template #trigger><n-button type="error" ghost :loading="deleteStreamerBusy">删除这个错误主播</n-button></template>
+          删除后不能撤销。正常离职的主播请不要删除，改用“标记离司”。
+        </n-popconfirm>
+      </div>
+      <template #footer>
+        <div class="edit-streamer-footer">
+          <n-button size="small" @click="showEditStreamer = false">取消</n-button>
+          <n-button size="small" type="primary" :loading="editStreamerBusy" @click="saveStreamerIdentity">保存修改</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <!-- 运营自定义计划 -->
+
+    <n-modal v-model:show="showCustomCourse" preset="card" style="width: 680px" :title="customCourse.id ? '修改运营自定义计划' : '添加运营自定义计划'">
       <div class="rule"><div>给 <b>{{ planStreamer }}</b> 追加一节课程。它会和 AI 计划同时显示，不覆盖原来的 60 天课表。</div></div>
       <div class="custom-form">
         <label class="field"><span>上课日期</span><input type="date" v-model="customCourse.日期" class="date-input" /></label>
@@ -378,7 +567,7 @@
       <template #footer>
         <div class="actions" style="justify-content: flex-end">
           <n-button size="small" @click="showCustomCourse = false">取消</n-button>
-          <n-button size="small" type="primary" :loading="customBusy" @click="saveCustomCourse">保存课程</n-button>
+          <n-button size="small" type="primary" :loading="customBusy" @click="saveCustomCourse">{{ customCourse.id ? '保存修改' : '添加计划' }}</n-button>
         </div>
       </template>
     </n-modal>
@@ -397,7 +586,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { NButton, NDataTable, NDatePicker, NInput, NModal, NPopconfirm, NSelect, NSwitch, NTabPane, NTabs, useMessage, type DataTableColumns, type SelectOption } from 'naive-ui'
 import { useIncubateStore } from '../stores/incubate'
 
@@ -424,12 +613,18 @@ const yesNo: SelectOption[] = [
 const current = ref('')
 const curTrack = ref('下单游戏')
 const values = ref<Record<string, string>>({})
+let autoSavePaused = true
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 const showExtras = ref(false)
 const opFilter = ref(localStorage.getItem('inc_operator') || '')
 const onlyMine = ref(localStorage.getItem('inc_only_mine') !== '0')
 const statusFilter = ref<Filter>('all')
 const recent = ref<string[]>(JSON.parse(localStorage.getItem('inc_recent') || '[]'))
 const showImport = ref(false)
+const showEditStreamer = ref(false)
+const editStreamerBusy = ref(false)
+const deleteStreamerBusy = ref(false)
+const editStreamerForm = ref({ oldName: '', name: '', operator: '', track: '' })
 const importText = ref('')
 const importOp = ref(localStorage.getItem('inc_operator') || '')
 const importTrack = ref('下单游戏')
@@ -538,6 +733,9 @@ function localDate(d = new Date()): string {
 }
 
 const planStreamer = ref('')
+const autoSaveText = ref('等待输入')
+const planStreamerName = computed(() => planStreamer.value === ALL_PLAN ? '全部主播' : (planStreamer.value || '未选择主播'))
+const topScoreDefs = computed(() => store.common.filter((d: any) => d.kind === 'rate').slice(0, 5))
 const ALL_PLAN = '__all__'
 const planTrack = ref('')
 const planStart = ref(localDate())
@@ -548,7 +746,7 @@ const showPaste = ref(false)
 const pasteText = ref('')
 const showCustomCourse = ref(false)
 const customBusy = ref(false)
-const customCourse = ref({ 日期: '', 今天练什么: '', 怎么练: '', 验收: '' })
+const customCourse = ref({ id: 0, 日期: '', 今天练什么: '', 怎么练: '', 验收: '' })
 const dayPhase = ref('all')
 const fb = ref<Record<string, string>>({
   完成情况: '完成', 数据结果: '', 问题: '', 明日计划: '', 运营: localStorage.getItem('inc_operator') || '', 今日任务: ''
@@ -568,6 +766,7 @@ const restOptions: SelectOption[] = [
 ]
 const profile = ref<Record<string, string>>({ 入司日期: '', 首播日期: '', 离司日期: '', 固定休息日: '', 请假开始日期: '', 请假结束日期: '', 请假原因: '', 是否正常开播: '', 配合意愿: '' })
 const profileBusy = ref(false)
+const showProfile = ref(false)
 function loadProfile(name: string) {
   const s = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
   profile.value = {
@@ -589,6 +788,7 @@ async function saveProfile() {
   profileBusy.value = true
   try {
     await store.saveStreamerProfile(planStreamer.value, { ...profile.value, 赛道: planTrack.value || store.defaultTrack })
+    showProfile.value = false
     msg.success('主播档案已保存')
   } catch (e: any) { msg.error('保存失败：' + (e?.message || e)) } finally { profileBusy.value = false }
 }
@@ -637,9 +837,88 @@ async function restoreCurrentStreamer() {
   }
 }
 
+function openEditStreamer() {
+  const name = String(planStreamer.value || '').trim()
+  if (!name || name === ALL_PLAN) return msg.warning('请先选择一个具体主播')
+  const roster = store.streamers.find((x: any) => String(x['主播'] || '').trim() === name)
+  editStreamerForm.value = {
+    oldName: name,
+    name,
+    operator: String(roster?.['带教运营'] || opFilter.value || ''),
+    track: store.trackOf(name) || store.defaultTrack
+  }
+  showEditStreamer.value = true
+}
+
+async function saveStreamerIdentity() {
+  const form = editStreamerForm.value
+  const oldName = String(form.oldName || '').trim()
+  const nextName = String(form.name || '').trim()
+  if (!oldName) return msg.warning('没有选中要修改的主播')
+  if (!nextName) return msg.warning('主播姓名不能为空')
+  editStreamerBusy.value = true
+  try {
+    const r: any = await store.updateStreamerIdentity(oldName, { name: nextName, operator: form.operator, track: form.track })
+    recent.value = recent.value.map((x) => x === oldName ? r.name : x)
+    localStorage.setItem('inc_recent', JSON.stringify(recent.value))
+    if (planStreamer.value === oldName || current.value === oldName) {
+      planStreamer.value = r.name
+      current.value = r.name
+      planTrack.value = r.track
+      curTrack.value = r.track
+      loadProfile(r.name)
+      await Promise.all([loadPlanFor(r.name), loadTodayScores(r.name), loadWeekTasks(), loadAllFeedback()])
+    } else {
+      await Promise.all([loadWeekTasks(), loadAllFeedback()])
+    }
+    showEditStreamer.value = false
+    msg.success(oldName === r.name ? '主播资料已修改' : `已改名：${oldName} → ${r.name}`)
+  } catch (e: any) {
+    msg.error('修改失败：' + (e?.message || e))
+  } finally {
+    editStreamerBusy.value = false
+  }
+}
+
+async function deleteCurrentStreamer() {
+  const name = String(editStreamerForm.value.oldName || '').trim()
+  if (!name) return msg.warning('没有选中要删除的主播')
+  deleteStreamerBusy.value = true
+  try {
+    await store.deleteStreamer(name)
+    showEditStreamer.value = false
+    recent.value = recent.value.filter((x) => x !== name)
+    localStorage.setItem('inc_recent', JSON.stringify(recent.value))
+    planStreamer.value = ''
+    current.value = ''
+    planInfo.value = null
+    loadProfile('')
+    ensureSelection()
+    const next = String(filteredStreamers.value[0] || '')
+    if (next) await onPlanStreamer(next)
+    await Promise.all([loadWeekTasks(), loadAllFeedback()])
+    msg.success(`已删除错误主播：${name}。录像、素材包和报告文件未删除。`)
+  } catch (e: any) {
+    msg.error('删除失败：' + (e?.message || e))
+  } finally {
+    deleteStreamerBusy.value = false
+  }
+}
+
 function openCustomCourse() {
   if (!planStreamer.value || planStreamer.value === ALL_PLAN) return msg.warning('请先选择一个具体主播')
-  customCourse.value = { 日期: today, 今天练什么: '', 怎么练: '', 验收: '' }
+  customCourse.value = { id: 0, 日期: today, 今天练什么: '', 怎么练: '', 验收: '' }
+  showCustomCourse.value = true
+}
+
+function editCustomCourse(row: any) {
+  customCourse.value = {
+    id: Number(row?.id) || 0,
+    日期: String(row?.['执行日期'] || today),
+    今天练什么: String(row?.['今天练什么'] || ''),
+    怎么练: String(row?.['怎么练'] || ''),
+    验收: String(row?.['验收'] || '')
+  }
   showCustomCourse.value = true
 }
 
@@ -648,17 +927,19 @@ async function saveCustomCourse() {
   if (!customCourse.value.今天练什么.trim()) return msg.warning('先填今天练什么')
   customBusy.value = true
   try {
-    await store.addCustomCourse({
+    const payload = {
       streamer: planStreamer.value,
       date: customCourse.value.日期 || today,
       title: customCourse.value.今天练什么,
       how: customCourse.value.怎么练,
       accept: customCourse.value.验收,
       operator: opFilter.value.trim()
-    })
+    }
+    if (customCourse.value.id) await store.updateCustomCourse(customCourse.value.id, payload)
+    else await store.addCustomCourse(payload)
     showCustomCourse.value = false
     await Promise.all([loadPlanFor(planStreamer.value), loadWeekTasks()])
-    msg.success('运营课程已加入课表')
+    msg.success(customCourse.value.id ? '运营自定义计划已修改' : '运营自定义计划已添加')
   } catch (e: any) {
     msg.error('添加课程失败：' + (e?.message || e))
   } finally {
@@ -708,8 +989,24 @@ function showAllCourses() {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 const weekTasks = ref<any[]>([])
+const weekFocus = ref(false)
+const selectedWeekTask = ref<any | null>(null)
+const weekPalette = ['#2563eb', '#0891b2', '#7c3aed', '#c2410c', '#15803d', '#be123c', '#4f46e5']
+function weekColor(row: any): string {
+  const text = String(row?._date || row?.['日期'] || '')
+  let n = 0
+  for (let i = 0; i < text.length; i++) n = (n * 31 + text.charCodeAt(i)) >>> 0
+  return weekPalette[n % weekPalette.length]
+}
+function weekRowProps(row: any) {
+  const color = weekColor(row)
+  return {
+    style: `cursor:pointer;border-left:4px solid ${color};background:${weekFocus.value ? '#ffffff' : '#f8fbfd'}`,
+    onClick: () => { selectedWeekTask.value = row }
+  }
+}
 const weekColumns: DataTableColumns<any> = [
-  { title: '日期', key: '日期', width: 108 },
+  { title: '日期', key: '日期', width: 118, render: (row: any) => h('span', { class: 'week-date-chip', style: `--week-color:${weekColor(row)}` }, row['日期']) },
   { title: '主播', key: '主播', width: 110 },
   { title: '赛道', key: '赛道', width: 90 },
   { title: '来源', key: '来源', width: 92 },
@@ -743,16 +1040,21 @@ async function loadWeekTasks() {
         const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
         const leaveEnd = String(person?.['请假结束日期'] || person?.['请假开始日期'] || '')
         if (person?.['请假开始日期'] && leaveEnd && ds >= String(person['请假开始日期']) && ds <= leaveEnd) {
-          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: '请假', 天: `D${idx}`, 今天练什么: `请假${person['请假原因'] ? '：' + person['请假原因'] : ''}`, 验收: '不计完成率，不催课' })
+          out.push({ _sort: d.getTime(), _date: ds, 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: '请假', 天: `D${idx}`, 今天练什么: `请假${person['请假原因'] ? '：' + person['请假原因'] : ''}`, 验收: '不计完成率，不催课' })
           continue
         }
         if (!dayRows.length) continue
         for (const row of dayRows) {
-          out.push({ _sort: d.getTime(), 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: courseSource(row) || 'AI计划', 天: `D${idx}`, 今天练什么: row['今天练什么'] || '', 验收: row['验收'] || '' })
+          out.push({ _sort: d.getTime(), _date: ds, 日期: `${week} ${d.getMonth() + 1}/${d.getDate()}`, 主播: name, 赛道: p['赛道'] || '', 来源: courseSource(row) || 'AI计划', 天: `D${idx}`, 今天练什么: row['今天练什么'] || '', 验收: row['验收'] || '' })
         }
       }
     }
     weekTasks.value = out.sort((a, b) => Number(a._sort) - Number(b._sort) || String(a['主播']).localeCompare(String(b['主播'])))
+    for (const person of roster || []) {
+      const name = String(person['主播'] || '').trim()
+      if (!name || names.has(name) || String(person['离司日期'] || '').trim()) continue
+      out.push({ _sort: Date.now(), _date: localDate(), 日期: '新主播 · 待排课', 主播: name, 赛道: person['赛道'] || '', 来源: '待生成', 天: '-', 今天练什么: '导入 AI 报告并生成 60 天课表', 验收: '生成后自动出现在本周课表' })
+    }
   } catch { /* ignore */ }
 }
 
@@ -827,12 +1129,15 @@ const dayColumns = computed<DataTableColumns<any>>(() => [
   { title: '今天练什么', key: '今天练什么', ellipsis: { tooltip: true } },
   { title: '验收', key: '验收', width: 250, ellipsis: { tooltip: true } },
   {
-    title: '操作', key: 'ops', width: 76,
+    title: '操作', key: 'ops', width: 132,
     render: (row: any) => courseSource(row) === '运营自定义'
-      ? h(NPopconfirm, { onPositiveClick: () => deleteCustomCourse(row) }, {
-          trigger: () => h(NButton, { size: 'tiny', type: 'error', quaternary: true }, { default: () => '删除' }),
-          default: () => '只删除这条运营课程，AI 计划不受影响。'
-        })
+      ? h('div', { class: 'day-ops' }, [
+          h(NButton, { size: 'tiny', type: 'primary', quaternary: true, onClick: () => editCustomCourse(row) }, { default: () => '修改' }),
+          h(NPopconfirm, { onPositiveClick: () => deleteCustomCourse(row) }, {
+            trigger: () => h(NButton, { size: 'tiny', type: 'error', quaternary: true }, { default: () => '删除' }),
+            default: () => '只删除这条运营自定义计划，AI 计划不受影响。'
+          })
+        ])
       : '-'
   }
 ])
@@ -846,7 +1151,7 @@ const fbColumns: DataTableColumns<any> = [
 ]
 
 async function loadPlanFor(name: string) {
-  if (!name) { planInfo.value = null; return }
+  if (!name) { autoSavePaused = true; planInfo.value = null; return }
   if (name === ALL_PLAN) { planInfo.value = null; return }
   const r = await store.loadPlan(name)
   planInfo.value = r
@@ -870,18 +1175,19 @@ async function onPlanStreamer(name: string) {
   planStreamer.value = name || ''
   if (!name) { planInfo.value = null; return }
   if (name === ALL_PLAN) {
+    autoSavePaused = true
     planInfo.value = null
     planTrack.value = ''
     current.value = ''
     return
   }
+  autoSavePaused = true
   planTrack.value = store.trackOf(name) || store.defaultTrack
   loadProfile(name)
-  // 下方“今日打分”区也用同一个主播，避免选两次
   current.value = name
   curTrack.value = planTrack.value
-  blankValues()
   await loadPlanFor(name)
+  await loadTodayScores(name)
 }
 
 async function importFileAndGenerate(filePath: string) {
@@ -907,11 +1213,39 @@ async function importAndGenerate() {
 }
 
 async function onDropReport(e: DragEvent) {
-  const f = e.dataTransfer?.files?.[0]
-  if (!f) return
-  const p = (window as any).electronAPI.getFilePath(f)
-  if (!p) return msg.warning('没拿到文件路径，请用「导入报告」按钮')
-  await importFileAndGenerate(p)
+  e.preventDefault()
+  e.stopPropagation()
+  const files = Array.from(e.dataTransfer?.files || [])
+  const f = files.find((x) => /\.(md|markdown|txt|docx|doc|wps|rtf)$/i.test(x.name)) || files[0]
+  let filePath = ''
+  if (f) {
+    try { filePath = String((window as any).electronAPI.getFilePath(f) || '') } catch { /* 下面走文本兜底 */ }
+  }
+  if (!filePath) {
+    const raw = String(e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '').trim()
+    if (/^file:\/\//i.test(raw)) {
+      try {
+        filePath = decodeURIComponent(new URL(raw.split(/\r?\n/)[0]).pathname).replace(/^\//, '').replace(/\//g, '\\')
+      } catch { /* ignore */ }
+    } else if (/^[A-Za-z]:[\\/]/.test(raw)) {
+      filePath = raw.split(/\r?\n/)[0]
+    }
+  }
+  if (filePath) return importFileAndGenerate(filePath)
+  if (f && (/\.(md|markdown|txt)$/i.test(f.name) || /^text\//i.test(f.type || ''))) {
+    planBusy.value = true
+    try {
+      const text = await f.text()
+      if (!text.trim()) return msg.warning('拖进来的报告是空文件')
+      await store.importReportText(text, f.name || '拖入的报告')
+      if (planStreamer.value && planStreamer.value !== ALL_PLAN) await doGenerate()
+      msg.success('报告已读取并导入')
+    } catch (err: any) {
+      msg.error('读取拖入报告失败：' + (err?.message || err))
+    } finally { planBusy.value = false }
+    return
+  }
+  msg.warning('没有识别到文件。请拖入 .md、.txt、Word 或 WPS 报告，或点击这里重新选择。')
 }
 
 async function justGenerate() {
@@ -1023,6 +1357,11 @@ const needAttention = computed(() => {
     .sort((a, b) => order[a.level] - order[b.level])
     .slice(0, 12)
 })
+const displayWeekTasks = computed(() => {
+  if (!weekFocus.value) return weekTasks.value
+  const names = new Set<string>([planStreamer.value, ...needAttention.value.map((x: any) => x.name)].filter(Boolean))
+  return weekTasks.value.filter((row: any) => names.has(String(row['主播'] || '').trim()))
+})
 
 function saveOpFilter() {
   localStorage.setItem('inc_operator', opFilter.value.trim())
@@ -1061,6 +1400,35 @@ function blankValues() {
   values.value = v
 }
 
+async function loadTodayScores(name: string): Promise<void> {
+  autoSavePaused = true
+  const v: Record<string, string> = {}
+  for (const d of store.common) v[d.key] = ''
+  const session: any = name ? store.sessionsOf(name).find((row: any) => String(row['日期'] || '') === today) : null
+  if (session?.values) {
+    for (const d of store.common) v[d.key] = String(session.values[d.key] ?? '')
+  }
+  values.value = v
+  autoSaveText.value = session ? '已载入今日评分' : '等待输入'
+  await nextTick()
+  autoSavePaused = false
+}
+
+async function autoSaveScores(): Promise<void> {
+  if (autoSavePaused || !current.value || current.value === ALL_PLAN) return
+  const picked: Record<string, string> = {}
+  for (const d of topScoreDefs.value) picked[d.key] = String(values.value[d.key] ?? '')
+  if (!Object.values(picked).some((v) => String(v).trim() !== '')) return
+  autoSaveText.value = '正在自动保存…'
+  try {
+    await store.ensureStreamer(current.value, curTrack.value, opFilter.value.trim())
+    await store.saveSession({ 日期: today, 运营: opFilter.value.trim(), 主播: current.value, 赛道: curTrack.value, values: picked })
+    autoSaveText.value = `已自动保存 ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`
+  } catch (e: any) {
+    autoSaveText.value = '自动保存失败，请检查数据目录'
+  }
+}
+
 /** 名单非空但还没选人时，自动选第一个（新机器/刚导入名单时不至于空白） */
 function ensureSelection() {
   if (!current.value && filteredStreamers.value.length) {
@@ -1078,14 +1446,22 @@ function scrollTop() { const el = scroller(); if (el) el.scrollTo({ top: 0, beha
 function onScroll() { const el = scroller(); showTop.value = !!el && el.scrollTop > 300 }
 
 function pick(name: string) {
+  void openWatchStreamer(name)
+}
+
+async function openWatchStreamer(name: string) {
+  if (!name) return
+  planStreamer.value = name
   current.value = name
   onPick(name, true)
+  await onPlanStreamer(name)
+  nextTick(() => document.querySelector('.inc-command-block')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 function onPick(name: string, addRecent = true) {
   if (!name) return
   curTrack.value = store.trackOf(name)
-  blankValues()
+  void loadTodayScores(name)
   if (addRecent) {
     recent.value = [name, ...recent.value.filter((x) => x !== name)].slice(0, 6)
     localStorage.setItem('inc_recent', JSON.stringify(recent.value))
@@ -1095,7 +1471,7 @@ function onPick(name: string, addRecent = true) {
 function changeTrack(track: string) {
   if (!current.value) return
   store.updateStreamerTrack(current.value, track).catch(() => { /* 档案里没有这人就算了 */ })
-  blankValues()
+  if (!autoSavePaused) autoSaveScores().catch(() => { /* 自动保存会记录状态 */ })
 }
 
 function moveCursor(delta: number) {
@@ -1279,6 +1655,7 @@ async function doImportStreamers() {
     msg.success(`名册导入：新增 ${r?.added ?? 0}、更新 ${r?.updated ?? 0}`)
     ensureSelection()
     showImport.value = false
+    await loadWeekTasks()
     importText.value = ''
   } catch (e: any) {
     msg.error('导入失败：' + (e?.message || e))
@@ -1324,6 +1701,12 @@ watch(extras, () => {
   }
 })
 
+watch(values, () => {
+  if (autoSavePaused) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => { autoSaveScores().catch(() => { /* 状态已记录 */ }) }, 900)
+}, { deep: true })
+
 onMounted(async () => {
   await store.loadTracks()
   await store.loadSchema()
@@ -1343,6 +1726,7 @@ onMounted(async () => {
     planTrack.value = store.trackOf(planStreamer.value)
     loadProfile(planStreamer.value)
     await loadPlanFor(planStreamer.value)
+    await loadTodayScores(planStreamer.value)
   }
   window.addEventListener('keydown', onKey)
   scroller()?.addEventListener('scroll', onScroll)
@@ -1357,6 +1741,16 @@ onUnmounted(() => {
 <style scoped>
 /* 孵化页跟随全局浅色主题：白卡片 + 墨色字 + 紫罗兰交互色，深色遗留全部收掉 */
 .inc-page { padding: 18px 22px; color: var(--ink-2); font-size: 14px; }
+.edit-streamer-note { display:flex; flex-direction:column; gap:4px; padding:12px 14px; border:1px solid #bfe0ea; border-radius:10px; background:#f3fbfd; }
+.edit-streamer-note b { color:#0e6177; font-size:14px; }
+.edit-streamer-note span { color:#527083; font-size:12.5px; line-height:1.6; }
+.edit-streamer-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }
+.delete-streamer-zone { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:16px; padding:13px 14px; border:1px solid #fecaca; border-radius:10px; background:#fff7f7; }
+.delete-streamer-zone > div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.delete-streamer-zone b { color:#b91c1c; font-size:13.5px; }
+.delete-streamer-zone span { color:#7f4747; font-size:12.5px; line-height:1.55; }
+.edit-streamer-footer { display:flex; justify-content:flex-end; gap:9px; }
+@media (max-width:760px) { .edit-streamer-grid { grid-template-columns:1fr; } .delete-streamer-zone { align-items:flex-start; flex-direction:column; } }
 .inc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
 .inc-title { font-size: var(--fs-h1); font-weight: 700; letter-spacing: -0.2px; margin: 0 0 4px; color: var(--ink); }
 .inc-subtitle { font-size: var(--fs-meta); color: var(--ink-3); }
@@ -1500,4 +1894,207 @@ onUnmounted(() => {
 .sec-divider { height: 1px; background: #e5e7eb; margin: 22px 0 16px; }
 .schedule-table { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px; }
 .schedule-table .n-data-table-th { background: #eef2f7 !important; }
+/* 2026-10 孵化页重排：主播身份置顶、三大板块强区分、评分自动保存 */
+.inc-command-block { background:linear-gradient(135deg,#ecfeff 0%,#eff6ff 55%,#f5f3ff 100%); border:1px solid #bae6fd; border-top:5px solid #0891b2; }
+.command-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.8fr); gap:14px; align-items:start; }
+.command-label { font-size:13px; font-weight:800; color:#0e7490; margin-bottom:10px; letter-spacing:.3px; }
+.command-main .plan-import-row { margin-top:0; }
+.watch-dock { background:#fff7ed; border:1px solid #fdba74; border-radius:14px; padding:11px 13px; min-height:86px; }
+.watch-dock .watch-title { color:#9a3412; margin-bottom:8px; }
+.watch-dock .watch-list { display:flex; flex-wrap:wrap; gap:7px; max-height:150px; overflow:auto; }
+.watch-dock .watch-item { display:flex; flex-direction:column; align-items:flex-start; gap:2px; border:1px solid #fed7aa; border-left:4px solid #f97316; border-radius:10px; background:#fff; padding:6px 9px; cursor:pointer; text-align:left; }
+.watch-dock .watch-item.bad { border-left-color:#ef4444; background:#fff1f2; }
+.watch-dock .watch-item.ok { border-left-color:#10b981; }
+.selected-hero { margin-top:14px; padding:16px 18px; border-radius:16px; background:#0f172a; color:#fff; display:flex; justify-content:space-between; gap:18px; align-items:center; box-shadow:0 8px 24px rgba(15,23,42,.16); }
+.hero-name-wrap { display:flex; align-items:baseline; gap:12px; min-width:0; flex-wrap:wrap; }
+.hero-name-wrap span { font-size:12px; color:#67e8f9; font-weight:800; letter-spacing:1px; }
+.hero-name-wrap b { font-size:30px; line-height:1.05; letter-spacing:.5px; }
+.hero-name-wrap em { font-style:normal; font-size:12px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.13); color:#cffafe; }
+.hero-info { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; font-size:12px; color:#cbd5e1; }
+.hero-info span { padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.09); }
+.hero-info .hero-danger { background:#7f1d1d; color:#fecaca; font-weight:700; }
+.top-score-card { margin-top:12px; border:1px solid #a5b4fc; background:#fff; border-radius:14px; padding:12px 14px; }
+.top-score-head { display:flex; align-items:baseline; gap:10px; margin-bottom:9px; }
+.top-score-head b { color:#3730a3; font-size:14px; }
+.top-score-head span { color:#64748b; font-size:11px; }
+.top-score-head i { margin-left:auto; font-style:normal; font-size:11px; color:#0f766e; background:#ecfdf5; padding:3px 8px; border-radius:999px; }
+.top-score-grid { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:10px; }
+.top-score-grid label { display:flex; flex-direction:column; gap:5px; padding:9px 10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
+.top-score-grid label span { font-size:12px; font-weight:700; color:#334155; }
+.block-streamer-name { display:flex; align-items:baseline; gap:10px; padding:12px 16px; margin:-2px -2px 12px; border-radius:12px; font-size:14px; font-weight:800; color:#fff; }
+.block-streamer-name b { font-size:28px; line-height:1; letter-spacing:.4px; }
+.inc-base-block { background:#f0f9ff; border-color:#7dd3fc; }
+.block-streamer-name { background:linear-gradient(90deg,#0369a1,#0891b2); }
+.inc-today-block { background:#fff7ed; border-color:#fdba74; }
+.today-name { background:linear-gradient(90deg,#c2410c,#f59e0b); }
+.inc-all-block { background:#f5f3ff; border-color:#c4b5fd; }
+.all-name { background:linear-gradient(90deg,#6d28d9,#8b5cf6); }
+.week-focus { display:flex; align-items:center; gap:6px; font-size:12px; color:#475569; }
+.week-date-chip { display:inline-flex; align-items:center; justify-content:center; min-width:86px; padding:3px 8px; border-radius:999px; color:#fff; font-weight:700; background:var(--week-color); }
+.week-detail { margin-top:10px; padding:12px 14px; border-radius:12px; border:1px solid #c4b5fd; background:#fff; display:flex; flex-direction:column; gap:7px; color:#334155; }
+.week-detail-head { display:flex; align-items:baseline; gap:10px; }
+.week-detail-head b { font-size:18px; color:#5b21b6; }
+.week-detail-head span { font-size:12px; color:#64748b; }
+.plan-drop { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; transition:all .15s ease; }
+.plan-drop:hover { background:#eef2ff; border-color:#6366f1; color:#4338ca; }
+@media (max-width:980px) { .command-grid { grid-template-columns:1fr; } .top-score-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); } .selected-hero { flex-direction:column; align-items:flex-start; } .hero-info { justify-content:flex-start; } }
+@media (min-width:901px) { .top-score-grid { grid-template-columns:repeat(5,minmax(100px,1fr)); } }
+@media (max-width:900px) { .top-score-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); } }
+.basic-profile-card { margin-top:12px; border:1px solid #bae6fd; border-radius:14px; background:#fff; padding:12px 14px; }
+.basic-profile-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.basic-profile-head b { color:#0e7490; font-size:14px; }
+.basic-profile-head span { color:#64748b; font-size:11px; }
+.basic-profile-head .n-button { margin-left:auto; }
+.inline-switch { display:flex; align-items:center; gap:5px; color:#475569; font-size:11px; }
+.basic-profile-grid { display:grid; grid-template-columns:repeat(3,minmax(170px,1fr)); gap:9px 12px; }
+.basic-profile-grid label { display:flex; flex-direction:column; gap:4px; color:#64748b; font-size:11px; }
+.basic-leave-row { margin-top:10px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding-top:10px; border-top:1px dashed #dbeafe; }
+.basic-leave-row > b { color:#9a3412; font-size:12px; }
+.basic-leave-row label { display:flex; align-items:center; gap:5px; color:#64748b; font-size:11px; }
+.basic-status-row { margin-top:10px; display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+@media (max-width:900px) { .basic-profile-grid { grid-template-columns:1fr; } }
+/* 功能分组可读性：标题更大、三块之间留出明显间隔 */
+.plan-wrap { gap:18px; }
+.command-label { font-size:15px; line-height:1.35; }
+.watch-title, .top-score-head b, .basic-profile-head b { font-size:15px; }
+.profile-summary { color:#0f5f73 !important; font-size:12px !important; font-weight:600; }
+.basic-profile-card { border-top:5px solid #0891b2; }
+.inc-today-block { border-top:6px solid #f59e0b; box-shadow:0 8px 22px rgba(194,65,12,.08); }
+.inc-all-block { border-top:6px solid #7c3aed; box-shadow:0 8px 22px rgba(109,40,217,.08); }
+.block-streamer-name b { font-size:32px; }
+.panel-head b, .sec-title, .today-title, .week-head { font-size:14px; }
+.plan-import-row { gap:8px; align-items:center; }
+.plan-import-row .n-button { min-height:32px; }
+.day-ops, .custom-course-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.custom-course-actions { justify-content:flex-end; }
+/* 2.9.12 可读性收口：字号有台阶、功能有边界、主操作只有一个焦点 */
+.inc-page { padding: 22px 26px 42px; font-size: 14px; line-height: 1.58; color: #274358; }
+.inc-header { align-items: center; margin-bottom: 14px; padding: 0 2px; }
+.inc-title { margin: 0 0 5px; font-size: 24px; line-height: 1.2; letter-spacing: -0.4px; color: #0b2537; }
+.inc-subtitle { max-width: 790px; font-size: 13.5px; line-height: 1.6; color: #587488; }
+.header-action { min-height: 34px; font-size: 13px; }
+.inc-page :deep(.n-tabs-tab) { font-size: 14px; font-weight: 650; }
+.plan-wrap { gap: 24px; }
+.inc-block { overflow: hidden; padding: 0 20px 20px; border-radius: 18px; border: 1px solid #d8e5ef; box-shadow: 0 5px 20px rgba(16, 80, 120, .065); }
+.inc-command-block { background: #f6fbfe; border-color: #b9dcef; }
+.inc-today-block { background: #fffaf3; border-color: #f3c98f; }
+.inc-all-block { background: #faf7ff; border-color: #d8c7ee; }
+.section-heading { display: flex; align-items: center; gap: 13px; min-height: 82px; margin: 0 -20px 20px; padding: 14px 18px; border-bottom: 1px solid rgba(70, 105, 130, .12); }
+.section-number { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 12px; color: #fff; font-size: 20px; font-weight: 800; box-shadow: 0 4px 12px rgba(14, 116, 144, .16); }
+.section-heading-copy { min-width: 0; }
+.section-heading-copy h3 { margin: 0 0 2px; font-size: 20px; line-height: 1.25; font-weight: 800; color: #123247; letter-spacing: -0.25px; }
+.section-heading-copy p { margin: 0; font-size: 12.5px; line-height: 1.45; color: #587488; }
+.section-hint { margin-left: auto; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, .72); border: 1px solid rgba(81, 141, 171, .18); color: #315f76; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.section-person { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: auto; padding: 7px 12px; border-radius: 10px; background: rgba(255, 255, 255, .72); border: 1px solid rgba(117, 86, 153, .16); }
+.section-person span { font-size: 11.5px; color: #6a7180; }
+.section-person b { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; line-height: 1.25; color: #3b2158; }
+.section-heading-setup { background: #eaf7fd; border-bottom-color: #bfe3f2; }
+.section-heading-setup .section-number { background: #0b76be; }
+.section-heading-today { background: #fff2e3; border-bottom-color: #f4d2a8; }
+.section-heading-today .section-number { background: #d97706; box-shadow: 0 4px 12px rgba(217, 119, 6, .18); }
+.section-heading-today .section-heading-copy h3, .section-heading-today .section-person b { color: #7c3e06; }
+.section-heading-all { background: #f3ecff; border-bottom-color: #d8c8ef; }
+.section-heading-all .section-number { background: #7e22ce; box-shadow: 0 4px 12px rgba(126, 34, 206, .17); }
+.section-heading-all .section-heading-copy h3, .section-heading-all .section-person b { color: #51217e; }
+.command-grid { grid-template-columns: minmax(0, 1.65fr) minmax(270px, .75fr); gap: 16px; }
+.command-main { min-width: 0; }
+.control-block { padding: 15px 16px; background: rgba(255, 255, 255, .9); border: 1px solid #d7e7f1; border-radius: 14px; }
+.control-block + .control-block { margin-top: 12px; }
+.control-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 9px; margin-bottom: 11px; }
+.control-heading b { white-space: nowrap; font-size: 15px; line-height: 1.35; color: #153c53; }
+.control-heading span { font-size: 12.5px; line-height: 1.45; color: #668093; }
+.selector-row { display: grid; align-items: end; gap: 12px; }
+.selector-row-main { grid-template-columns: minmax(190px, 1.35fr) minmax(145px, .9fr) auto; }
+.selector-row-settings { grid-template-columns: minmax(160px, 1fr) minmax(165px, 1fr) auto; margin-top: 11px; }
+.control-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.control-field > span { font-size: 12.5px; line-height: 1.35; font-weight: 700; color: #36596d; }
+.control-field .date-input { width: 100%; font-size: 13.5px; }
+.add-streamer-btn, .action-row .n-button { min-height: 36px; font-size: 13px; font-weight: 650; }
+.plan-switch { align-self: center; min-height: 34px; margin-top: 17px; padding: 0 2px; font-size: 12.5px; }
+.action-control-block { border-color: #c8dff0; }
+.action-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.action-divider { display: none; }
+.custom-course-btn { flex-basis: 100%; width: max-content; margin-top: 2px; font-weight: 700; }
+.plan-drop { margin-top: 12px; padding: 15px 18px; border-radius: 11px; font-size: 13px; }
+.plan-drop b { font-size: 14px; line-height: 1.4; color: #274f88; }
+.plan-drop span { font-size: 12.5px; line-height: 1.5; }
+.watch-dock { min-height: 100%; padding: 14px; border-radius: 14px; background: #fff4e5; border-color: #f4bd72; box-shadow: inset 0 0 0 1px rgba(255,255,255,.52); }
+.watch-dock .watch-title { margin-bottom: 10px; font-size: 16px; line-height: 1.35; color: #9a3412; }
+.watch-dock .watch-list { max-height: 240px; gap: 8px; }
+.watch-dock .watch-item { min-width: 118px; padding: 8px 10px; border-radius: 10px; }
+.watch-name { font-size: 16px; }
+.watch-text { font-size: 12.5px; line-height: 1.45; }
+.selected-hero { margin-top: 16px; padding: 17px 20px; border-radius: 15px; }
+.hero-name-wrap { gap: 10px 13px; }
+.hero-name-wrap span { font-size: 12.5px; letter-spacing: .5px; }
+.hero-name-wrap b { font-size: 34px; line-height: 1.08; }
+.hero-name-wrap em, .hero-info { font-size: 12.5px; }
+.top-score-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: #b9c8f5; }
+.top-score-head { align-items: center; margin-bottom: 12px; }
+.top-score-head b { font-size: 16px; }
+.top-score-head span { font-size: 12.5px; color: #5d7182; }
+.top-score-head i { font-size: 12px; }
+.top-score-grid { gap: 12px; }
+.top-score-grid label { min-height: 74px; padding: 11px 12px; border-radius: 11px; }
+.top-score-grid label span { font-size: 13.5px; line-height: 1.35; color: #31475f; }
+.basic-profile-card { margin-top: 14px; padding: 15px 16px; border-radius: 14px; border-color: #b9ddec; border-top-width: 4px; }
+.basic-profile-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; margin: 0; }
+.basic-profile-title { display: flex; flex-direction: column; gap: 1px; }
+.basic-profile-title b { font-size: 16px; line-height: 1.3; color: #0b5e73; }
+.basic-profile-title span { font-size: 12px; color: #6a7f8e; }
+.profile-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.profile-summary { grid-column: 1 / -1; display: flex; align-items: stretch; justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
+.profile-summary > span { display: inline-flex; align-items: baseline; gap: 7px; min-height: 34px; padding: 6px 10px; border-radius: 8px; background: #f4f9fc; border: 1px solid #dceaf2; }
+.profile-summary i { font-style: normal; font-size: 11.5px; color: #668093; }
+.profile-summary b { font-size: 13px; color: #16495f; }
+.basic-profile-grid { margin-top: 14px; padding-top: 15px; border-top: 1px dashed #c9dfe9; gap: 11px 14px; }
+.basic-profile-grid label { gap: 5px; font-size: 12.5px; font-weight: 650; color: #476477; }
+.basic-leave-row { margin-top: 12px; padding-top: 12px; }
+.basic-leave-row > b, .basic-leave-row label { font-size: 12.5px; }
+.basic-status-row { gap: 8px; margin-top: 12px; }
+.inc-page .chip { min-height: 30px; padding: 5px 10px; }
+.inc-page .chip b { font-size: 15px; }
+.inc-page .chip span { font-size: 12.5px; }
+.plan-head { padding: 2px 0 13px; }
+.plan-head-left { gap: 7px; flex-wrap: wrap; }
+.plan-head-left > b { font-size: 18px; color: #4a2d0c; }
+.pill { padding: 4px 9px; font-size: 12.5px; }
+.plan-head-right { font-size: 12.5px; color: #6f6151; }
+.phase-cards { gap: 10px; margin-bottom: 16px; }
+.phase-card { padding: 11px 12px; border-radius: 11px; background: rgba(255,255,255,.88); }
+.phase-name { font-size: 14px; }
+.phase-goal { font-size: 12.5px; line-height: 1.55; }
+.today-head-row { margin: 16px 0 10px; }
+.today-head { font-size: 17px; line-height: 1.35; }
+.today-card, .fb-card { padding: 17px 18px; border-radius: 13px; }
+.today-title { margin-bottom: 9px; font-size: 15px; line-height: 1.4; }
+.today-main { margin-bottom: 8px; font-size: 17px; line-height: 1.5; }
+.today-line { font-size: 13.5px; line-height: 1.72; }
+.custom-course-name { font-size: 14px; }
+.fb-card { margin-top: 16px; }
+.week-card { padding: 14px 15px; border-radius: 13px; margin-bottom: 16px; background: rgba(255,255,255,.92); }
+.week-head { margin-bottom: 9px; font-size: 16px; line-height: 1.35; color: #44246b; }
+.week-tools { font-size: 12.5px; line-height: 1.45; }
+.plan-table-title { font-size: 15px; line-height: 1.4; color: #4b3268; }
+.schedule-title { font-size: 16px; }
+.inc-page :deep(.n-data-table .n-data-table-td), .inc-page :deep(.n-data-table .n-data-table-th) { font-size: 13.5px; padding-top: 10px; padding-bottom: 10px; }
+.inc-page :deep(.n-data-table .n-data-table-th) { font-weight: 700; color: #416276; }
+.week-detail { padding: 13px 15px; font-size: 13.5px; line-height: 1.65; }
+.week-detail-head b { font-size: 19px; }
+.week-detail-head span { font-size: 12.5px; }
+@media (max-width: 1020px) {
+  .command-grid { grid-template-columns: minmax(0, 1fr); }
+  .watch-dock { min-height: 0; }
+  .watch-dock .watch-list { max-height: none; }
+}
+@media (max-width: 920px) {
+  .inc-page { padding: 18px 16px 38px; }
+  .section-heading { align-items: flex-start; flex-wrap: wrap; }
+  .section-person, .section-hint { margin-left: 51px; }
+  .selector-row-main, .selector-row-settings, .basic-profile-head { grid-template-columns: 1fr; }
+  .profile-summary { grid-column: 1; }
+  .profile-actions { justify-content: flex-start; }
+  .plan-switch { margin-top: 0; }
+  .top-score-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}
 </style>

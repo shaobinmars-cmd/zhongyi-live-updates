@@ -130,6 +130,13 @@ export const useIncubateStore = defineStore('incubate', () => {
     return r
   }
 
+  async function updateCustomCourse(id: number, opts: any) {
+    const r = await api().incubateCustomCourseUpdate(Number(id), opts)
+    await loadSchedule()
+    log(`已修改运营课程：${opts?.streamer || ''} · ${opts?.title || ''}`)
+    return r
+  }
+
   async function removeCourse(id: number) {
     const r = await api().incubateDelete('课表', Number(id))
     await loadSchedule()
@@ -211,6 +218,26 @@ export const useIncubateStore = defineStore('incubate', () => {
   async function loadSessions() {
     sessions.value = await api().incubateList('场次记录')
     return sessions.value
+  }
+
+  /** 改名/换运营/换赛道：后台会同步所有以主播名关联的孵化数据。 */
+  async function updateStreamerIdentity(oldName: string, patch: { name?: string; operator?: string; track?: string }) {
+    const clean = String(oldName || '').trim()
+    if (!clean) throw new Error('请先选择主播')
+    const r = await api().incubateUpdateStreamer(clean, patch)
+    await Promise.all([loadStreamers(), loadSessions(), loadSchedule()])
+    log(`主播资料已修改：${clean} → ${r?.name || clean}`)
+    return r
+  }
+
+  /** 仅删除误建/重复主播；正常离职请用 departStreamer。 */
+  async function deleteStreamer(name: string) {
+    const clean = String(name || '').trim()
+    if (!clean) throw new Error('请先选择主播')
+    const r = await api().incubateDeleteStreamer(clean)
+    await Promise.all([loadStreamers(), loadSessions(), loadSchedule()])
+    log(`已删除错误主播：${clean}`)
+    return r
   }
 
   async function loadSchedule() {
@@ -317,10 +344,10 @@ export const useIncubateStore = defineStore('incubate', () => {
     tracks, common, defaultTrack, sessions, streamers, schedule,
     plan, planDays, planFeedback,
     loadSchema, loadRows, switchTable, seed, score, importDir, browseDir, pickReport, importReportText,
-    generatePlan, loadPlan, saveFeedback, addCustomCourse, removeCourse,
+    generatePlan, loadPlan, saveFeedback, addCustomCourse, updateCustomCourse, removeCourse,
     exportCsv, exportXlsx, openDataDir,
     loadTracks, trackNames, extraDefsOf, allDefsOf,
-    loadStreamers, importStreamers, departStreamer, restoreStreamer, saveStreamerProfile, loadSessions, loadSchedule,
+    loadStreamers, importStreamers, departStreamer, restoreStreamer, updateStreamerIdentity, deleteStreamer, saveStreamerProfile, loadSessions, loadSchedule,
     trackOf, sessionsOf, evaluate, saveSession, removeSession, ensureStreamer, updateStreamerTrack
   }
 })

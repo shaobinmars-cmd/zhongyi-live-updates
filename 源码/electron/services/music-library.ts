@@ -14,7 +14,7 @@ import * as logger from './logger'
 const LOG = 'MusicLibrary'
 const SEED_VERSION = '2026-10-19-v2'
 export const BLOCKED_FOLDER_ID = '__blocked__'
-const AUDIO_EXTS = new Set(['.mp3', '.wav', '.m4a', '.flac', '.aac', '.ogg', '.wma'])
+const AUDIO_EXTS = new Set(['.mp3', '.wav', '.m4a', '.flac', '.aac', '.ogg', '.opus', '.wma', '.ape', '.aiff', '.aif', '.amr', '.ac3', '.mka'])
 
 export type MusicStatus = 'blocked' | 'ok' | 'unknown'
 

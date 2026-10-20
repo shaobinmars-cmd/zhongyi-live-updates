@@ -255,6 +255,47 @@ export async function addCustomCourse(opts: {
   return { ok: true, id: res.id, day, date }
 }
 
+export async function updateCustomCourse(id: number, opts: {
+  streamer: string
+  date: string
+  title: string
+  how?: string
+  accept?: string
+  operator?: string
+}): Promise<{ ok: boolean; id: number; day: string; date: string }> {
+  const rows = await listRows('课表')
+  const old = rows.find((r) => Number(r.id) === Number(id))
+  if (!old || String(old['课程来源'] || '') !== '运营自定义') throw new Error('找不到这条运营自定义计划')
+  const streamer = String(opts.streamer || '').trim()
+  const date = String(opts.date || '').trim() || new Date().toISOString().slice(0, 10)
+  const title = String(opts.title || '').trim()
+  if (!streamer) throw new Error('先选择主播')
+  if (!title) throw new Error('请填写今天要练什么')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('课程日期格式不对')
+  const plan = (await listRows('培训计划')).find((r) => String(r['主播'] || '').trim() === streamer)
+  let day = '自定义'
+  const start = String(plan?.['开始日期'] || '').trim()
+  if (start) {
+    const s = new Date(start + 'T00:00:00')
+    const d = new Date(date + 'T00:00:00')
+    const idx = Math.floor((d.getTime() - s.getTime()) / 86400000) + 1
+    if (idx >= 1 && idx <= 60) day = `D${idx}`
+  }
+  await updateRow('课表', Number(id), {
+    ...old,
+    日期: day,
+    主播: streamer,
+    今天练什么: title,
+    怎么练: String(opts.how || '').trim(),
+    验收: String(opts.accept || '').trim(),
+    录入人: String(opts.operator || '').trim() || String(old['录入人'] || '运营'),
+    执行日期: date,
+    课程来源: '运营自定义'
+  })
+  logger.info(LOG_MODULE, `修改运营课程：${streamer} / ${date} / ${title}`)
+  return { ok: true, id: Number(id), day, date }
+}
+
 export async function listFeedback(streamer: string, limit = 60): Promise<Row[]> {
   const name = String(streamer || '').trim()
   const rows = (await listRows('孵化反馈')).filter((r) => String(r['主播'] || '').trim() === name)

@@ -1,7 +1,7 @@
 {
-  "version": "2.9.11",
-  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.11/zhongyi-setup-2.9.11.exe",
-  "sha256": "F398103ADD11B3AE2C2BF94428366FDE6F0F546E95C128EFE87D2525A55F441F",
-  "notes": "新增未开播自动等待：开播后自动连接弹幕并开始录制；GPU 运行库升级不丢；安全更新；一场直播一个文件夹；素材包和 AI 报告带主播名；曲库文件夹、音频上传、批量检测和禁播清单更新。",
-  "size": 297690650
+  "version": "2.9.12",
+  "url": "https://github.com/shaobinmars-cmd/zhongyi-live-updates/releases/download/v2.9.12/zhongyi-setup-2.9.12.exe",
+  "sha256": "61A4E74C55A3E877A1868560468709FBE7D968449E0DAE80AFEA5846074163C4",
+  "notes": "修复更新下载一直 0%；孵化页按三大板块重排并提升字号层级；支持主播改名和误建删除；运营计划可修改删除；AI 报告拖入、每日上传自检、曲库格式与未开播自动等待等修复同步上线。",
+  "size": 297699440
 }

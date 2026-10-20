@@ -84,7 +84,10 @@ interface Window {
     incubateImportStreamers: (text: string, operator: string, defaultTrack: string) => Promise<any>
     incubateDepartStreamer: (name: string, date: string) => Promise<any>
     incubateRestoreStreamer: (name: string) => Promise<any>
+    incubateUpdateStreamer: (name: string, patch: any) => Promise<any>
+    incubateDeleteStreamer: (name: string) => Promise<any>
     incubateCustomCourseAdd: (opts: any) => Promise<any>
+    incubateCustomCourseUpdate: (id: number, opts: any) => Promise<any>
     musicList: (search?: string, status?: string, folderId?: string) => Promise<any[]>
     musicFolders: () => Promise<any[]>
     musicFolderAdd: (name: string) => Promise<any>

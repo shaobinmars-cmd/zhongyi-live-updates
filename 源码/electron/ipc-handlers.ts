@@ -24,7 +24,7 @@ import * as incubate from './services/incubate'
 import * as updater from './services/updater'
 import * as incubatePlan from './services/incubate-plan'
 import * as musicLibrary from './services/music-library'
-import { V5_INSTRUCTION } from './services/teardown-instruction'
+import { V5_FULL_INSTRUCTION } from './services/teardown-instruction'
 import * as config from './services/record-config'
 import * as logger from './services/logger'
 import * as fs from 'fs'
@@ -859,6 +859,7 @@ ipcMain.handle('incubate:schema', () => incubate.TABLES)
   ipcMain.handle('sync:get', () => githubSync.loadSyncConfig())
   ipcMain.handle('sync:set', (_e, patch: any) => githubSync.saveSyncConfig(patch || {}))
   ipcMain.handle('sync:now', () => githubSync.syncNow())
+  ipcMain.handle('sync:test', () => githubSync.testConnection())
   ipcMain.handle('sync:reports', () => githubSync.generateReports())
 ipcMain.handle('incubate:list', async (_e, table: string) => incubate.listRows(table))
 ipcMain.handle('incubate:add', async (_e, table: string, row: any) => incubate.addRow(table, row))
@@ -888,12 +889,16 @@ ipcMain.handle('music:open-data', async () => {
   return true
 })
 ipcMain.handle('music:pick-audio', async () => {
-  const opts: any = { title: '选择要加入曲库的歌曲文件', properties: ['openFile', 'multiSelections'], filters: [{ name: '音频', extensions: ['mp3', 'wav', 'm4a', 'flac', 'aac', 'ogg', 'wma'] }] }
+  const opts: any = { title: '选择要加入曲库的歌曲文件', properties: ['openFile', 'multiSelections'], filters: [{ name: '音频', extensions: ['mp3', 'wav', 'm4a', 'flac', 'aac', 'ogg', 'opus', 'wma', 'ape', 'aiff', 'aif', 'amr', 'ac3', 'mka'] }] }
   const r = mainWindow ? await dialog.showOpenDialog(mainWindow, opts) : await dialog.showOpenDialog(opts)
   return r.canceled ? [] : r.filePaths
 })
 ipcMain.handle('music:upload', async (_e, files: string[], folderId: string) => musicLibrary.addAudioFiles(files || [], folderId))
-ipcMain.handle('music:open-song', async (_e, id: string) => shell.openPath(musicLibrary.openSong(id)))
+ipcMain.handle('music:open-song', async (_e, id: string) => {
+  const error = await shell.openPath(musicLibrary.openSong(id))
+  if (error) throw new Error('系统没有可播放这个格式的程序：' + error)
+  return true
+})
 ipcMain.handle('music:open-folder', async (_e, id: string) => shell.openPath(musicLibrary.openFolder(id)))
 ipcMain.handle('incubate:score', async (_e, month?: string) => incubate.scoreOperators(month))
 ipcMain.handle('incubate:seed', async () => incubate.seedIfEmpty())
@@ -901,9 +906,11 @@ ipcMain.handle('incubate:tracks', () => ({ tracks: incubate.TRACKS, common: incu
 ipcMain.handle('incubate:import-streamers', async (_e, text: string, operator: string, defaultTrack: string) => incubate.importStreamers(text, operator, defaultTrack))
 ipcMain.handle('incubate:depart-streamer', async (_e, name: string, date: string) => incubate.departStreamer(name, date))
 ipcMain.handle('incubate:restore-streamer', async (_e, name: string) => incubate.restoreStreamer(name))
+ipcMain.handle('incubate:update-streamer', async (_e, name: string, patch: any) => incubate.updateStreamerIdentity(name, patch || {}))
+ipcMain.handle('incubate:delete-streamer', async (_e, name: string) => incubate.deleteStreamer(name))
 ipcMain.handle('incubate:import', async (_e, dir: string) => incubate.importFromTeardown(dir))
 ipcMain.handle('incubate:open-data-dir', () => incubate.openDataFolder())
-ipcMain.handle('incubate:instruction', () => V5_INSTRUCTION)
+ipcMain.handle('incubate:instruction', () => V5_FULL_INSTRUCTION)
 ipcMain.handle('incubate:browse-dir', async () => {
   // 重要：Windows 的对话框不能同时「选文件 + 选文件夹」（同时传只会弹选文件夹），
   // 这就是运营反馈「任何文件都不识别」的原因。现在拆成两个入口。
@@ -936,6 +943,7 @@ ipcMain.handle('incubate:generate-plan', async (_e, opts: any) => incubatePlan.g
 ipcMain.handle('incubate:plan', async (_e, streamer: string) => incubatePlan.getPlan(streamer))
 ipcMain.handle('incubate:feedback-save', async (_e, row: any) => incubatePlan.saveFeedback(row || {}))
 ipcMain.handle('incubate:custom-course-add', async (_e, opts: any) => incubatePlan.addCustomCourse(opts || {}))
+ipcMain.handle('incubate:custom-course-update', async (_e, id: number, opts: any) => incubatePlan.updateCustomCourse(Number(id), opts || {}))
 ipcMain.handle('update:check-url', async (_e, url: string) => updater.checkUrl(url))
 ipcMain.handle('update:download-manifest', async (e, m: any) => updater.downloadManifest(m || {}, (p: number) => e.sender.send('update:on-progress', p)))
 ipcMain.handle('update:install-file', async (_e, file: string) => updater.install(file))

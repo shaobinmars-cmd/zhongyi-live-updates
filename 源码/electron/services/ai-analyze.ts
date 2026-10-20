@@ -16,7 +16,7 @@ import { app } from 'electron'
 import axios from 'axios'
 import { splitPacket } from './packet-split'
 import * as tdConfig from './teardown-config'
-import { V5_INSTRUCTION } from './teardown-instruction'
+import { EXECUTION_ADDENDUM, V5_FULL_INSTRUCTION } from './teardown-instruction'
 import { readPacket, stampPacketIdentity } from './teardown'
 import { load as loadTdConfig } from './teardown-config'
 import * as logger from './logger'
@@ -185,12 +185,12 @@ function systemPrompt(): string {
       return (
         '你是资深抖音娱乐直播运营分析师，同时是带主播的直播运营。下面给你一份「直播拆解素材包」。\n' +
         '请严格按下面这段指令输出 Markdown 报告（它优先级最高，与素材包里的旧指令冲突时以它为准）：\n\n' +
-        V5_INSTRUCTION +
+        V5_FULL_INSTRUCTION +
         '\n\n如果这是分片，请只分析本片内容，并在开头注明「本片覆盖时间段」。'
       )
     }
   } catch { /* 配置读不到就按老逻辑 */ }
-  return SYSTEM_PROMPT
+  return SYSTEM_PROMPT + '\n\n' + EXECUTION_ADDENDUM
 }
 
 async function chatOnce(cfg: AiConfig, userContent: string, images: string[] = []): Promise<string> {

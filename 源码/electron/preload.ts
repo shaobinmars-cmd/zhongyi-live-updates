@@ -32,6 +32,8 @@ const api = {
   incubateImportStreamers: (text: string, operator: string, defaultTrack: string) => invoke('incubate:import-streamers', text, operator, defaultTrack),
   incubateDepartStreamer: (name: string, date: string) => invoke('incubate:depart-streamer', name, date),
   incubateRestoreStreamer: (name: string) => invoke('incubate:restore-streamer', name),
+  incubateUpdateStreamer: (name: string, patch: any) => invoke('incubate:update-streamer', name, patch),
+  incubateDeleteStreamer: (name: string) => invoke('incubate:delete-streamer', name),
   incubateInstruction: () => invoke('incubate:instruction'),
   incubateImport: (dir: string) => invoke('incubate:import', dir),
   incubateExportCsv: () => invoke('incubate:export-csv'),
@@ -43,6 +45,7 @@ const api = {
   incubatePlan: (streamer: string) => invoke('incubate:plan', streamer),
   incubateFeedbackSave: (row: any) => invoke('incubate:feedback-save', row),
   incubateCustomCourseAdd: (opts: any) => invoke('incubate:custom-course-add', opts),
+  incubateCustomCourseUpdate: (id: number, opts: any) => invoke('incubate:custom-course-update', id, opts),
   musicList: (search = '', status = '', folderId = '') => invoke('music:list', search, status, folderId),
   musicFolders: () => invoke('music:folders'),
   musicFolderAdd: (name: string) => invoke('music:folder-add', name),
@@ -69,6 +72,7 @@ const api = {
   syncGet: () => invoke('sync:get'),
   syncSet: (patch: any) => invoke('sync:set', patch),
   syncNow: () => invoke('sync:now'),
+  syncTest: () => invoke('sync:test'),
   syncReports: () => invoke('sync:reports'),
 
   // Room

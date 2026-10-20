@@ -274,9 +274,12 @@
       <div class="form-actions">
         <n-button type="primary" @click="saveSync">保存同步设置</n-button>
         <n-button :loading="syncBusy" @click="syncNow">立即上传本机数据</n-button>
+        <n-button :loading="syncTesting" @click="checkSync">上传通道自检</n-button>
         <n-button :loading="reportBusy" @click="makeReports">生成全部报表</n-button>
       </div>
       <div v-if="syncMsg" class="form-hint" style="white-space: pre-wrap">{{ syncMsg }}</div>
+      <div v-else-if="sync.lastResult" class="form-hint" style="white-space: pre-wrap">上次结果：{{ sync.lastResult }}</div>
+      <div v-if="sync.lastUploadAt" class="form-hint">上次上传：{{ new Date(sync.lastUploadAt).toLocaleString('zh-CN') }}；软件每小时检查，超过 20 小时自动补传。</div>
       <details v-if="syncLog.length" class="sync-log"><summary>查看同步日志</summary><pre>{{ syncLog.join('\n') }}</pre></details>
     </div>
     <!-- 公网更新、GitHub 同步、局域网升级 -->
@@ -290,6 +293,9 @@
         <n-input v-model:value="updUrl" size="small" placeholder="https://.../latest.json" />
         <n-button size="small" :loading="updChecking" @click="doCheckPublic">检查更新</n-button>
         <n-button size="small" type="warning" :loading="updBusy" @click="doUpgradePublic">一键升级</n-button>
+      </div>
+      <div class="update-links">
+        <button v-for="item in updateSources" :key="item.url" :class="{ active: updUrl === item.url }" @click="chooseUpdateSource(item.url)">{{ item.label }}</button>
       </div>
       <div v-if="updMsg" class="form-hint" style="white-space: pre-wrap">{{ updMsg }}</div>
     </div>
@@ -391,6 +397,7 @@ const colMsg = ref('')
 const cli = ref<any>({ serverUrl: '', token: '', autoDaily: true })
 const sync = ref<any>({ owner: 'shaobinmars-cmd', repo: 'zhongyi-data', token: '', operator: '', autoDaily: true, bossMode: false, lastUploadAt: 0, lastReportDate: '', lastResult: '' })
 const syncBusy = ref(false)
+const syncTesting = ref(false)
 const reportBusy = ref(false)
 const syncMsg = ref('')
 const syncLog = ref<string[]>([])
@@ -414,7 +421,14 @@ async function saveVision() {
 }
 loadVision()
 
-const DEFAULT_UPDATE_URL = 'https://ghfast.top/https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
+const RAW_UPDATE_URL = 'https://raw.githubusercontent.com/shaobinmars-cmd/zhongyi-live-updates/main/latest.json'
+const updateSources = [
+  { label: '首选 ghfast', url: 'https://ghfast.top/' + RAW_UPDATE_URL },
+  { label: '备用 1 ghproxy', url: 'https://ghproxy.net/' + RAW_UPDATE_URL },
+  { label: '备用 2 gh-proxy', url: 'https://gh-proxy.com/' + RAW_UPDATE_URL },
+  { label: 'GitHub 原文件', url: RAW_UPDATE_URL }
+]
+const DEFAULT_UPDATE_URL = updateSources[0].url
 const savedUpdateUrl = localStorage.getItem('upd_url') || ''
 const updUrl = ref(
   !savedUpdateUrl || /(?:fastly|cdn|gcore|testingcf)\.jsdelivr\.net\/gh\/shaobinmars-cmd\/zhongyi-live-updates/i.test(savedUpdateUrl)
@@ -426,6 +440,13 @@ const updInfo = ref<any>(null)
 const updChecking = ref(false)
 const updBusy = ref(false)
 const updPct = ref(0)
+
+function chooseUpdateSource(url: string) {
+  updUrl.value = url
+  localStorage.setItem('upd_url', url)
+  updMsg.value = '已切换更新入口，正在检查…'
+  doCheckPublic().catch(() => { /* 状态会在 updMsg 中显示 */ })
+}
 
 async function doCheckPublic() {
   localStorage.setItem('upd_url', updUrl.value.trim())
@@ -745,6 +766,20 @@ async function saveSync() {
   } catch (e: any) { syncMsg.value = '保存失败：' + (e?.message || e) }
 }
 
+async function checkSync() {
+  syncTesting.value = true
+  syncMsg.value = '正在检查 GitHub 数据仓库和写入权限…'
+  try {
+    await api().syncSet({ ...sync.value })
+    const r = await api().syncTest()
+    syncMsg.value = r?.message || (r?.ok ? '上传通道正常' : '上传通道异常')
+    syncLog.value = Array.isArray(r?.output) ? r.output.slice(-10) : []
+    await loadSync()
+  } catch (e: any) {
+    syncMsg.value = '自检失败：' + (e?.message || e)
+  } finally { syncTesting.value = false }
+}
+
 async function syncNow() {
   syncBusy.value = true
   syncMsg.value = '正在打包并上传本机数据…'
@@ -880,4 +915,7 @@ async function testAi() {
 .sync-log pre { margin-top:8px; max-height:220px; overflow:auto; white-space:pre-wrap; font:11px/1.6 Consolas,monospace; color:#385065; }
 .settings-advanced { max-width:1040px; margin:0 auto 16px; border:1px solid #e2ebf4; border-radius:12px; background:#fbfdff; padding:12px 16px; }
 .settings-advanced > summary { cursor:pointer; color:#56748a; font-size:12px; font-weight:600; }
+.update-links { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.update-links button { border:1px solid #d6e4ee; background:#fff; color:#476273; border-radius:999px; padding:4px 9px; font:11px var(--font); cursor:pointer; }
+.update-links button:hover, .update-links button.active { border-color:#0ea5b7; background:#ecfeff; color:#087f8c; }
 </style>

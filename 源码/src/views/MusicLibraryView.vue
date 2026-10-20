@@ -45,7 +45,8 @@
     <div class="rule-line">
       <span class="danger-rule">红色 = 抖音无版权，禁止播放</span>
       <span>当前：<b>{{ selectedFolder?.name || '未选择' }}</b></span>
-      <span>支持 XLSX / CSV 歌单，也支持 MP3 / WAV / M4A / FLAC / AAC / OGG / WMA 音频文件</span>
+      <span>支持 XLSX / CSV 歌单，也支持 MP3 / WAV / M4A / FLAC / AAC / OGG / OPUS / WMA / APE / AIFF / AMR 等音频文件</span>
+      <span class="format-note">酷狗、QQ音乐等下载的普通 MP3/FLAC 可直接导入；酷狗加密的 .kgm/.kgma/.vpr 属于受保护格式，不支持破解，请先在播放器里下载为未加密格式</span>
     </div>
 
     <section class="card table-card">
@@ -428,4 +429,5 @@ onMounted(load)
 .check-summary .warn { background: #fffbe6; border-color: #ffe58f; color: #ad6800; }
 .check-summary .ok { background: #f6ffed; border-color: #b7eb8f; color: #237804; }
 .check-tip { margin-bottom: 10px; color: #ad6800; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.format-note { flex-basis:100%; color:#8a5a00; background:#fffbe6; border:1px solid #ffe58f; border-radius:8px; padding:6px 9px; line-height:1.5; }
 </style>
