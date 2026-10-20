@@ -85,9 +85,11 @@
       <div class="form-actions">
         <n-button ghost size="small" @click="applyGenFromAi">自动带我当前配置</n-button>
         <n-button type="primary" @click="genInvite">生成并复制发给他</n-button>
+        <n-button ghost size="small" @click="genSyncCode">复制数据通道串</n-button>
         <span v-if="genMsg" class="success-text">{{ genMsg }}</span>
       </div>
       <n-input v-if="genText" v-model:value="genText" type="textarea" :rows="6" readonly style="margin-top: 10px" />
+      <div class="form-hint">「数据通道串」是运营每天自动上传数据用的国内通道配置，发一次即可；粘到运营端同一个框里点一键填好。</div>
     </div>
 
     <!-- 运营端自己的快捷填：粘管理员发的配置串 -->
@@ -339,6 +341,17 @@ function genInvite() {
   }
 }
 
+async function genSyncCode() {
+  try {
+    const s = await api().syncGet()
+    const token = String(s?.token || '')
+    if (!token) { genMsg.value = '先在本页保存数据同步配置（GitCode 令牌）'; return }
+    const code = 'ZYSYNC1|' + token
+    await navigator.clipboard.writeText(code)
+    genMsg.value = '数据通道串已复制，微信发给运营即可'
+  } catch { genMsg.value = '复制失败，请手动复制' }
+}
+
 // ---- 运营端：粘管理员的串 ----
 const configText = ref('')
 
@@ -346,6 +359,17 @@ async function pasteConfig() {
   let text = configText.value.trim()
   if (!text) {
     try { text = (await navigator.clipboard.readText()).trim() } catch { /* ignore */ }
+  }
+  // 数据通道串：ZYSYNC1|令牌 —— 一键写入国内数据上传通道
+  if (text.startsWith('ZYSYNC1|')) {
+    const token = text.slice(8).trim()
+    if (!token) { aiOk.value = false; aiMessage.value = '数据通道串里没带令牌'; return }
+    try {
+      await api().syncSet({ provider: 'gitcode', owner: 'gcw_7Nfzwkf5', repo: 'zhongyi-data', token })
+      aiOk.value = true
+      aiMessage.value = '数据通道已填好：每天自动上传到国内仓库'
+    } catch (ex: any) { aiOk.value = false; aiMessage.value = '保存失败：' + (ex?.message || ex) }
+    return
   }
   const body = text.startsWith('ZYAI1|') ? text.slice(6) : text
   const parts = body.split('|').map((s) => s.trim()).filter(Boolean)
