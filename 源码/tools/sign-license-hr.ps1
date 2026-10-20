@@ -71,9 +71,16 @@ $signArgs = @($signer, '--机器码', $mc, '--运营', '人事', '--备注', '�
 if ($due) { $signArgs += @('--到期', $due) }
 
 if ($useElectron) { $env:ELECTRON_RUN_AS_NODE = '1' }
+$before = Get-Date
 & $node @signArgs
 
-if ($LASTEXITCODE -ne 0) {
+# electron 顶 node 时退出码不可靠（签成了也可能非 0），以「项目根目录真的生成了
+# 授权_人事*.json」为准，退出码只作辅助参考。
+Start-Sleep -Milliseconds 500
+$hit = Get-ChildItem -LiteralPath $Root -Filter '授权_人事*.json' -ErrorAction SilentlyContinue |
+       Where-Object { $_.LastWriteTime -ge $before.AddSeconds(-5) } |
+       Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $hit) {
   Write-Host ''
   Write-Host '   [X] 签发失败，把上面的红字发给开发。' -ForegroundColor Red
   Pause-Exit 1
